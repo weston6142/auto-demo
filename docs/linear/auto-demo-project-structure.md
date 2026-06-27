@@ -32,13 +32,13 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then foundational setup or project-map issues that unblock later work, then the oldest backlog issue.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then foundational setup or project-map issues that unblock later work, then the oldest backlog issue. Current next product task: WES-135.
 
 ## Issues By Milestone
 
 ### 1. Public Repo And Project Foundation
 
-- WES-141: Document repo project structure and Linear map - Backlog - https://linear.app/weston-bushyeager/issue/WES-141/document-repo-project-structure-and-linear-map
+- WES-141: Document repo project structure and Linear map - Done - https://linear.app/weston-bushyeager/issue/WES-141/document-repo-project-structure-and-linear-map
 - WES-136: Milestone 1: Public repo and project foundation - Done - https://linear.app/weston-bushyeager/issue/WES-136/milestone-1-public-repo-and-project-foundation
 
 ### 2. Capture Runtime
@@ -73,8 +73,9 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 - Selected next task: WES-141, because the project map did not exist and this document is the local orientation layer for subsequent Linear work.
 - WES-141 expected outcome is concrete: create and maintain this repo-local Markdown map with project URL, milestone order, issue grouping, status conventions, spec links, and update rules.
+- 2026-06-27 recheck: Linear still shows WES-141 in Backlog, but this repo-local map now exists and contains the requested project URL, milestone order, issue grouping, status conventions, spec links, investigation notes, completion evidence, and update rules. Recommended next action is to add completion evidence to Linear and move WES-141 to Done before selecting WES-135 for the next product brainstorming cycle.
 - WES-136 has been brainstormed into a foundation design spec. The approved direction is an npm TypeScript workspace, MIT license, browser-first capture adapter boundary, minimal package skeleton, behavior-oriented tests, and minimal GitHub Actions CI for setup validation.
-- The current workspace contains planning docs only; no source tree or visible Git metadata was found during investigation.
+- The current workspace is a Git repository on `develop` with the npm workspace foundation committed, including root docs, tooling config, and package directories for agent, capture, CLI, editor, polish, project, and render.
 
 ## Completion Evidence
 
@@ -88,6 +89,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - Security baseline: `npm audit --cache ./.npm-cache` reported 0 vulnerabilities.
 - CI: `.github/workflows/ci.yml` runs `npm ci` and `npm run validate` on pull requests and pushes to `develop`; latest run passed on `develop`.
 - Linear: evidence comment added and WES-136 moved to Done.
+- WES-141: Repo-local project map exists at `docs/linear/auto-demo-project-structure.md` with project URL and ID, milestone order, issue grouping, selection rule, spec links, investigation notes, completion evidence, and update rules.
+- Linear: evidence comment added and WES-141 moved to Done on 2026-06-27.
 
 ## Update Rules
 
