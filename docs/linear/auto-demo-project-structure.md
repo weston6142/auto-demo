@@ -39,7 +39,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 ### 1. Public Repo And Project Foundation
 
 - WES-141: Document repo project structure and Linear map - Backlog - https://linear.app/weston-bushyeager/issue/WES-141/document-repo-project-structure-and-linear-map
-- WES-136: Milestone 1: Public repo and project foundation - Backlog - https://linear.app/weston-bushyeager/issue/WES-136/milestone-1-public-repo-and-project-foundation
+- WES-136: Milestone 1: Public repo and project foundation - Done - https://linear.app/weston-bushyeager/issue/WES-136/milestone-1-public-repo-and-project-foundation
 
 ### 2. Capture Runtime
 
@@ -86,7 +86,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - Capture direction: browser-first adapter contract with future Mac-native adapter room.
 - Validation: `npm run validate --cache ./.npm-cache` passed locally.
 - Security baseline: `npm audit --cache ./.npm-cache` reported 0 vulnerabilities.
-- CI: `.github/workflows/ci.yml` runs `npm ci` and `npm run validate` on pull requests and pushes to `develop`.
+- CI: `.github/workflows/ci.yml` runs `npm ci` and `npm run validate` on pull requests and pushes to `develop`; latest run passed on `develop`.
+- Linear: evidence comment added and WES-136 moved to Done.
 
 ## Update Rules
 
