@@ -1,0 +1,31 @@
+{
+  "name": "auto-demo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Agent-first demo recorder and editor for browser-first product walkthroughs.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "npm@10",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "npm run typecheck && npm run lint && npm test && npm run build && npm run format:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.1.9"
+  }
+}
