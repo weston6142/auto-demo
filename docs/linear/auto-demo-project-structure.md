@@ -12,7 +12,8 @@ Last updated: 2026-06-27
 ## Local Context
 
 - Current workspace: `/Users/weston.bushyeager/code/personal/auto-demo`
-- Git repository status: no `.git` repository is visible from this workspace.
+- Git repository: https://github.com/weston6142/auto-demo
+- Primary branch: `develop`
 - Product design spec: `docs/superpowers/specs/2026-06-27-auto-demo-balanced-mvp-design.md`
 - WES-136 foundation design spec: `docs/superpowers/specs/2026-06-27-wes-136-public-repo-foundation-design.md`
 
@@ -74,6 +75,18 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-141 expected outcome is concrete: create and maintain this repo-local Markdown map with project URL, milestone order, issue grouping, status conventions, spec links, and update rules.
 - WES-136 has been brainstormed into a foundation design spec. The approved direction is an npm TypeScript workspace, MIT license, browser-first capture adapter boundary, minimal package skeleton, behavior-oriented tests, and minimal GitHub Actions CI for setup validation.
 - The current workspace contains planning docs only; no source tree or visible Git metadata was found during investigation.
+
+## Completion Evidence
+
+- WES-136: Repository foundation initialized as an npm TypeScript workspace.
+- GitHub repository: https://github.com/weston6142/auto-demo
+- Primary/default branch: `develop`
+- License: MIT.
+- Package boundaries: CLI, project, capture, polish, render, editor, and agent.
+- Capture direction: browser-first adapter contract with future Mac-native adapter room.
+- Validation: `npm run validate --cache ./.npm-cache` passed locally.
+- Security baseline: `npm audit --cache ./.npm-cache` reported 0 vulnerabilities.
+- CI: `.github/workflows/ci.yml` runs `npm ci` and `npm run validate` on pull requests and pushes to `develop`.
 
 ## Update Rules
 
