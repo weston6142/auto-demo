@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 ## Project
 
@@ -16,6 +16,9 @@ Last updated: 2026-06-27
 - Primary branch: `develop`
 - Product design spec: `docs/superpowers/specs/2026-06-27-auto-demo-balanced-mvp-design.md`
 - WES-136 foundation design spec: `docs/superpowers/specs/2026-06-27-wes-136-public-repo-foundation-design.md`
+- WES-135 capture backend research: `docs/research/2026-06-27-capture-backend-research.md`
+- WES-144 capture runtime design spec: `docs/superpowers/specs/2026-06-28-wes-144-capture-runtime-design.md`
+- WES-143 implementation plan: `docs/superpowers/plans/2026-06-28-wes-143-browser-capture-adapter-cli-contract-plan.md`
 
 ## Milestone Order
 
@@ -32,7 +35,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then foundational setup or project-map issues that unblock later work, then the oldest backlog issue. Current next product task: WES-135.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task: WES-144.
 
 ## Issues By Milestone
 
@@ -43,7 +46,13 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 2. Capture Runtime
 
-- WES-135: Milestone 2: Capture runtime - Backlog - https://linear.app/weston-bushyeager/issue/WES-135/milestone-2-capture-runtime
+- WES-135: Milestone 2: Capture runtime tracker - Backlog - https://linear.app/weston-bushyeager/issue/WES-135/milestone-2-capture-runtime-tracker
+- WES-144: Capture runtime design/spec - Backlog - https://linear.app/weston-bushyeager/issue/WES-144/capture-runtime-designspec
+- WES-143: Browser capture adapter skeleton and CLI contract - Backlog - https://linear.app/weston-bushyeager/issue/WES-143/browser-capture-adapter-skeleton-and-cli-contract
+- WES-142: Playwright viewport media recording - Backlog - https://linear.app/weston-bushyeager/issue/WES-142/playwright-viewport-media-recording
+- WES-145: Browser interaction metadata capture - Backlog - https://linear.app/weston-bushyeager/issue/WES-145/browser-interaction-metadata-capture
+- WES-147: Capture bundle writer and manifest - Backlog - https://linear.app/weston-bushyeager/issue/WES-147/capture-bundle-writer-and-manifest
+- WES-146: Failure handling and capture validation tests - Backlog - https://linear.app/weston-bushyeager/issue/WES-146/failure-handling-and-capture-validation-tests
 
 ### 3. Demo Project Format
 
@@ -76,6 +85,15 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-06-27 recheck: Linear still shows WES-141 in Backlog, but this repo-local map now exists and contains the requested project URL, milestone order, issue grouping, status conventions, spec links, investigation notes, completion evidence, and update rules. Recommended next action is to add completion evidence to Linear and move WES-141 to Done before selecting WES-135 for the next product brainstorming cycle.
 - WES-136 has been brainstormed into a foundation design spec. The approved direction is an npm TypeScript workspace, MIT license, browser-first capture adapter boundary, minimal package skeleton, behavior-oriented tests, and minimal GitHub Actions CI for setup validation.
 - The current workspace is a Git repository on `develop` with the npm workspace foundation committed, including root docs, tooling config, and package directories for agent, capture, CLI, editor, polish, project, and render.
+- 2026-06-27 next-task investigation: Linear shows WES-136 and WES-141 as Done; all remaining milestone issues are Backlog. WES-135 is the earliest incomplete milestone issue, so it is the selected next product task.
+- WES-135 summary: implement CLI capture that records screen media and structured interaction metadata while an agent performs a walkthrough.
+- WES-135 readiness: ready for brainstorming. The desired outcome is concrete enough for design, and the approved balanced MVP spec names the key constraints: browser-first capture, CLI/agent non-interactive operation, reusable project output, partial-artifact preservation on failures, and behavior-oriented tests. The main design decisions still to make are the first capture backend, event metadata model, project handoff boundary, and failure/cleanup behavior.
+- WES-135 capture backend research saved on 2026-06-27. Recommendation: start with a Playwright-controlled browser capture adapter and first-class interaction metadata; defer native OS/window capture and Chrome extension capture to later adapters.
+- 2026-06-27 scope correction: WES-135 was too large as a single implementation issue, so it is now a Capture Runtime milestone tracker with focused child issues. Next task is WES-144, which should produce the design/spec before implementation begins.
+- Capture Runtime dependency order: WES-143 is blocked by WES-144; WES-142 and WES-145 are blocked by WES-143; WES-147 is blocked by WES-142 and WES-145; WES-146 is blocked by WES-142, WES-145, and WES-147.
+- 2026-06-28 next-task investigation: Linear still shows WES-144 and all Capture Runtime child issues in Backlog. WES-144 remains the selected next task because it is the first unblocked child issue in the earliest incomplete milestone.
+- WES-144 readiness: ready for brainstorming. Its scope is a design/spec for `autodemo capture`, capture adapter boundaries, temporary bundle layout, interaction event model, lifecycle/timestamp/artifact/failure rules, and explicit deferrals to Demo Project Format. The acceptance criteria are concrete and the work is small enough for one spec cycle.
+- WES-144 recommended first implementation issue after design approval: WES-143, "Browser capture adapter skeleton and CLI contract", unless the design reveals a missing prerequisite.
 
 ## Completion Evidence
 
@@ -91,6 +109,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - Linear: evidence comment added and WES-136 moved to Done.
 - WES-141: Repo-local project map exists at `docs/linear/auto-demo-project-structure.md` with project URL and ID, milestone order, issue grouping, selection rule, spec links, investigation notes, completion evidence, and update rules.
 - Linear: evidence comment added and WES-141 moved to Done on 2026-06-27.
+- WES-143: Browser capture adapter skeleton and CLI contract implemented with capture package contracts, `autodemo capture` argument validation, injected browser adapter invocation, default unsupported backend failure, and behavior-oriented tests.
 
 ## Update Rules
 

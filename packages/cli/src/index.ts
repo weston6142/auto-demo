@@ -1,13 +1,53 @@
 #!/usr/bin/env node
 
+import { spawn } from "node:child_process";
+import {
+  createUnsupportedBrowserCaptureAdapter,
+  DEFAULT_BROWSER_VIEWPORT,
+  type BrowserCaptureAdapter,
+  type BrowserCaptureOptions,
+  type CaptureChildCommand,
+  type CaptureSession,
+  type CaptureStopReason,
+  type CaptureViewport,
+} from "@auto-demo/capture";
+
 export type CliResult = {
   exitCode: number;
   stdout: string;
   stderr: string;
 };
 
+/** Dependencies that let tests or future integrations run capture without the default backend/process hooks. */
+export type CliDependencies = {
+  browserCaptureAdapter: BrowserCaptureAdapter;
+  createInterruptWatcher?: () => InterruptWatcher;
+  now: () => Date;
+  runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
+};
+
+export type ChildCommandResult = {
+  exitCode: number;
+};
+
+type InterruptWatcher = {
+  interrupted: Promise<void>;
+  dispose: () => void;
+};
+
+type ParsedCaptureCommand =
+  | {
+      ok: true;
+      options: BrowserCaptureOptions;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
 const plannedCommands = new Set(["init", "capture", "generate", "export", "open", "validate"]);
 
+/** Runs synchronous CLI commands. Use `runCliAsync` for `autodemo capture`. */
 export function runCli(args: string[]): CliResult {
   const [command] = args;
 
@@ -16,6 +56,14 @@ export function runCli(args: string[]): CliResult {
       exitCode: 0,
       stdout: helpText(),
       stderr: "",
+    };
+  }
+
+  if (command === "capture") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo capture requires async execution.\n",
     };
   }
 
@@ -34,6 +82,269 @@ export function runCli(args: string[]): CliResult {
   };
 }
 
+/** Runs the CLI, including the async browser capture lifecycle. */
+export async function runCliAsync(
+  args: string[],
+  dependencies: CliDependencies = defaultDependencies(),
+): Promise<CliResult> {
+  const [command, ...rest] = args;
+
+  if (command !== "capture") {
+    return runCli(args);
+  }
+
+  if (hasCaptureHelpFlag(rest)) {
+    return {
+      exitCode: 0,
+      stdout: captureHelpText(),
+      stderr: "",
+    };
+  }
+
+  const parsed = parseCaptureCommand(rest, dependencies.now);
+  if (!parsed.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${parsed.message}\n`,
+    };
+  }
+
+  const result = await dependencies.browserCaptureAdapter.start(parsed.options);
+  if (!result.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${result.message}\n`,
+    };
+  }
+
+  const interruptWatcher =
+    dependencies.createInterruptWatcher === undefined
+      ? createSigintInterruptWatcher()
+      : dependencies.createInterruptWatcher();
+  let childResult: ChildCommandResult;
+  try {
+    const lifecycleResult =
+      parsed.options.childCommand === undefined
+        ? await waitForManualInterrupt(interruptWatcher)
+        : await waitForChildCommandOrInterrupt(
+            dependencies.runChildCommand(parsed.options.childCommand),
+            interruptWatcher,
+          );
+
+    if (lifecycleResult.kind === "interrupted") {
+      return await stopCaptureSession(result.session, "interrupted", 130, "Capture interrupted.\n");
+    }
+
+    childResult = lifecycleResult.childResult;
+  } catch (error) {
+    await result.session.stop("failed");
+    throw error;
+  } finally {
+    interruptWatcher.dispose();
+  }
+
+  const stopReason = childResult.exitCode === 0 ? "completed" : "failed";
+  return await stopCaptureSession(
+    result.session,
+    stopReason,
+    childResult.exitCode,
+    childResult.exitCode === 0 ? "" : `Child command exited with code ${childResult.exitCode}.\n`,
+  );
+}
+
+async function waitForManualInterrupt(
+  interruptWatcher: InterruptWatcher,
+): Promise<{ kind: "interrupted" }> {
+  await interruptWatcher.interrupted;
+  return { kind: "interrupted" };
+}
+
+async function waitForChildCommandOrInterrupt(
+  childCommand: Promise<ChildCommandResult>,
+  interruptWatcher: InterruptWatcher,
+): Promise<
+  | {
+      kind: "child";
+      childResult: ChildCommandResult;
+    }
+  | {
+      kind: "interrupted";
+    }
+> {
+  return await Promise.race([
+    childCommand.then((childResult) => ({ kind: "child", childResult }) as const),
+    interruptWatcher.interrupted.then(() => ({ kind: "interrupted" }) as const),
+  ]);
+}
+
+async function stopCaptureSession(
+  session: CaptureSession,
+  reason: CaptureStopReason,
+  exitCode: number,
+  stderr: string,
+): Promise<CliResult> {
+  const stopResult = await session.stop(reason);
+  if (!stopResult.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${stopResult.message}\n`,
+    };
+  }
+
+  return {
+    exitCode,
+    stdout: `Capture bundle: ${stopResult.output.manifestPath}\n`,
+    stderr,
+  };
+}
+
+function hasCaptureHelpFlag(args: string[]): boolean {
+  for (const arg of args) {
+    if (arg === "--") {
+      return false;
+    }
+
+    if (arg === "--help" || arg === "-h") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function parseCaptureCommand(args: string[], now: () => Date): ParsedCaptureCommand {
+  let url: string | undefined;
+  let outputDir: string | undefined;
+  let viewport: CaptureViewport = { ...DEFAULT_BROWSER_VIEWPORT };
+  let childCommand: CaptureChildCommand | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--") {
+      const childParts = args.slice(index + 1);
+      if (childParts.length > 0) {
+        const [command, ...commandArgs] = childParts;
+        childCommand = { command, args: commandArgs };
+      }
+      break;
+    }
+
+    if (arg === "--url") {
+      url = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--out") {
+      outputDir = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--viewport") {
+      const parsedViewport = parseViewport(args[index + 1]);
+      if (parsedViewport === undefined) {
+        return {
+          ok: false,
+          message: "autodemo capture --viewport must use <width>x<height>, for example 1280x720.",
+        };
+      }
+      viewport = parsedViewport;
+      index += 1;
+      continue;
+    }
+
+    return {
+      ok: false,
+      message: `Unknown autodemo capture option: ${arg}`,
+    };
+  }
+
+  if (url === undefined || url.trim().length === 0) {
+    return { ok: false, message: "autodemo capture requires --url <url>." };
+  }
+
+  if (outputDir === undefined || outputDir.trim().length === 0) {
+    return { ok: false, message: "autodemo capture requires --out <capture-dir>." };
+  }
+
+  const options: BrowserCaptureOptions = {
+    source: { kind: "browser", url },
+    outputDir,
+    viewport,
+    startedAt: now().toISOString(),
+  };
+
+  if (childCommand !== undefined) {
+    options.childCommand = childCommand;
+  }
+
+  return {
+    ok: true,
+    options,
+  };
+}
+
+function parseViewport(input: string | undefined): CaptureViewport | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+
+  const match = /^(?<width>[1-9]\d*)x(?<height>[1-9]\d*)$/.exec(input);
+  if (match?.groups === undefined) {
+    return undefined;
+  }
+
+  return {
+    width: Number.parseInt(match.groups.width, 10),
+    height: Number.parseInt(match.groups.height, 10),
+  };
+}
+
+function defaultDependencies(): CliDependencies {
+  return {
+    browserCaptureAdapter: createUnsupportedBrowserCaptureAdapter(),
+    createInterruptWatcher: createSigintInterruptWatcher,
+    now: () => new Date(),
+    runChildCommand: runChildCommandWithInheritedStdio,
+  };
+}
+
+function createSigintInterruptWatcher(): InterruptWatcher {
+  let dispose = () => {};
+  const interrupted = new Promise<void>((resolve) => {
+    const onSigint = () => {
+      resolve();
+    };
+    process.once("SIGINT", onSigint);
+    dispose = () => {
+      process.off("SIGINT", onSigint);
+    };
+  });
+
+  return { interrupted, dispose };
+}
+
+async function runChildCommandWithInheritedStdio(
+  command: CaptureChildCommand,
+): Promise<ChildCommandResult> {
+  return await new Promise((resolve) => {
+    const child = spawn(command.command, command.args, { stdio: "inherit" });
+
+    child.on("error", () => {
+      resolve({ exitCode: 1 });
+    });
+
+    child.on("exit", (code) => {
+      resolve({ exitCode: code ?? 1 });
+    });
+  });
+}
+
 function helpText(): string {
   return [
     "Usage: autodemo <command>",
@@ -49,8 +360,24 @@ function helpText(): string {
   ].join("\n");
 }
 
+function captureHelpText(): string {
+  return [
+    "Usage: autodemo capture --url <url> --out <capture-dir> [--viewport <width>x<height>] [--] [walkthrough command...]",
+    "",
+    "Options:",
+    "  --url <url>                  Browser URL to capture",
+    "  --out <capture-dir>          Capture bundle output directory",
+    "  --viewport <width>x<height>  Browser viewport size (default: 1280x720)",
+    "  -h, --help                   Show capture help",
+    "",
+    "Child command:",
+    "  -- [walkthrough command...]  Optional command to run while capture is active",
+    "",
+  ].join("\n");
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const result = runCli(process.argv.slice(2));
+  const result = await runCliAsync(process.argv.slice(2));
   process.stdout.write(result.stdout);
   process.stderr.write(result.stderr);
   process.exitCode = result.exitCode;

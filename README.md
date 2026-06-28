@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in foundation setup. The package structure and command contracts exist before real capture, polish, render, and editor behavior.
+This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now has an argument-parsing and adapter-invocation contract before real Playwright recording, polish, render, and editor behavior.
 
 ## Quick Start
 
@@ -19,15 +19,15 @@ npm run validate
 
 ## Packages
 
-- `@auto-demo/cli`: `autodemo` command entrypoint and command routing.
+- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, and the async `capture` CLI contract.
 - `@auto-demo/project`: Auto Demo project schema, path conventions, validation, and load/save APIs.
-- `@auto-demo/capture`: browser-first capture adapter contract with room for native Mac capture later.
+- `@auto-demo/capture`: browser-first capture adapter contract, default viewport, capture manifest path helper, and unsupported-backend adapter.
 - `@auto-demo/polish`: edit-decision generation boundary.
 - `@auto-demo/render`: export and render orchestration boundary.
 - `@auto-demo/editor`: local browser editor package.
 - `@auto-demo/agent`: agent-facing workflow helpers.
 
-## Planned CLI
+## CLI
 
 ```bash
 autodemo init
@@ -38,7 +38,15 @@ autodemo open
 autodemo validate
 ```
 
-Commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
+`autodemo capture` is the first partially implemented command:
+
+```bash
+autodemo capture --url <url> --out <capture-dir> [--viewport <width>x<height>] [--] [walkthrough command...]
+```
+
+The CLI validates `--url`, `--out`, optional `--viewport`, and an optional child command after `--`. The default viewport is `1280x720`. Until the browser recording backend lands, the default capture adapter fails clearly with `Browser capture is not implemented yet.`
+
+Other planned commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
 
 ## Development
 

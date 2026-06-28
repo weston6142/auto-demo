@@ -8,6 +8,8 @@
 
 **Tech Stack:** Node.js 22, npm workspaces, TypeScript, Vitest, ESLint, Prettier, GitHub Actions, MIT license.
 
+**Current status:** Historical implementation plan. WES-143 supersedes the capture package and `autodemo capture` snippets below with `BrowserCaptureAdapter`, `BrowserCaptureOptions`, `runCliAsync`, and the unsupported browser backend documented in the WES-144 capture runtime design.
+
 ---
 
 ## File Structure

@@ -108,11 +108,13 @@ Project validation should distinguish these cases:
 
 `packages/capture` should define:
 
-- `CaptureAdapter`
+- `BrowserCaptureAdapter`
 - `CaptureSession`
-- `CaptureOptions`
+- `BrowserCaptureOptions`
 - browser-first capture source metadata
 - capture output shape that can become an Auto Demo project
+
+The initial WES-136 placeholder contract was superseded by WES-143, which narrowed the public adapter surface to browser capture, added `DEFAULT_BROWSER_VIEWPORT`, `CAPTURE_MANIFEST_FILENAME`, `manifestPathForOutputDir()`, and `createUnsupportedBrowserCaptureAdapter()`, and deferred native capture to a later adapter.
 
 `packages/cli` should expose the planned command surface:
 
@@ -123,7 +125,7 @@ Project validation should distinguish these cases:
 - `autodemo open`
 - `autodemo validate`
 
-Commands that are not implemented should print a clear "not implemented yet" message and exit nonzero. Unknown commands should print help and exit nonzero.
+Commands that are not implemented should print a clear "not implemented yet" message and exit nonzero. `autodemo capture` now has an async argument-parsing and adapter-invocation contract, but the default browser backend still fails clearly until recording is implemented. Unknown commands should print help and exit nonzero.
 
 `packages/polish`, `packages/render`, `packages/editor`, and `packages/agent` should start as minimal packages with public module boundaries and short README notes explaining their future role.
 
