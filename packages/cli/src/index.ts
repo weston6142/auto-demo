@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { spawn } from "node:child_process";
 import {
   createUnsupportedBrowserCaptureAdapter,
   DEFAULT_BROWSER_VIEWPORT,
@@ -18,6 +19,11 @@ export type CliResult = {
 export type CliDependencies = {
   browserCaptureAdapter: BrowserCaptureAdapter;
   now: () => Date;
+  runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
+};
+
+export type ChildCommandResult = {
+  exitCode: number;
 };
 
 type ParsedCaptureCommand =
@@ -94,10 +100,25 @@ export async function runCliAsync(
     };
   }
 
+  const childResult =
+    parsed.options.childCommand === undefined
+      ? { exitCode: 0 }
+      : await dependencies.runChildCommand(parsed.options.childCommand);
+  const stopReason = childResult.exitCode === 0 ? "completed" : "failed";
+  const stopResult = await result.session.stop(stopReason);
+  if (!stopResult.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${stopResult.message}\n`,
+    };
+  }
+
   return {
-    exitCode: 0,
-    stdout: `Capture bundle: ${result.manifestPath}\n`,
-    stderr: "",
+    exitCode: childResult.exitCode,
+    stdout: `Capture bundle: ${stopResult.output.manifestPath}\n`,
+    stderr:
+      childResult.exitCode === 0 ? "" : `Child command exited with code ${childResult.exitCode}.\n`,
   };
 }
 
@@ -195,7 +216,24 @@ function defaultDependencies(): CliDependencies {
   return {
     browserCaptureAdapter: createUnsupportedBrowserCaptureAdapter(),
     now: () => new Date(),
+    runChildCommand: runChildCommandWithInheritedStdio,
   };
+}
+
+async function runChildCommandWithInheritedStdio(
+  command: CaptureChildCommand,
+): Promise<ChildCommandResult> {
+  return await new Promise((resolve) => {
+    const child = spawn(command.command, command.args, { stdio: "inherit" });
+
+    child.on("error", () => {
+      resolve({ exitCode: 1 });
+    });
+
+    child.on("exit", (code) => {
+      resolve({ exitCode: code ?? 1 });
+    });
+  });
 }
 
 function helpText(): string {
