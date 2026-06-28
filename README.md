@@ -17,6 +17,12 @@ npm install
 npm run validate
 ```
 
+To use `autodemo capture` or run browser smoke tests on a fresh machine, install Playwright's Chromium browser once:
+
+```bash
+npm run setup:browser
+```
+
 ## Packages
 
 - `@auto-demo/cli`: `autodemo` command entrypoint, command routing, and the async `capture` CLI contract.
@@ -57,7 +63,10 @@ npm test
 npm run build
 npm run format:check
 npm run validate
+npm run test:smoke
 ```
+
+Run `npm run setup:browser` before `npm run test:smoke` when Playwright's Chromium browser is not already installed.
 
 Tests should verify behavior and user-facing outputs rather than implementation details.
 

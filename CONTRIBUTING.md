@@ -9,6 +9,12 @@ npm install
 npm run validate
 ```
 
+For capture development or browser smoke tests, install Playwright's Chromium browser once:
+
+```bash
+npm run setup:browser
+```
+
 ## Local Checks
 
 ```bash
