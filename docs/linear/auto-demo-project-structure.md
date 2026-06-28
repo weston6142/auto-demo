@@ -19,7 +19,7 @@ Last updated: 2026-06-28
 - WES-135 capture backend research: `docs/research/2026-06-27-capture-backend-research.md`
 - WES-144 capture runtime design spec: `docs/superpowers/specs/2026-06-28-wes-144-capture-runtime-design.md`
 - WES-143 implementation plan: `docs/superpowers/plans/2026-06-28-wes-143-browser-capture-adapter-cli-contract-plan.md`
-- Current WES-142 baseline: `packages/cli/src/index.ts` owns capture lifecycle orchestration; `packages/capture/src/index.ts` still exposes only the unsupported browser adapter.
+- Current WES-142 baseline: `packages/cli/src/index.ts` owns capture lifecycle orchestration; `packages/capture/src/index.ts` exposes the default Playwright browser adapter plus unsupported fallback behavior.
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -38,7 +38,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task: WES-142.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next local product task after the WES-142 code change: WES-145, pending Linear recheck.
 
 ## Issues By Milestone
 
@@ -52,7 +52,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-135: Milestone 2: Capture runtime tracker - Backlog - https://linear.app/weston-bushyeager/issue/WES-135/milestone-2-capture-runtime-tracker
 - WES-144: Capture runtime design/spec - Done - https://linear.app/weston-bushyeager/issue/WES-144/capture-runtime-designspec
 - WES-143: Browser capture adapter skeleton and CLI contract - Done - https://linear.app/weston-bushyeager/issue/WES-143/browser-capture-adapter-skeleton-and-cli-contract
-- WES-142: Playwright viewport media recording - Backlog - https://linear.app/weston-bushyeager/issue/WES-142/playwright-viewport-media-recording
+- WES-142: Playwright viewport media recording - Locally implemented, Linear state not rechecked - https://linear.app/weston-bushyeager/issue/WES-142/playwright-viewport-media-recording
 - WES-145: Browser interaction metadata capture - Backlog - https://linear.app/weston-bushyeager/issue/WES-145/browser-interaction-metadata-capture
 - WES-147: Capture bundle writer and manifest - Backlog - https://linear.app/weston-bushyeager/issue/WES-147/capture-bundle-writer-and-manifest
 - WES-146: Failure handling and capture validation tests - Backlog - https://linear.app/weston-bushyeager/issue/WES-146/failure-handling-and-capture-validation-tests
@@ -103,7 +103,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-142 readiness: ready for brainstorming with narrowed scope. It should not redesign CLI lifecycle. Its expected outcome is concrete: add a real Playwright-backed browser capture adapter that launches bundled Chromium only, records viewport media to the capture output directory, stops deterministically through the existing session API, and reports media artifact path plus basic timing. Connecting to an existing browser, interaction metadata, durable manifest writing, and broad failure validation remain deferred to later Capture Runtime issues.
 - WES-142 open design decisions: how to introduce Playwright as a package dependency; whether the default adapter should switch from unsupported to Playwright in this issue; where backend-specific code should live inside `packages/capture`; the minimal output shape needed for media path and timing before WES-147 writes the durable manifest; and how to test behavior without asserting private Playwright mechanics or requiring brittle real-browser tests for every case.
 - 2026-06-28 sync-gate design: future `linear-next-task` runs should use a `pre-task` sync gate before issue selection, and Linear-backed finishing flows should use a blocking `completion-gate` before work is called done. The gate reconciles the active issue, project map, and nearby dependency issues so future tasks do not start from stale scope.
-- 2026-06-28 pre-task sync: Linear shows WES-143 and WES-144 as Done, with WES-142, WES-145, WES-147, WES-146, and WES-135 still Backlog in Capture Runtime. Local code confirms the current adapter remains unsupported in `packages/capture/src/index.ts` while `packages/cli/src/index.ts` already owns capture lifecycle orchestration. The next-task pointer remains WES-142.
+- 2026-06-28 pre-task sync: Linear shows WES-143 and WES-144 as Done, with WES-142, WES-145, WES-147, WES-146, and WES-135 still Backlog in Capture Runtime. Local code at that point confirmed the adapter remained unsupported while `packages/cli/src/index.ts` already owned capture lifecycle orchestration. WES-142 was the next-task pointer before local Playwright implementation.
 - 2026-06-28 WES-142 implementation plan: Playwright becomes the default `autodemo capture` backend. WES-142 returns media path and timing from `session.stop()` but does not write the durable manifest; WES-147 still owns manifest writing. WES-145 still owns interaction metadata.
 
 ## Completion Evidence

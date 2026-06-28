@@ -27,7 +27,7 @@ npm run setup:browser
 
 - `@auto-demo/cli`: `autodemo` command entrypoint, command routing, and the async `capture` CLI contract.
 - `@auto-demo/project`: Auto Demo project schema, path conventions, validation, and load/save APIs.
-- `@auto-demo/capture`: browser-first capture adapter contract, default viewport, capture manifest path helper, and unsupported-backend adapter.
+- `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, capture output paths, and unsupported-backend fallback.
 - `@auto-demo/polish`: edit-decision generation boundary.
 - `@auto-demo/render`: export and render orchestration boundary.
 - `@auto-demo/editor`: local browser editor package.

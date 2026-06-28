@@ -15,6 +15,8 @@ WES-144 defines the first capture-runtime contract before implementation begins.
 
 This spec intentionally does not define the final Auto Demo project schema. The capture bundle is a milestone-local handoff format for WES-143 through WES-146. Demo Project Format will later formalize how capture bundles become full Auto Demo projects.
 
+Current implementation note: WES-142 later made Playwright viewport media recording the default CLI capture backend. Interaction metadata and durable manifest writing remain assigned to WES-145 and WES-147.
+
 ## Goals
 
 - Define the first `autodemo capture` CLI lifecycle.
@@ -122,7 +124,7 @@ type BrowserCaptureAdapter = {
 };
 ```
 
-The WES-143 implementation uses these names for the public boundary and includes `createUnsupportedBrowserCaptureAdapter()` as the default backend until Playwright media recording lands. The separation remains: CLI manages process lifecycle, capture manages browser/media/metadata/artifacts.
+The WES-143 implementation uses these names for the public boundary and initially included `createUnsupportedBrowserCaptureAdapter()` as the default backend. WES-142 later switched the default backend to Playwright while retaining the unsupported adapter as an explicit fallback. The separation remains: CLI manages process lifecycle, capture manages browser/media/metadata/artifacts.
 
 ## Lifecycle
 
