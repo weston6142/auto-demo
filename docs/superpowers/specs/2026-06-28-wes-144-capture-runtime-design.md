@@ -11,7 +11,7 @@ Date: 2026-06-28
 
 ## Summary
 
-WES-144 defines the first capture-runtime contract before implementation begins. The initial runtime is browser-first and CLI-owned: `autodemo capture` launches the browser context, starts media and metadata capture, runs an optional child walkthrough command, stops capture when that command exits, and writes a temporary capture bundle.
+WES-144 defines the first capture-runtime contract before implementation begins. The full initial runtime is browser-first and CLI-owned: `autodemo capture` launches the browser context, starts media and metadata capture, runs an optional child walkthrough command, stops capture when that command exits, and writes a temporary capture bundle. The WES-143 implementation slice wires the CLI contract to an unsupported browser adapter without real Playwright recording.
 
 This spec intentionally does not define the final Auto Demo project schema. The capture bundle is a milestone-local handoff format for WES-143 through WES-146. Demo Project Format will later formalize how capture bundles become full Auto Demo projects.
 
@@ -70,7 +70,7 @@ Required arguments:
 
 Optional arguments:
 
-- `--viewport`: deterministic viewport size. If omitted, use a documented default such as `1280x720`.
+- `--viewport`: deterministic viewport size. If omitted, use the documented `1280x720` default.
 - Child command after `--`: command run while capture is active.
 
 CLI responsibilities:
@@ -116,13 +116,13 @@ type CaptureSession = {
   stop(reason: "completed" | "failed" | "interrupted"): Promise<CaptureStopResult>;
 };
 
-type CaptureAdapter = {
+type BrowserCaptureAdapter = {
   readonly kind: "browser";
   start(options: BrowserCaptureOptions): Promise<CaptureStartResult>;
 };
 ```
 
-The implementation can refine names and exact result shapes, but the boundary should preserve the separation: CLI manages process lifecycle, capture manages browser/media/metadata/artifacts.
+The WES-143 implementation uses these names for the public boundary and includes `createUnsupportedBrowserCaptureAdapter()` as the default backend until Playwright media recording lands. The separation remains: CLI manages process lifecycle, capture manages browser/media/metadata/artifacts.
 
 ## Lifecycle
 

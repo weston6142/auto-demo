@@ -18,6 +18,7 @@ export type CliResult = {
   stderr: string;
 };
 
+/** Dependencies that let tests or future integrations run capture without the default backend/process hooks. */
 export type CliDependencies = {
   browserCaptureAdapter: BrowserCaptureAdapter;
   createInterruptWatcher?: () => InterruptWatcher;
@@ -46,6 +47,7 @@ type ParsedCaptureCommand =
 
 const plannedCommands = new Set(["init", "capture", "generate", "export", "open", "validate"]);
 
+/** Runs synchronous CLI commands. Use `runCliAsync` for `autodemo capture`. */
 export function runCli(args: string[]): CliResult {
   const [command] = args;
 
@@ -80,6 +82,7 @@ export function runCli(args: string[]): CliResult {
   };
 }
 
+/** Runs the CLI, including the async browser capture lifecycle. */
 export async function runCliAsync(
   args: string[],
   dependencies: CliDependencies = defaultDependencies(),

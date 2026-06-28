@@ -1,4 +1,5 @@
 export const CAPTURE_MANIFEST_FILENAME = "capture.manifest.json";
+/** Default browser viewport used by `autodemo capture` when `--viewport` is omitted. */
 export const DEFAULT_BROWSER_VIEWPORT = {
   width: 1280,
   height: 720,
@@ -77,6 +78,7 @@ export type BrowserCaptureAdapter = {
   start(options: BrowserCaptureOptions): Promise<CaptureStartResult>;
 };
 
+/** Creates the default backend for this implementation slice, which reports unsupported capture. */
 export function createUnsupportedBrowserCaptureAdapter(): BrowserCaptureAdapter {
   return {
     kind: "browser",
@@ -92,6 +94,7 @@ export function createUnsupportedBrowserCaptureAdapter(): BrowserCaptureAdapter 
   };
 }
 
+/** Returns the capture manifest path inside a capture bundle output directory. */
 export function manifestPathForOutputDir(outputDir: string): string {
   return `${trimTrailingSlashes(outputDir)}/${CAPTURE_MANIFEST_FILENAME}`;
 }
