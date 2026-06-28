@@ -9,13 +9,13 @@ export type CapturePaths = {
 
 export function buildCapturePaths(outputDir: string): CapturePaths {
   const normalizedOutputDir = trimTrailingSlashes(outputDir);
-  const mediaDir = `${normalizedOutputDir}/media`;
+  const mediaDir = appendPathSegment(normalizedOutputDir, "media");
 
   return {
     outputDir: normalizedOutputDir,
-    manifestPath: `${normalizedOutputDir}/capture.manifest.json`,
+    manifestPath: appendPathSegment(normalizedOutputDir, "capture.manifest.json"),
     mediaDir,
-    viewportMediaPath: `${mediaDir}/viewport.webm`,
+    viewportMediaPath: appendPathSegment(mediaDir, "viewport.webm"),
   };
 }
 
@@ -24,5 +24,13 @@ export async function ensureCaptureDirectories(paths: CapturePaths): Promise<voi
 }
 
 function trimTrailingSlashes(value: string): string {
+  if (/^\/+$/.test(value)) {
+    return "/";
+  }
+
   return value.replace(/\/+$/, "");
+}
+
+function appendPathSegment(base: string, segment: string): string {
+  return base === "/" ? `/${segment}` : `${base}/${segment}`;
 }

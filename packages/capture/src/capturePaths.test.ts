@@ -13,6 +13,15 @@ describe("buildCapturePaths", () => {
       viewportMediaPath: "demo-capture/media/viewport.webm",
     });
   });
+
+  it("preserves a filesystem root output directory", () => {
+    expect(buildCapturePaths("/")).toEqual({
+      outputDir: "/",
+      manifestPath: "/capture.manifest.json",
+      mediaDir: "/media",
+      viewportMediaPath: "/media/viewport.webm",
+    });
+  });
 });
 
 describe("ensureCaptureDirectories", () => {

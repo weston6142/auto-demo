@@ -55,4 +55,8 @@ describe("manifestPathForOutputDir", () => {
   it("normalizes trailing slashes", () => {
     expect(manifestPathForOutputDir("demo-capture///")).toBe("demo-capture/capture.manifest.json");
   });
+
+  it("preserves a filesystem root output directory", () => {
+    expect(manifestPathForOutputDir("/")).toBe("/capture.manifest.json");
+  });
 });
