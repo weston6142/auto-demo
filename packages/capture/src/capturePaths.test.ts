@@ -22,6 +22,10 @@ describe("buildCapturePaths", () => {
       viewportMediaPath: "/media/viewport.webm",
     });
   });
+
+  it("rejects an empty output directory", () => {
+    expect(() => buildCapturePaths("")).toThrow("Capture output directory is required.");
+  });
 });
 
 describe("ensureCaptureDirectories", () => {

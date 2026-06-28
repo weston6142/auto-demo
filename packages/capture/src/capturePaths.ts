@@ -9,6 +9,10 @@ export type CapturePaths = {
 
 export function buildCapturePaths(outputDir: string): CapturePaths {
   const normalizedOutputDir = trimTrailingSlashes(outputDir);
+  if (normalizedOutputDir.length === 0) {
+    throw new Error("Capture output directory is required.");
+  }
+
   const mediaDir = appendPathSegment(normalizedOutputDir, "media");
 
   return {
