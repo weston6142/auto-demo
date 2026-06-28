@@ -12,6 +12,8 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:smoke": "npm --workspace @auto-demo/capture run test:smoke",
+    "setup:browser": "npm --workspace @auto-demo/capture run setup:browser --",
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write .",

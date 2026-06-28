@@ -1,3 +1,5 @@
+import { createPlaywrightBrowserCaptureAdapter } from "./playwrightAdapter.js";
+
 export const CAPTURE_MANIFEST_FILENAME = "capture.manifest.json";
 /** Default browser viewport used by `autodemo capture` when `--viewport` is omitted. */
 export const DEFAULT_BROWSER_VIEWPORT = {
@@ -32,12 +34,27 @@ export type BrowserCaptureOptions = {
 
 export type CaptureStopReason = "completed" | "failed" | "interrupted";
 
+export type CaptureMediaArtifact = {
+  kind: "viewport";
+  path: string;
+  contentType: "video/webm";
+};
+
+export type CaptureTiming = {
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+};
+
 export type CaptureOutput = {
   outputDir: string;
   manifestPath: string;
+  media: CaptureMediaArtifact;
+  timing: CaptureTiming;
 };
 
-export type CaptureErrorCode = "capture_not_implemented";
+export type CaptureErrorCode =
+  "capture_not_implemented" | "capture_setup_failed" | "capture_stop_failed";
 
 export type CaptureStartResult =
   | {
@@ -78,7 +95,10 @@ export type BrowserCaptureAdapter = {
   start(options: BrowserCaptureOptions): Promise<CaptureStartResult>;
 };
 
-/** Creates the default backend for this implementation slice, which reports unsupported capture. */
+/** Creates the default browser capture backend for real viewport media recording. */
+export { createPlaywrightBrowserCaptureAdapter };
+
+/** Creates a backend that reports unsupported capture. Useful for tests and explicit fallback behavior. */
 export function createUnsupportedBrowserCaptureAdapter(): BrowserCaptureAdapter {
   return {
     kind: "browser",
