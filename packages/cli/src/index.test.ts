@@ -231,6 +231,47 @@ describe("runCliAsync capture", () => {
     expect(stopReasons).toEqual(["failed"]);
   });
 
+  it("stops a started capture as failed when the child command throws", async () => {
+    const stopReasons: string[] = [];
+
+    await expect(
+      runCliAsync(
+        ["capture", "--url", "https://example.com", "--out", "demo-capture", "--", "npm", "test"],
+        {
+          now: () => new Date("2026-06-28T12:00:00.000Z"),
+          async runChildCommand() {
+            throw new Error("spawn failed");
+          },
+          browserCaptureAdapter: {
+            kind: "browser",
+            async start(options) {
+              return {
+                ok: true,
+                outputDir: options.outputDir,
+                manifestPath: `${options.outputDir}/capture.manifest.json`,
+                session: {
+                  outputDir: options.outputDir,
+                  manifestPath: `${options.outputDir}/capture.manifest.json`,
+                  async stop(reason) {
+                    stopReasons.push(reason);
+                    return {
+                      ok: true,
+                      output: {
+                        outputDir: options.outputDir,
+                        manifestPath: `${options.outputDir}/capture.manifest.json`,
+                      },
+                    };
+                  },
+                },
+              };
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow("spawn failed");
+    expect(stopReasons).toEqual(["failed"]);
+  });
+
   it("uses the default viewport and no child command when omitted", async () => {
     const starts: unknown[] = [];
 

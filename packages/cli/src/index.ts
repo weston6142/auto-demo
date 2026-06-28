@@ -100,10 +100,17 @@ export async function runCliAsync(
     };
   }
 
-  const childResult =
-    parsed.options.childCommand === undefined
-      ? { exitCode: 0 }
-      : await dependencies.runChildCommand(parsed.options.childCommand);
+  let childResult: ChildCommandResult;
+  try {
+    childResult =
+      parsed.options.childCommand === undefined
+        ? { exitCode: 0 }
+        : await dependencies.runChildCommand(parsed.options.childCommand);
+  } catch (error) {
+    await result.session.stop("failed");
+    throw error;
+  }
+
   const stopReason = childResult.exitCode === 0 ? "completed" : "failed";
   const stopResult = await result.session.stop(stopReason);
   if (!stopResult.ok) {
