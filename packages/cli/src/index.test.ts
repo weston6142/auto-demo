@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
+import type { CaptureOutput } from "@auto-demo/capture";
 import { runCli, runCliAsync } from "./index.js";
+
+function fakeCaptureOutput(outputDir: string): CaptureOutput {
+  return {
+    outputDir,
+    manifestPath: `${outputDir}/capture.manifest.json`,
+    media: {
+      kind: "viewport",
+      path: `${outputDir}/media/viewport.webm`,
+      contentType: "video/webm",
+    },
+    timing: {
+      startedAt: "2026-06-28T12:00:00.000Z",
+      endedAt: "2026-06-28T12:00:02.500Z",
+      durationMs: 2500,
+    },
+  };
+}
 
 describe("runCli", () => {
   it("prints help with a zero exit code", () => {
@@ -116,10 +134,7 @@ describe("runCliAsync capture", () => {
                 async stop() {
                   return {
                     ok: true,
-                    output: {
-                      outputDir: options.outputDir,
-                      manifestPath: `${options.outputDir}/capture.manifest.json`,
-                    },
+                    output: fakeCaptureOutput(options.outputDir),
                   };
                 },
               },
@@ -175,10 +190,7 @@ describe("runCliAsync capture", () => {
                   events.push(`stop:${reason}`);
                   return {
                     ok: true,
-                    output: {
-                      outputDir: options.outputDir,
-                      manifestPath: `${options.outputDir}/capture.manifest.json`,
-                    },
+                    output: fakeCaptureOutput(options.outputDir),
                   };
                 },
               },
@@ -220,10 +232,7 @@ describe("runCliAsync capture", () => {
                   stopReasons.push(reason);
                   return {
                     ok: true,
-                    output: {
-                      outputDir: options.outputDir,
-                      manifestPath: `${options.outputDir}/capture.manifest.json`,
-                    },
+                    output: fakeCaptureOutput(options.outputDir),
                   };
                 },
               },
@@ -266,10 +275,7 @@ describe("runCliAsync capture", () => {
                     stopReasons.push(reason);
                     return {
                       ok: true,
-                      output: {
-                        outputDir: options.outputDir,
-                        manifestPath: `${options.outputDir}/capture.manifest.json`,
-                      },
+                      output: fakeCaptureOutput(options.outputDir),
                     };
                   },
                 },
@@ -306,10 +312,7 @@ describe("runCliAsync capture", () => {
                   stopReasons.push(reason);
                   return {
                     ok: true,
-                    output: {
-                      outputDir: options.outputDir,
-                      manifestPath: `${options.outputDir}/capture.manifest.json`,
-                    },
+                    output: fakeCaptureOutput(options.outputDir),
                   };
                 },
               },
@@ -365,10 +368,7 @@ describe("runCliAsync capture", () => {
                   stopReasons.push(reason);
                   return {
                     ok: true,
-                    output: {
-                      outputDir: options.outputDir,
-                      manifestPath: `${options.outputDir}/capture.manifest.json`,
-                    },
+                    output: fakeCaptureOutput(options.outputDir),
                   };
                 },
               },

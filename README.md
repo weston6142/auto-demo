@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now has an argument-parsing and adapter-invocation contract before real Playwright recording, polish, render, and editor behavior.
+This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording. Interaction metadata, durable manifests, polish, render, and editor behavior are still planned work.
 
 ## Quick Start
 
@@ -44,7 +44,7 @@ autodemo validate
 autodemo capture --url <url> --out <capture-dir> [--viewport <width>x<height>] [--] [walkthrough command...]
 ```
 
-The CLI validates `--url`, `--out`, optional `--viewport`, and an optional child command after `--`. The default viewport is `1280x720`. Until the browser recording backend lands, the default capture adapter fails clearly with `Browser capture is not implemented yet.`
+The CLI validates `--url`, `--out`, optional `--viewport`, and an optional child command after `--`. The default viewport is `1280x720`. The default browser backend uses Playwright's bundled Chromium and records viewport media without OS screen-recording permissions.
 
 Other planned commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
 

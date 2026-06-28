@@ -14,7 +14,7 @@
     "pretypecheck": "npm run build -w @auto-demo/capture",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build -w @auto-demo/capture",
-    "test": "vitest run src/index.test.ts"
+    "test": "vitest run src/index.test.ts src/defaultBackend.test.ts"
   },
   "dependencies": {
     "@auto-demo/capture": "0.0.0"

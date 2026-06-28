@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import {
-  createUnsupportedBrowserCaptureAdapter,
+  createPlaywrightBrowserCaptureAdapter,
   DEFAULT_BROWSER_VIEWPORT,
   type BrowserCaptureAdapter,
   type BrowserCaptureOptions,
@@ -307,7 +307,7 @@ function parseViewport(input: string | undefined): CaptureViewport | undefined {
 
 function defaultDependencies(): CliDependencies {
   return {
-    browserCaptureAdapter: createUnsupportedBrowserCaptureAdapter(),
+    browserCaptureAdapter: createPlaywrightBrowserCaptureAdapter(),
     createInterruptWatcher: createSigintInterruptWatcher,
     now: () => new Date(),
     runChildCommand: runChildCommandWithInheritedStdio,
