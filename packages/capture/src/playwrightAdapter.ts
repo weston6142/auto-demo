@@ -90,7 +90,7 @@ async function startPlaywrightCapture(
 class PlaywrightCaptureSession {
   public readonly outputDir: string;
   public readonly manifestPath: string;
-  private stopResult: CaptureStopResult | undefined;
+  private stopPromise: Promise<CaptureStopResult> | undefined;
 
   constructor(
     private readonly state: {
@@ -107,17 +107,21 @@ class PlaywrightCaptureSession {
   }
 
   async stop(_reason: CaptureStopReason): Promise<CaptureStopResult> {
-    if (this.stopResult !== undefined) {
-      return this.stopResult;
+    if (this.stopPromise !== undefined) {
+      return await this.stopPromise;
     }
 
+    this.stopPromise = this.stopOnce();
+    return await this.stopPromise;
+  }
+
+  private async stopOnce(): Promise<CaptureStopResult> {
     const video = this.state.page.video();
     try {
       await this.state.context.close();
       await this.state.browser.close();
       if (video === null) {
-        this.stopResult = this.stopFailed();
-        return this.stopResult;
+        return this.stopFailed();
       }
 
       const generatedPath = await video.path();
@@ -137,12 +141,10 @@ class PlaywrightCaptureSession {
           durationMs: endedAt.getTime() - this.state.startedAt.getTime(),
         },
       };
-      this.stopResult = { ok: true, output };
-      return this.stopResult;
+      return { ok: true, output };
     } catch {
       await closeQuietly(this.state.browser);
-      this.stopResult = this.stopFailed();
-      return this.stopResult;
+      return this.stopFailed();
     }
   }
 

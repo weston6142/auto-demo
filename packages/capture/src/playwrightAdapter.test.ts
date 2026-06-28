@@ -180,6 +180,67 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(second).toEqual(first);
   });
 
+  it("shares the same stop result when stop calls overlap", async () => {
+    class SlowContext extends FakeContext {
+      public closeCalls = 0;
+      private resolveClose: (() => void) | undefined;
+      public readonly closeStarted = new Promise<void>((resolve) => {
+        this.resolveClose = resolve;
+      });
+
+      override async close(): Promise<void> {
+        this.closeCalls += 1;
+        await this.closeStarted;
+      }
+
+      finishClose(): void {
+        this.closed = true;
+        this.resolveClose?.();
+      }
+    }
+
+    class SlowDriver implements PlaywrightDriver {
+      public readonly context: SlowContext;
+      public readonly browser: FakeBrowser;
+
+      constructor(videoPath: string) {
+        this.context = new SlowContext(new FakePage(new FakeVideo(videoPath)));
+        this.browser = new FakeBrowser(this.context);
+      }
+
+      async launchChromium(): Promise<PlaywrightBrowser> {
+        return this.browser;
+      }
+    }
+
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-concurrent-stop-"));
+    const driver = new SlowDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: () => new Date("2026-06-28T12:00:00.000Z"),
+    });
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-28T12:00:00.000Z",
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const first = startResult.session.stop("completed");
+    const second = startResult.session.stop("interrupted");
+    await Promise.resolve();
+    driver.context.finishClose();
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    expect(secondResult).toEqual(firstResult);
+    expect(driver.context.closeCalls).toBe(1);
+  });
+
   it("returns a setup failure and closes partial resources when navigation fails", async () => {
     class FailingPage extends FakePage {
       override async goto(): Promise<void> {
