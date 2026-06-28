@@ -272,6 +272,123 @@ describe("runCliAsync capture", () => {
     expect(stopReasons).toEqual(["failed"]);
   });
 
+  it("keeps manual capture running until interrupted", async () => {
+    const stopReasons: string[] = [];
+
+    const runPromise = runCliAsync(
+      ["capture", "--url", "https://example.com", "--out", "demo-capture"],
+      {
+        now: () => new Date("2026-06-28T12:00:00.000Z"),
+        async runChildCommand() {
+          return { exitCode: 0 };
+        },
+        browserCaptureAdapter: {
+          kind: "browser",
+          async start(options) {
+            return {
+              ok: true,
+              outputDir: options.outputDir,
+              manifestPath: `${options.outputDir}/capture.manifest.json`,
+              session: {
+                outputDir: options.outputDir,
+                manifestPath: `${options.outputDir}/capture.manifest.json`,
+                async stop(reason) {
+                  stopReasons.push(reason);
+                  return {
+                    ok: true,
+                    output: {
+                      outputDir: options.outputDir,
+                      manifestPath: `${options.outputDir}/capture.manifest.json`,
+                    },
+                  };
+                },
+              },
+            };
+          },
+        },
+      },
+    );
+
+    const earlyOutcome = await Promise.race([
+      runPromise,
+      new Promise<"waiting">((resolve) => {
+        setImmediate(() => resolve("waiting"));
+      }),
+    ]);
+
+    expect(earlyOutcome).toBe("waiting");
+
+    process.emit("SIGINT", "SIGINT");
+
+    await expect(runPromise).resolves.toEqual({
+      exitCode: 130,
+      stdout: "Capture bundle: demo-capture/capture.manifest.json\n",
+      stderr: "Capture interrupted.\n",
+    });
+    expect(stopReasons).toEqual(["interrupted"]);
+  });
+
+  it("stops a running child capture as interrupted on SIGINT", async () => {
+    const stopReasons: string[] = [];
+    let finishChild: ((result: { exitCode: number }) => void) | undefined;
+
+    const runPromise = runCliAsync(
+      ["capture", "--url", "https://example.com", "--out", "demo-capture", "--", "npm", "test"],
+      {
+        now: () => new Date("2026-06-28T12:00:00.000Z"),
+        async runChildCommand() {
+          return await new Promise((resolve) => {
+            finishChild = resolve;
+          });
+        },
+        browserCaptureAdapter: {
+          kind: "browser",
+          async start(options) {
+            return {
+              ok: true,
+              outputDir: options.outputDir,
+              manifestPath: `${options.outputDir}/capture.manifest.json`,
+              session: {
+                outputDir: options.outputDir,
+                manifestPath: `${options.outputDir}/capture.manifest.json`,
+                async stop(reason) {
+                  stopReasons.push(reason);
+                  return {
+                    ok: true,
+                    output: {
+                      outputDir: options.outputDir,
+                      manifestPath: `${options.outputDir}/capture.manifest.json`,
+                    },
+                  };
+                },
+              },
+            };
+          },
+        },
+      },
+    );
+
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+    process.emit("SIGINT", "SIGINT");
+
+    const outcome = await Promise.race([
+      runPromise,
+      new Promise<"not-interrupted">((resolve) => {
+        setImmediate(() => resolve("not-interrupted"));
+      }),
+    ]);
+    finishChild?.({ exitCode: 0 });
+
+    expect(outcome).toEqual({
+      exitCode: 130,
+      stdout: "Capture bundle: demo-capture/capture.manifest.json\n",
+      stderr: "Capture interrupted.\n",
+    });
+    expect(stopReasons).toEqual(["interrupted"]);
+  });
+
   it("uses the default viewport and no child command when omitted", async () => {
     const starts: unknown[] = [];
 

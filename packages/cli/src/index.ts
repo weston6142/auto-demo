@@ -7,6 +7,8 @@ import {
   type BrowserCaptureAdapter,
   type BrowserCaptureOptions,
   type CaptureChildCommand,
+  type CaptureSession,
+  type CaptureStopReason,
   type CaptureViewport,
 } from "@auto-demo/capture";
 
@@ -18,12 +20,18 @@ export type CliResult = {
 
 export type CliDependencies = {
   browserCaptureAdapter: BrowserCaptureAdapter;
+  createInterruptWatcher?: () => InterruptWatcher;
   now: () => Date;
   runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
 };
 
 export type ChildCommandResult = {
   exitCode: number;
+};
+
+type InterruptWatcher = {
+  interrupted: Promise<void>;
+  dispose: () => void;
 };
 
 type ParsedCaptureCommand =
@@ -100,19 +108,73 @@ export async function runCliAsync(
     };
   }
 
+  const interruptWatcher =
+    dependencies.createInterruptWatcher === undefined
+      ? createSigintInterruptWatcher()
+      : dependencies.createInterruptWatcher();
   let childResult: ChildCommandResult;
   try {
-    childResult =
+    const lifecycleResult =
       parsed.options.childCommand === undefined
-        ? { exitCode: 0 }
-        : await dependencies.runChildCommand(parsed.options.childCommand);
+        ? await waitForManualInterrupt(interruptWatcher)
+        : await waitForChildCommandOrInterrupt(
+            dependencies.runChildCommand(parsed.options.childCommand),
+            interruptWatcher,
+          );
+
+    if (lifecycleResult.kind === "interrupted") {
+      return await stopCaptureSession(result.session, "interrupted", 130, "Capture interrupted.\n");
+    }
+
+    childResult = lifecycleResult.childResult;
   } catch (error) {
     await result.session.stop("failed");
     throw error;
+  } finally {
+    interruptWatcher.dispose();
   }
 
   const stopReason = childResult.exitCode === 0 ? "completed" : "failed";
-  const stopResult = await result.session.stop(stopReason);
+  return await stopCaptureSession(
+    result.session,
+    stopReason,
+    childResult.exitCode,
+    childResult.exitCode === 0 ? "" : `Child command exited with code ${childResult.exitCode}.\n`,
+  );
+}
+
+async function waitForManualInterrupt(
+  interruptWatcher: InterruptWatcher,
+): Promise<{ kind: "interrupted" }> {
+  await interruptWatcher.interrupted;
+  return { kind: "interrupted" };
+}
+
+async function waitForChildCommandOrInterrupt(
+  childCommand: Promise<ChildCommandResult>,
+  interruptWatcher: InterruptWatcher,
+): Promise<
+  | {
+      kind: "child";
+      childResult: ChildCommandResult;
+    }
+  | {
+      kind: "interrupted";
+    }
+> {
+  return await Promise.race([
+    childCommand.then((childResult) => ({ kind: "child", childResult }) as const),
+    interruptWatcher.interrupted.then(() => ({ kind: "interrupted" }) as const),
+  ]);
+}
+
+async function stopCaptureSession(
+  session: CaptureSession,
+  reason: CaptureStopReason,
+  exitCode: number,
+  stderr: string,
+): Promise<CliResult> {
+  const stopResult = await session.stop(reason);
   if (!stopResult.ok) {
     return {
       exitCode: 1,
@@ -122,10 +184,9 @@ export async function runCliAsync(
   }
 
   return {
-    exitCode: childResult.exitCode,
+    exitCode,
     stdout: `Capture bundle: ${stopResult.output.manifestPath}\n`,
-    stderr:
-      childResult.exitCode === 0 ? "" : `Child command exited with code ${childResult.exitCode}.\n`,
+    stderr,
   };
 }
 
@@ -222,9 +283,25 @@ function parseViewport(input: string | undefined): CaptureViewport | undefined {
 function defaultDependencies(): CliDependencies {
   return {
     browserCaptureAdapter: createUnsupportedBrowserCaptureAdapter(),
+    createInterruptWatcher: createSigintInterruptWatcher,
     now: () => new Date(),
     runChildCommand: runChildCommandWithInheritedStdio,
   };
+}
+
+function createSigintInterruptWatcher(): InterruptWatcher {
+  let dispose = () => {};
+  const interrupted = new Promise<void>((resolve) => {
+    const onSigint = () => {
+      resolve();
+    };
+    process.once("SIGINT", onSigint);
+    dispose = () => {
+      process.off("SIGINT", onSigint);
+    };
+  });
+
+  return { interrupted, dispose };
 }
 
 async function runChildCommandWithInheritedStdio(
