@@ -1,10 +1,34 @@
 #!/usr/bin/env node
 
+import {
+  createUnsupportedBrowserCaptureAdapter,
+  DEFAULT_BROWSER_VIEWPORT,
+  type BrowserCaptureAdapter,
+  type BrowserCaptureOptions,
+  type CaptureChildCommand,
+  type CaptureViewport,
+} from "@auto-demo/capture";
+
 export type CliResult = {
   exitCode: number;
   stdout: string;
   stderr: string;
 };
+
+export type CliDependencies = {
+  browserCaptureAdapter: BrowserCaptureAdapter;
+  now: () => Date;
+};
+
+type ParsedCaptureCommand =
+  | {
+      ok: true;
+      options: BrowserCaptureOptions;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
 
 const plannedCommands = new Set(["init", "capture", "generate", "export", "open", "validate"]);
 
@@ -16,6 +40,14 @@ export function runCli(args: string[]): CliResult {
       exitCode: 0,
       stdout: helpText(),
       stderr: "",
+    };
+  }
+
+  if (command === "capture") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo capture requires async execution.\n",
     };
   }
 
@@ -31,6 +63,138 @@ export function runCli(args: string[]): CliResult {
     exitCode: 1,
     stdout: helpText(),
     stderr: `Unknown command: ${command}\n`,
+  };
+}
+
+export async function runCliAsync(
+  args: string[],
+  dependencies: CliDependencies = defaultDependencies(),
+): Promise<CliResult> {
+  const [command, ...rest] = args;
+
+  if (command !== "capture") {
+    return runCli(args);
+  }
+
+  const parsed = parseCaptureCommand(rest, dependencies.now);
+  if (!parsed.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${parsed.message}\n`,
+    };
+  }
+
+  const result = await dependencies.browserCaptureAdapter.start(parsed.options);
+  if (!result.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${result.message}\n`,
+    };
+  }
+
+  return {
+    exitCode: 0,
+    stdout: `Capture bundle: ${result.manifestPath}\n`,
+    stderr: "",
+  };
+}
+
+function parseCaptureCommand(args: string[], now: () => Date): ParsedCaptureCommand {
+  let url: string | undefined;
+  let outputDir: string | undefined;
+  let viewport: CaptureViewport = { ...DEFAULT_BROWSER_VIEWPORT };
+  let childCommand: CaptureChildCommand | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--") {
+      const childParts = args.slice(index + 1);
+      if (childParts.length > 0) {
+        const [command, ...commandArgs] = childParts;
+        childCommand = { command, args: commandArgs };
+      }
+      break;
+    }
+
+    if (arg === "--url") {
+      url = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--out") {
+      outputDir = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--viewport") {
+      const parsedViewport = parseViewport(args[index + 1]);
+      if (parsedViewport === undefined) {
+        return {
+          ok: false,
+          message: "autodemo capture --viewport must use <width>x<height>, for example 1280x720.",
+        };
+      }
+      viewport = parsedViewport;
+      index += 1;
+      continue;
+    }
+
+    return {
+      ok: false,
+      message: `Unknown autodemo capture option: ${arg}`,
+    };
+  }
+
+  if (url === undefined || url.trim().length === 0) {
+    return { ok: false, message: "autodemo capture requires --url <url>." };
+  }
+
+  if (outputDir === undefined || outputDir.trim().length === 0) {
+    return { ok: false, message: "autodemo capture requires --out <capture-dir>." };
+  }
+
+  const options: BrowserCaptureOptions = {
+    source: { kind: "browser", url },
+    outputDir,
+    viewport,
+    startedAt: now().toISOString(),
+  };
+
+  if (childCommand !== undefined) {
+    options.childCommand = childCommand;
+  }
+
+  return {
+    ok: true,
+    options,
+  };
+}
+
+function parseViewport(input: string | undefined): CaptureViewport | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+
+  const match = /^(?<width>[1-9]\d*)x(?<height>[1-9]\d*)$/.exec(input);
+  if (match?.groups === undefined) {
+    return undefined;
+  }
+
+  return {
+    width: Number.parseInt(match.groups.width, 10),
+    height: Number.parseInt(match.groups.height, 10),
+  };
+}
+
+function defaultDependencies(): CliDependencies {
+  return {
+    browserCaptureAdapter: createUnsupportedBrowserCaptureAdapter(),
+    now: () => new Date(),
   };
 }
 
@@ -50,7 +214,7 @@ function helpText(): string {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const result = runCli(process.argv.slice(2));
+  const result = await runCliAsync(process.argv.slice(2));
   process.stdout.write(result.stdout);
   process.stderr.write(result.stderr);
   process.exitCode = result.exitCode;

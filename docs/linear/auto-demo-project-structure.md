@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 ## Project
 
@@ -17,6 +17,8 @@ Last updated: 2026-06-27
 - Product design spec: `docs/superpowers/specs/2026-06-27-auto-demo-balanced-mvp-design.md`
 - WES-136 foundation design spec: `docs/superpowers/specs/2026-06-27-wes-136-public-repo-foundation-design.md`
 - WES-135 capture backend research: `docs/research/2026-06-27-capture-backend-research.md`
+- WES-144 capture runtime design spec: `docs/superpowers/specs/2026-06-28-wes-144-capture-runtime-design.md`
+- WES-143 implementation plan: `docs/superpowers/plans/2026-06-28-wes-143-browser-capture-adapter-cli-contract-plan.md`
 
 ## Milestone Order
 
@@ -89,6 +91,9 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-135 capture backend research saved on 2026-06-27. Recommendation: start with a Playwright-controlled browser capture adapter and first-class interaction metadata; defer native OS/window capture and Chrome extension capture to later adapters.
 - 2026-06-27 scope correction: WES-135 was too large as a single implementation issue, so it is now a Capture Runtime milestone tracker with focused child issues. Next task is WES-144, which should produce the design/spec before implementation begins.
 - Capture Runtime dependency order: WES-143 is blocked by WES-144; WES-142 and WES-145 are blocked by WES-143; WES-147 is blocked by WES-142 and WES-145; WES-146 is blocked by WES-142, WES-145, and WES-147.
+- 2026-06-28 next-task investigation: Linear still shows WES-144 and all Capture Runtime child issues in Backlog. WES-144 remains the selected next task because it is the first unblocked child issue in the earliest incomplete milestone.
+- WES-144 readiness: ready for brainstorming. Its scope is a design/spec for `autodemo capture`, capture adapter boundaries, temporary bundle layout, interaction event model, lifecycle/timestamp/artifact/failure rules, and explicit deferrals to Demo Project Format. The acceptance criteria are concrete and the work is small enough for one spec cycle.
+- WES-144 recommended first implementation issue after design approval: WES-143, "Browser capture adapter skeleton and CLI contract", unless the design reveals a missing prerequisite.
 
 ## Completion Evidence
 
@@ -104,6 +109,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - Linear: evidence comment added and WES-136 moved to Done.
 - WES-141: Repo-local project map exists at `docs/linear/auto-demo-project-structure.md` with project URL and ID, milestone order, issue grouping, selection rule, spec links, investigation notes, completion evidence, and update rules.
 - Linear: evidence comment added and WES-141 moved to Done on 2026-06-27.
+- WES-143: Browser capture adapter skeleton and CLI contract implemented with capture package contracts, `autodemo capture` argument validation, injected browser adapter invocation, default unsupported backend failure, and behavior-oriented tests.
 
 ## Update Rules
 
