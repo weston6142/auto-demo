@@ -54,6 +54,7 @@ async function startPlaywrightCapture(
       viewport: options.viewport,
       recordVideo: {
         dir: paths.mediaDir,
+        size: options.viewport,
       },
     });
     const page = await context.newPage();

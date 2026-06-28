@@ -100,7 +100,10 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(driver.browser.newContextOptions).toEqual([
       {
         viewport: { width: 1440, height: 900 },
-        recordVideo: { dir: `${outputDir}/media` },
+        recordVideo: {
+          dir: `${outputDir}/media`,
+          size: { width: 1440, height: 900 },
+        },
       },
     ]);
     expect(driver.browser.context.page.gotos).toEqual(["https://example.com/demo"]);

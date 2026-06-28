@@ -14,6 +14,7 @@ export type PlaywrightContextOptions = {
   viewport: CaptureViewport;
   recordVideo: {
     dir: string;
+    size: CaptureViewport;
   };
 };
 
