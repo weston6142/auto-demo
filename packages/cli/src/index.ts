@@ -90,6 +90,14 @@ export async function runCliAsync(
     return runCli(args);
   }
 
+  if (hasCaptureHelpFlag(rest)) {
+    return {
+      exitCode: 0,
+      stdout: captureHelpText(),
+      stderr: "",
+    };
+  }
+
   const parsed = parseCaptureCommand(rest, dependencies.now);
   if (!parsed.ok) {
     return {
@@ -188,6 +196,20 @@ async function stopCaptureSession(
     stdout: `Capture bundle: ${stopResult.output.manifestPath}\n`,
     stderr,
   };
+}
+
+function hasCaptureHelpFlag(args: string[]): boolean {
+  for (const arg of args) {
+    if (arg === "--") {
+      return false;
+    }
+
+    if (arg === "--help" || arg === "-h") {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function parseCaptureCommand(args: string[], now: () => Date): ParsedCaptureCommand {
@@ -331,6 +353,22 @@ function helpText(): string {
     "  export     Render selected variants",
     "  open       Open the local editor",
     "  validate   Validate an Auto Demo project",
+    "",
+  ].join("\n");
+}
+
+function captureHelpText(): string {
+  return [
+    "Usage: autodemo capture --url <url> --out <capture-dir> [--viewport <width>x<height>] [--] [walkthrough command...]",
+    "",
+    "Options:",
+    "  --url <url>                  Browser URL to capture",
+    "  --out <capture-dir>          Capture bundle output directory",
+    "  --viewport <width>x<height>  Browser viewport size (default: 1280x720)",
+    "  -h, --help                   Show capture help",
+    "",
+    "Child command:",
+    "  -- [walkthrough command...]  Optional command to run while capture is active",
     "",
   ].join("\n");
 }

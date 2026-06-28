@@ -30,6 +30,16 @@ describe("runCli", () => {
 });
 
 describe("runCliAsync capture", () => {
+  it("prints capture help with a zero exit code", async () => {
+    const result = await runCliAsync(["capture", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Usage: autodemo capture --url <url> --out <capture-dir>");
+    expect(result.stdout).toContain("--viewport <width>x<height>");
+    expect(result.stdout).toContain("-- [walkthrough command...]");
+    expect(result.stderr).toBe("");
+  });
+
   it("requires --url", async () => {
     const result = await runCliAsync(["capture", "--out", "demo-capture"]);
 
