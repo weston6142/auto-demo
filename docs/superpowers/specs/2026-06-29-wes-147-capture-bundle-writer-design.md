@@ -13,7 +13,7 @@ Date: 2026-06-29
 
 WES-142 made Playwright viewport media recording the default capture backend. WES-145 added browser interaction metadata capture to `metadata/events.jsonl`. Before WES-147, the capture runtime already created the bundle directories and returned media, metadata, and timing paths from `CaptureOutput`, but `capture.manifest.json` was only a future handoff path.
 
-WES-147 fills that gap. It writes the temporary Capture Runtime bundle manifest and exposes a lightweight validation check. This remains capture-runtime input for the later Demo Project Format milestone, not the final Auto Demo project schema.
+WES-147 fills that gap. It writes the temporary Capture Runtime bundle manifest and exposes a lightweight validation check. WES-146 later hardened started-capture failures so failed/interrupted stops write stable non-secret diagnostics when artifacts exist, and stop failures best-effort preserve a diagnostic manifest. This remains capture-runtime input for the later Demo Project Format milestone, not the final Auto Demo project schema.
 
 ## Goals
 
@@ -101,7 +101,7 @@ capture-dir/
 }
 ```
 
-For `failed` and `interrupted` stops that flush cleanly, `status` records the stop reason. `childCommand.exitCode` is nullable because the current Playwright adapter writes the manifest from capture options and stop reason, while the CLI process exit code is reported separately. `error` is either `null` or a small object with a code and message when the package API caller can provide non-secret error details. Error content must not include raw environment values, cookies, local storage, request bodies, or typed values.
+For `failed` and `interrupted` stops that flush cleanly, `status` records the stop reason and `error` uses stable codes such as `capture_failed` or `capture_interrupted`. When stopping a started capture fails after media and metadata exist, the runtime best-effort writes a `failed` manifest with `capture_stop_failed` diagnostics before returning the stop failure. `childCommand.exitCode` is nullable because the current Playwright adapter writes the manifest from capture options and stop reason, while the CLI process exit code is reported separately. `error` is either `null` or a small object with a code and message when the package API caller can provide non-secret error details. Error content must not include raw environment values, cookies, local storage, request bodies, or typed values, and manifest writing strips URL query/fragment secrets from diagnostic messages.
 
 ### Package API
 

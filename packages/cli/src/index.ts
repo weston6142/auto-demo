@@ -229,7 +229,7 @@ async function stopCaptureSession(
     return {
       exitCode: 1,
       stdout: "",
-      stderr: `${stopResult.message}\n`,
+      stderr: `${stopResult.message}\nCapture bundle: ${stopResult.manifestPath}\n`,
     };
   }
 

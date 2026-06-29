@@ -1,9 +1,10 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CaptureEvent } from "./captureEvents.js";
 import type { JsonlEventWriter } from "./jsonlEventWriter.js";
+import { validateCaptureBundle } from "./captureManifest.js";
 import { createPlaywrightBrowserCaptureAdapterForDriver } from "./playwrightAdapter.js";
 import type {
   BrowserBindingCallback,
@@ -314,6 +315,88 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(JSON.stringify(manifest)).not.toContain("--token");
   });
 
+  it("writes stable diagnostics for failed and interrupted capture bundles", async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-status-diagnostics-"));
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: (() => {
+        const dates = [new Date("2026-06-29T12:00:00.000Z"), new Date("2026-06-29T12:00:02.500Z")];
+        return () => dates.shift() ?? new Date("2026-06-29T12:00:02.500Z");
+      })(),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo?token=secret" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+      childCommand: { command: "npm", args: ["run", "demo", "--token", "secret"] },
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("failed");
+
+    expect(stopResult.ok).toBe(true);
+    const manifest = JSON.parse(await readFile(`${outputDir}/capture.manifest.json`, "utf8"));
+    expect(manifest.status).toBe("failed");
+    expect(manifest.error).toEqual({
+      code: "capture_failed",
+      message: "Capture stopped after a failure.",
+    });
+    expect(manifest.source.url).toBe("https://example.com/demo");
+    expect(manifest.childCommand).toEqual({
+      command: "npm",
+      argCount: 4,
+      argsRedacted: true,
+      exitCode: null,
+    });
+    expect(JSON.stringify(manifest)).not.toContain("secret");
+    expect(JSON.stringify(manifest)).not.toContain("--token");
+  });
+
+  it("leaves a valid interrupted bundle when artifacts are flushed", async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-interrupted-"));
+    await mkdir(join(outputDir, "media"), { recursive: true });
+    await writeFile(join(outputDir, "media", "raw.webm"), "partial video");
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: (() => {
+        const dates = [new Date("2026-06-29T12:00:00.000Z"), new Date("2026-06-29T12:00:02.500Z")];
+        return () => dates.shift() ?? new Date("2026-06-29T12:00:02.500Z");
+      })(),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("interrupted");
+
+    expect(stopResult.ok).toBe(true);
+    const validation = await validateCaptureBundle(outputDir);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) {
+      return;
+    }
+    expect(validation.manifest.status).toBe("interrupted");
+    expect(validation.manifest.error).toEqual({
+      code: "capture_interrupted",
+      message: "Capture was interrupted before normal completion.",
+    });
+  });
+
   it("returns stop failure when metadata cannot be flushed", async () => {
     class FailingCloseWriter implements JsonlEventWriter {
       public readonly events: CaptureEvent[] = [];
@@ -557,5 +640,115 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(writer.closed).toBe(true);
     expect(driver.browser.context.closed).toBe(true);
     expect(driver.browser.closed).toBe(true);
+  });
+
+  it("preserves a diagnostic bundle when capture stop fails after artifacts exist", async () => {
+    class FailingCloseFileWriter implements JsonlEventWriter {
+      public constructor(private readonly eventsPath: string) {}
+
+      async write(event: CaptureEvent): Promise<void> {
+        await appendFile(this.eventsPath, `${JSON.stringify(event)}\n`, "utf8");
+      }
+
+      async close(): Promise<void> {
+        throw new Error("metadata close failed with token=secret");
+      }
+    }
+
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-diagnostic-stop-"));
+    await mkdir(join(outputDir, "media"), { recursive: true });
+    await writeFile(join(outputDir, "media", "raw.webm"), "partial video");
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: (() => {
+        const dates = [new Date("2026-06-29T12:00:00.000Z"), new Date("2026-06-29T12:00:02.500Z")];
+        return () => dates.shift() ?? new Date("2026-06-29T12:00:02.500Z");
+      })(),
+      createEventWriter: async (eventsPath) => new FailingCloseFileWriter(eventsPath),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo?token=secret" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("completed");
+
+    expect(stopResult).toEqual({
+      ok: false,
+      code: "capture_stop_failed",
+      message: "Browser capture stop failed.",
+      outputDir,
+      manifestPath: `${outputDir}/capture.manifest.json`,
+    });
+
+    const validation = await validateCaptureBundle(outputDir);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) {
+      return;
+    }
+    expect(validation.manifest.status).toBe("failed");
+    expect(validation.manifest.error).toEqual({
+      code: "capture_stop_failed",
+      message: "Browser capture stop failed.",
+    });
+    expect(JSON.stringify(validation.manifest)).not.toContain("token=secret");
+  });
+
+  it("uses the generated Playwright video path for stop failure diagnostics in reused output directories", async () => {
+    class FailingCloseFileWriter implements JsonlEventWriter {
+      public constructor(private readonly eventsPath: string) {}
+
+      async write(event: CaptureEvent): Promise<void> {
+        await appendFile(this.eventsPath, `${JSON.stringify(event)}\n`, "utf8");
+      }
+
+      async close(): Promise<void> {
+        throw new Error("metadata close failed");
+      }
+    }
+
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-generated-video-"));
+    await mkdir(join(outputDir, "media"), { recursive: true });
+    await writeFile(join(outputDir, "media", "viewport.webm"), "stale video");
+    const generatedVideoPath = join(outputDir, "media", "playwright-generated.webm");
+    await writeFile(generatedVideoPath, "partial video");
+    const driver = new FakeDriver(generatedVideoPath);
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: (() => {
+        const dates = [new Date("2026-06-29T12:00:00.000Z"), new Date("2026-06-29T12:00:02.500Z")];
+        return () => dates.shift() ?? new Date("2026-06-29T12:00:02.500Z");
+      })(),
+      createEventWriter: async (eventsPath) => new FailingCloseFileWriter(eventsPath),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("completed");
+
+    expect(stopResult.ok).toBe(false);
+    const validation = await validateCaptureBundle(outputDir);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) {
+      return;
+    }
+    expect(validation.manifest.artifacts.media).toBe("media/playwright-generated.webm");
   });
 });

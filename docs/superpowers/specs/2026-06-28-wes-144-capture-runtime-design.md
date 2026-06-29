@@ -136,7 +136,7 @@ Primary child-command lifecycle:
 4. Capture starts media recording and metadata collection before the walkthrough begins.
 5. CLI runs the child walkthrough command while capture remains active.
 6. When the child exits, CLI asks capture to stop with `completed` or `failed`.
-7. Capture flushes media and metadata, and returns the future manifest path.
+7. Capture flushes media and metadata, writes `capture.manifest.json`, and returns the manifest path.
 8. CLI exits with the child status if capture succeeded, or nonzero if capture failed.
 
 Manual fallback lifecycle:
@@ -203,7 +203,7 @@ The manifest records the capture run and artifact paths:
 }
 ```
 
-Current implementation note: WES-147 redacts child command arguments in the manifest, stores only `argCount`, and leaves `childCommand.exitCode` nullable because the CLI reports process exit separately from the adapter-written manifest.
+Current implementation note: WES-147 redacts child command arguments in the manifest, stores only `argCount`, and leaves `childCommand.exitCode` nullable because the CLI reports process exit separately from the adapter-written manifest. WES-146 adds stable non-secret `error` diagnostics for failed and interrupted started captures, sanitizes diagnostic URL secrets, and best-effort preserves a failed manifest when stop finalization fails after artifacts exist.
 
 Allowed statuses:
 

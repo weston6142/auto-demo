@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, and emits a temporary capture bundle manifest. Polish, render, and editor behavior are still planned work.
+This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. Polish, render, and editor behavior are still planned work.
 
 ## Quick Start
 
@@ -52,7 +52,7 @@ autodemo capture --url <url> --out <capture-dir> [--viewport <width>x<height>] [
 
 The CLI validates `--url`, `--out`, optional `--viewport`, and an optional child command after `--`. The default viewport is `1280x720`. The default browser backend uses Playwright's bundled Chromium and records viewport media without OS screen-recording permissions.
 
-Successful browser captures currently create a temporary capture bundle under the output directory:
+Browser captures that complete, fail after startup, or are interrupted after artifacts flush currently create a temporary capture bundle under the output directory:
 
 ```text
 capture-dir/
@@ -63,7 +63,7 @@ capture-dir/
     events.jsonl
 ```
 
-The manifest uses schema version `1`, records capture status, source, viewport, timing, adapter/tool versions, and relative artifact paths, and redacts source URL secrets and child command arguments. Validate a bundle with:
+The manifest uses schema version `1`, records capture status, source, viewport, timing, adapter/tool versions, relative artifact paths, and optional stable error diagnostics, and redacts source URL secrets, child command arguments, and diagnostic URL secrets. If a started capture cannot stop cleanly, the CLI reports the diagnostic bundle path when one can be preserved. Validate a bundle with:
 
 ```bash
 autodemo validate <capture-dir-or-manifest>

@@ -257,7 +257,7 @@ On `session.stop(reason)`:
 
 If metadata flush or close fails, return `capture_stop_failed` rather than claiming a fully successful capture. Any partial media or metadata already written should remain on disk.
 
-If media stop fails after metadata has been written, preserve the metadata file and return the existing stop failure shape. WES-146 can later refine mixed-success reporting.
+If media stop fails after metadata has been written, preserve the metadata file and return the existing stop failure shape. Current WES-146 behavior also best-effort writes a failed diagnostic manifest when both media and metadata artifacts exist.
 
 ## CLI Behavior
 
@@ -269,7 +269,7 @@ Expected user-facing behavior remains:
 autodemo capture --url http://localhost:3000 --out demo-capture -- npm run demo:walkthrough
 ```
 
-The CLI continues printing the capture bundle line using `manifestPath`. WES-145 should not change stdout beyond test updates required by the `CaptureOutput` shape. The metadata path is returned through the capture result for future consumers and WES-147 manifest writing.
+The CLI continues printing the capture bundle line using `manifestPath`. WES-145 should not change stdout beyond test updates required by the `CaptureOutput` shape. Current WES-146 behavior also prints the capture bundle path when a started capture cannot stop cleanly. The metadata path is returned through the capture result for future consumers and WES-147 manifest writing.
 
 ## Error Handling
 

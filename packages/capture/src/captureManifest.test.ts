@@ -321,4 +321,38 @@ describe("capture manifest", () => {
     }
     expect(validation.errors).toContain("Manifest adapter must be browser playwright.");
   });
+
+  it("sanitizes diagnostic messages before writing manifests", async () => {
+    const outputDir = await createBundleArtifacts("auto-demo-manifest-error-redaction");
+
+    const manifest = await writeCaptureManifest({
+      outputDir,
+      status: "failed",
+      source: { kind: "browser", url: "https://example.com/demo?token=secret#hash" },
+      adapter: { kind: "browser", backend: "playwright" },
+      tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+      viewport: { width: 1280, height: 720 },
+      timing: {
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+      },
+      artifacts: {
+        media: join(outputDir, "media", "viewport.webm"),
+        events: join(outputDir, "metadata", "events.jsonl"),
+      },
+      childCommand: null,
+      error: {
+        code: "capture_setup_failed",
+        message: "Failed to open https://example.com/demo?token=secret#hash",
+      },
+    });
+
+    expect(manifest.source.url).toBe("https://example.com/demo");
+    expect(manifest.error).toEqual({
+      code: "capture_setup_failed",
+      message: "Failed to open https://example.com/demo",
+    });
+    expect(JSON.stringify(manifest)).not.toContain("token=secret");
+  });
 });

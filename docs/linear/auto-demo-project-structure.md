@@ -19,7 +19,7 @@ Last updated: 2026-06-29
 - WES-135 capture backend research: `docs/research/2026-06-27-capture-backend-research.md`
 - WES-144 capture runtime design spec: `docs/superpowers/specs/2026-06-28-wes-144-capture-runtime-design.md`
 - WES-143 implementation plan: `docs/superpowers/plans/2026-06-28-wes-143-browser-capture-adapter-cli-contract-plan.md`
-- Current WES-145 baseline: `packages/cli/src/index.ts` owns capture lifecycle orchestration; `packages/capture/src/index.ts` exposes the default Playwright browser adapter plus unsupported fallback behavior. Local WES-145 work now writes browser interaction metadata JSONL alongside viewport media.
+- Current Capture Runtime baseline: `packages/cli/src/index.ts` owns capture lifecycle orchestration; `packages/capture/src/index.ts` exposes the default Playwright browser adapter plus unsupported fallback behavior. The runtime writes viewport media, browser interaction metadata JSONL, temporary capture manifests, and stable failed/interrupted diagnostics.
 - WES-147 capture bundle writer design spec: `docs/superpowers/specs/2026-06-29-wes-147-capture-bundle-writer-design.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
@@ -113,6 +113,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-06-29 pre-task sync from firstmate: WES-145 was stale in Linear, completion evidence was added, and WES-145 was moved to Done. WES-147 is the selected next Capture Runtime child because WES-142 and WES-145 are complete.
 - 2026-06-29 WES-147 design: capture bundle writing remains package-owned in `@auto-demo/capture`; `capture.manifest.json` stores portable relative artifact paths, capture source, target URL, viewport, timing, status, adapter/tool versions, and artifact paths. `autodemo validate <capture-dir-or-manifest>` is the lightweight CLI check. This bundle is temporary Capture Runtime input for the later Demo Project Format milestone, not final Auto Demo project schema.
 - 2026-06-29 WES-147 implementation: `@auto-demo/capture` now exports `writeCaptureManifest()`, `readCaptureManifest()`, and `validateCaptureBundle()`. The Playwright adapter writes `capture.manifest.json` after media and metadata artifacts are flushed, and `autodemo validate <capture-dir-or-manifest>` validates the temporary bundle.
+- 2026-06-29 WES-146 implementation: failed and interrupted Playwright capture stops now write stable non-secret manifest diagnostics when artifacts exist, stop failures best-effort preserve a diagnostic bundle, and the CLI reports the manifest path when a started capture cannot stop cleanly.
 
 ## Temporary Capture Bundle
 
@@ -153,6 +154,8 @@ capture-dir/
 - WES-145 verification: `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, `npm run validate`, and `npm --workspace @auto-demo/capture run test:smoke` passed locally on 2026-06-29.
 - WES-147: Capture bundle manifest writing and validation merged in PR #4 (`c1c714e`). `@auto-demo/capture` now writes and validates `capture.manifest.json` with portable artifact paths, sanitized source and child-command fields, adapter/tool versions, status, timing, media, and metadata artifacts. `autodemo validate <capture-dir-or-manifest>` validates temporary capture bundles.
 - WES-147 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed before no-mistakes. No-mistakes PR #4 passed review, test, document, lint, and GitHub CI `validate` before merge.
+- WES-146: Capture failure hardening implemented for started captures. Non-completed stops write `failed` or `interrupted` manifests with stable non-secret diagnostics, diagnostic manifests are preserved best-effort after stop failures when artifacts exist, manifest diagnostics are sanitized, and CLI stop failures include the capture bundle path.
+- WES-146 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed on 2026-06-29.
 
 ## Update Rules
 

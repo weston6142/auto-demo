@@ -1,4 +1,4 @@
-import { rename } from "node:fs/promises";
+import { rename, stat } from "node:fs/promises";
 import type {
   BrowserCaptureAdapter,
   BrowserCaptureOptions,
@@ -21,6 +21,7 @@ import {
   type PlaywrightBrowserContext,
   type PlaywrightDriver,
   type PlaywrightPage,
+  type PlaywrightVideo,
 } from "./playwrightDriver.js";
 
 type PlaywrightAdapterDependencies = {
@@ -151,11 +152,16 @@ class PlaywrightCaptureSession {
 
   private async stopOnce(reason: CaptureStopReason): Promise<CaptureStopResult> {
     const video = this.state.page.video();
+    const endedAt = this.state.now();
+    const timing = {
+      startedAt: this.state.startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+      durationMs: endedAt.getTime() - this.state.startedAt.getTime(),
+    };
     try {
-      const endedAt = this.state.now();
       await this.state.metadataRecorder.writeCaptureStopped({
         reason,
-        durationMs: endedAt.getTime() - this.state.startedAt.getTime(),
+        durationMs: timing.durationMs,
       });
       await this.state.metadataRecorder.close();
       await this.state.context.close();
@@ -179,11 +185,7 @@ class PlaywrightCaptureSession {
           path: this.state.paths.eventsPath,
           contentType: "application/x-ndjson",
         },
-        timing: {
-          startedAt: this.state.startedAt.toISOString(),
-          endedAt: endedAt.toISOString(),
-          durationMs: endedAt.getTime() - this.state.startedAt.getTime(),
-        },
+        timing,
       };
       await writeCaptureManifest({
         outputDir: this.state.paths.outputDir,
@@ -200,14 +202,59 @@ class PlaywrightCaptureSession {
           this.state.options.childCommand === undefined
             ? null
             : { ...this.state.options.childCommand, exitCode: null },
-        error: null,
+        error: manifestErrorForStopReason(reason),
       });
       return { ok: true, output };
     } catch {
       await closeMetadataQuietly(this.state.metadataRecorder);
       await closeQuietly(this.state.context);
       await closeQuietly(this.state.browser);
+      await this.writeDiagnosticManifestQuietly(
+        reason,
+        timing,
+        {
+          code: "capture_stop_failed",
+          message: "Browser capture stop failed.",
+        },
+        video,
+      );
       return this.stopFailed();
+    }
+  }
+
+  private async writeDiagnosticManifestQuietly(
+    reason: CaptureStopReason,
+    timing: CaptureOutput["timing"],
+    error: { code: string; message: string },
+    video: PlaywrightVideo | null,
+  ): Promise<void> {
+    const mediaPath = video === null ? undefined : await existingPlaywrightVideoPathQuietly(video);
+    const eventsPath = await existingArtifactPath([this.state.paths.eventsPath]);
+
+    if (mediaPath === undefined || eventsPath === undefined) {
+      return;
+    }
+
+    try {
+      await writeCaptureManifest({
+        outputDir: this.state.paths.outputDir,
+        status: reason === "completed" ? "failed" : reason,
+        source: this.state.options.source,
+        adapter: { kind: "browser", backend: "playwright" },
+        viewport: this.state.options.viewport,
+        timing,
+        artifacts: {
+          media: mediaPath,
+          events: eventsPath,
+        },
+        childCommand:
+          this.state.options.childCommand === undefined
+            ? null
+            : { ...this.state.options.childCommand, exitCode: null },
+        error,
+      });
+    } catch {
+      // Preserve the stable stop failure returned to callers.
     }
   }
 
@@ -219,6 +266,51 @@ class PlaywrightCaptureSession {
       outputDir: this.state.paths.outputDir,
       manifestPath: this.state.paths.manifestPath,
     };
+  }
+}
+
+function manifestErrorForStopReason(
+  reason: CaptureStopReason,
+): { code: string; message: string } | null {
+  if (reason === "completed") {
+    return null;
+  }
+
+  if (reason === "interrupted") {
+    return {
+      code: "capture_interrupted",
+      message: "Capture was interrupted before normal completion.",
+    };
+  }
+
+  return {
+    code: "capture_failed",
+    message: "Capture stopped after a failure.",
+  };
+}
+
+async function existingArtifactPath(paths: string[]): Promise<string | undefined> {
+  for (const path of paths) {
+    try {
+      const artifact = await stat(path);
+      if (artifact.isFile()) {
+        return path;
+      }
+    } catch {
+      // Try the next likely artifact path.
+    }
+  }
+
+  return undefined;
+}
+
+async function existingPlaywrightVideoPathQuietly(
+  video: PlaywrightVideo,
+): Promise<string | undefined> {
+  try {
+    return await existingArtifactPath([await video.path()]);
+  } catch {
+    return undefined;
   }
 }
 
