@@ -17,6 +17,8 @@ The new work belongs primarily in `packages/capture`. It launches Playwright's b
 
 WES-142 does not write the durable capture manifest. WES-147 remains responsible for manifest writing and bundle schema hardening.
 
+Current implementation note: WES-145 later added browser interaction metadata capture, so successful `CaptureOutput` now includes both the viewport media artifact and the `metadata/events.jsonl` artifact. Durable manifest writing is still deferred to WES-147.
+
 ## Goals
 
 - Add a concrete `createPlaywrightBrowserCaptureAdapter()` export from `@auto-demo/capture`.

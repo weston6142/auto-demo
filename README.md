@@ -52,6 +52,8 @@ autodemo capture --url <url> --out <capture-dir> [--viewport <width>x<height>] [
 
 The CLI validates `--url`, `--out`, optional `--viewport`, and an optional child command after `--`. The default viewport is `1280x720`. The default browser backend uses Playwright's bundled Chromium and records viewport media without OS screen-recording permissions.
 
+Successful browser captures currently create `media/viewport.webm` and incremental interaction metadata at `metadata/events.jsonl` under the capture output directory. The successful capture result reports both artifact paths; durable `capture.manifest.json` writing is still planned.
+
 Other planned commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
 
 ## Development
