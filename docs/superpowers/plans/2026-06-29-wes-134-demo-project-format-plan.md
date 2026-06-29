@@ -277,6 +277,26 @@ describe("validateProjectManifest", () => {
       ],
     });
   });
+
+  it("rejects opaque or non-http source URLs", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        source: { kind: "browser", url: "data:text/html,token=secret" },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest sourceCapture is invalid.",
+        },
+      ],
+    });
+  });
 });
 
 export async function createFixtureProject(manifest = validManifest) {
@@ -466,7 +486,11 @@ function validateSourceCapture(value: unknown, errors: ProjectValidationError[])
 function isSecretSafeSourceUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.search === "" && url.hash === "";
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.search === "" &&
+      url.hash === ""
+    );
   } catch {
     return false;
   }
@@ -590,7 +614,7 @@ describe("project load/save validation", () => {
     }
   });
 
-  it("reports missing referenced files without leaking path contents outside the project", async () => {
+  it("reports missing referenced files without echoing manifest-controlled paths", async () => {
     const projectDir = await createFixtureProject();
     await rm(join(projectDir, "raw", "capture.webm"));
 
@@ -603,7 +627,7 @@ describe("project load/save validation", () => {
       errors: [
         {
           code: "missing_project_file",
-          message: "Missing project media file: raw/capture.webm",
+          message: "Missing project media file.",
         },
       ],
     });
@@ -661,7 +685,7 @@ describe("project load/save validation", () => {
       errors: [
         {
           code: "missing_project_file",
-          message: "Missing project media file: raw/missing.webm",
+          message: "Missing project media file.",
         },
       ],
     });
@@ -850,13 +874,13 @@ async function validateReferencedFile(
     if (!file.isFile()) {
       errors.push({
         code: "missing_project_file",
-        message: `Missing project ${label} file: ${relativePath}`,
+        message: `Missing project ${label} file.`,
       });
     }
   } catch {
     errors.push({
       code: "missing_project_file",
-      message: `Missing project ${label} file: ${relativePath}`,
+      message: `Missing project ${label} file.`,
     });
   }
 }
@@ -929,7 +953,7 @@ Append this test group to `packages/project/src/index.test.ts`:
 import { writeCaptureManifest } from "@auto-demo/capture";
 import { createProjectFromCaptureBundle } from "./index.js";
 
-async function createCaptureBundle() {
+async function createCaptureBundle(sourceUrl = "https://example.com/checkout?token=secret") {
   const captureDir = await mkdtemp(join(tmpdir(), "auto-demo-capture-"));
   await mkdir(join(captureDir, "media"), { recursive: true });
   await mkdir(join(captureDir, "metadata"), { recursive: true });
@@ -938,7 +962,7 @@ async function createCaptureBundle() {
   await writeCaptureManifest({
     outputDir: captureDir,
     status: "completed",
-    source: { kind: "browser", url: "https://example.com/checkout?token=secret" },
+    source: { kind: "browser", url: sourceUrl },
     adapter: { kind: "browser", backend: "playwright" },
     tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
     viewport: { width: 1280, height: 720 },
@@ -1038,6 +1062,32 @@ describe("createProjectFromCaptureBundle", () => {
       expect(result.errors.map((error) => error.message).join("\n")).not.toContain("token=");
     }
   });
+
+  it("rejects opaque capture source URLs without persisting them", async () => {
+    const captureDir = await createCaptureBundle("data:text/html,token=secret");
+    const projectDir = await mkdtemp(join(tmpdir(), "auto-demo-imported-project-"));
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Imported checkout demo",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual([
+        {
+          code: "invalid_project_manifest",
+          message: "Capture source URL must be http(s) and secret-safe.",
+        },
+      ]);
+      expect(result.errors.map((error) => error.message).join("\n")).not.toContain("secret");
+      expect(result.errors.map((error) => error.message).join("\n")).not.toContain("token=");
+    }
+    await expect(
+      readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });
 ```
 
@@ -1105,6 +1155,21 @@ export async function createProjectFromCaptureBundle(
     };
   }
 
+  const projectSourceUrl = normalizeProjectSourceUrl(capture.manifest.source.url);
+  if (projectSourceUrl === null) {
+    return {
+      ok: false,
+      projectDir,
+      manifestPath,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Capture source URL must be http(s) and secret-safe.",
+        },
+      ],
+    };
+  }
+
   await Promise.all([
     mkdir(join(projectDir, "raw"), { recursive: true }),
     mkdir(join(projectDir, "metadata"), { recursive: true }),
@@ -1136,7 +1201,7 @@ export async function createProjectFromCaptureBundle(
       status: capture.manifest.status,
       source: {
         kind: "browser",
-        url: stripUrlSecrets(capture.manifest.source.url),
+        url: projectSourceUrl,
       },
       viewport: capture.manifest.viewport,
       timing: {
@@ -1162,11 +1227,18 @@ export async function createProjectFromCaptureBundle(
   return await saveProject({ projectDir, manifestPath, manifest });
 }
 
-function stripUrlSecrets(value: string): string {
-  const url = new URL(value);
-  url.search = "";
-  url.hash = "";
-  return url.toString();
+function normalizeProjectSourceUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 ```
 
@@ -1238,6 +1310,32 @@ describe("project validation diagnostics", () => {
       expect(result.errors.map((error) => error.message).join("\n")).not.toContain("token=");
     }
   });
+
+  it("does not include missing artifact path secrets in validation error messages", async () => {
+    const projectDir = await createFixtureProject({
+      ...validManifest,
+      media: {
+        primary: {
+          ...validManifest.media.primary,
+          path: "raw/token=secret.webm",
+        },
+      },
+    });
+
+    const result = await validateProject(projectDir);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual([
+        {
+          code: "missing_project_file",
+          message: "Missing project media file.",
+        },
+      ]);
+      expect(result.errors.map((error) => error.message).join("\n")).not.toContain("secret");
+      expect(result.errors.map((error) => error.message).join("\n")).not.toContain("token=");
+    }
+  });
 });
 ```
 
@@ -1249,8 +1347,10 @@ Run:
 npm --workspace @auto-demo/project test -- src/index.test.ts
 ```
 
-Expected: PASS. If diagnostics include user-provided unsafe path strings, adjust messages to
-use stable field names such as `Project media.primary.path must be a relative path inside the project.`
+Expected: PASS. If diagnostics include user-provided unsafe or missing path strings, adjust
+messages to use stable field names such as
+`Project media.primary.path must be a relative path inside the project.` or
+`Missing project media file.`
 
 - [ ] **Step 3: Update README if source behavior changed**
 
