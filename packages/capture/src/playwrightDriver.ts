@@ -3,6 +3,7 @@ import {
   type Browser,
   type BrowserContext,
   type ConsoleMessage,
+  type Frame,
   type Page,
   type Video,
 } from "playwright";
@@ -68,6 +69,7 @@ export type PlaywrightPage = {
   exposeBinding(name: string, callback: BrowserBindingCallback): Promise<void>;
   addInitScript(script: string): Promise<void>;
   onConsole(callback: (message: PlaywrightConsoleMessage) => void): void;
+  onNavigation(callback: () => void): void;
   onPageError(callback: (error: PlaywrightPageError) => void): void;
   snapshotMetadata(): Promise<PlaywrightPageSnapshot>;
 };
@@ -133,6 +135,13 @@ function wrapPage(page: Page): PlaywrightPage {
           text: message.text(),
           location: message.location(),
         });
+      });
+    },
+    onNavigation(callback) {
+      page.on("framenavigated", (frame: Frame) => {
+        if (frame === page.mainFrame()) {
+          callback();
+        }
       });
     },
     onPageError(callback) {

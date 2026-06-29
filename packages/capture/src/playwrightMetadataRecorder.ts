@@ -46,6 +46,9 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
     this.page.onConsole((message) => {
       this.enqueue(this.writeConsole(message));
     });
+    this.page.onNavigation(() => {
+      this.enqueue(this.writeNavigation("framenavigated"));
+    });
     this.page.onPageError((error) => {
       this.enqueue(this.writePageError(error));
     });
@@ -108,6 +111,16 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
     );
   }
 
+  private async writeNavigation(phase: string): Promise<void> {
+    const snapshot = await this.page.snapshotMetadata();
+    await this.writer.write(
+      this.eventFactory.create("navigation", {
+        ...snapshot,
+        data: { phase },
+      }),
+    );
+  }
+
   private async writePageError(error: PlaywrightPageError): Promise<void> {
     const snapshot = await this.page.snapshotMetadata();
     await this.writer.write(
@@ -136,10 +149,26 @@ function normalizeBrowserPayloadData(
   const rest = { ...(payload.data ?? {}) };
   delete rest.value;
   delete rest.inputType;
+  const target = sanitizeFillTarget(rest.target);
+  if (target === undefined) {
+    delete rest.target;
+  } else {
+    rest.target = target;
+  }
   return {
     ...rest,
     ...redactCapturedValue({ value, inputType }),
   };
+}
+
+function sanitizeFillTarget(target: unknown): Record<string, unknown> | undefined {
+  if (target === null || typeof target !== "object" || Array.isArray(target)) {
+    return undefined;
+  }
+
+  const sanitized = { ...(target as Record<string, unknown>) };
+  delete sanitized.text;
+  return sanitized;
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -169,6 +198,21 @@ function browserInstrumentationScript(bindingName: string): string {
     pageTitle: document.title,
     viewport: { width: window.innerWidth, height: window.innerHeight }
   });
+  const sendNavigation = (phase) => {
+    send({ type: "navigation", ...pageFields(), data: { phase } });
+  };
+  const wrapHistoryMethod = (methodName) => {
+    const original = window.history[methodName];
+    window.history[methodName] = function(...args) {
+      const result = original.apply(this, args);
+      queueMicrotask(() => sendNavigation(methodName));
+      return result;
+    };
+  };
+  wrapHistoryMethod("pushState");
+  wrapHistoryMethod("replaceState");
+  window.addEventListener("popstate", () => sendNavigation("popstate"));
+  window.addEventListener("hashchange", () => sendNavigation("hashchange"));
   document.addEventListener("click", (event) => {
     send({
       type: "click",

@@ -26,6 +26,7 @@ class FakePage implements PlaywrightPage {
   public readonly initScripts: string[] = [];
   public binding: BrowserBindingCallback | undefined;
   public consoleHandler: ((message: PlaywrightConsoleMessage) => void) | undefined;
+  public navigationHandler: (() => void) | undefined;
   public pageErrorHandler: ((error: PlaywrightPageError) => void) | undefined;
   public currentUrl = "https://example.com";
   public currentTitle = "Example";
@@ -50,6 +51,10 @@ class FakePage implements PlaywrightPage {
 
   onConsole(callback: (message: PlaywrightConsoleMessage) => void): void {
     this.consoleHandler = callback;
+  }
+
+  onNavigation(callback: () => void): void {
+    this.navigationHandler = callback;
   }
 
   onPageError(callback: (error: PlaywrightPageError) => void): void {
@@ -114,6 +119,74 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     ]);
     expect(writer.closed).toBe(true);
+  });
+
+  it("removes target text from fill events", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await page.binding?.({
+      type: "fill",
+      pageUrl: "https://example.com/editor",
+      pageTitle: "Editor",
+      viewport: { width: 1280, height: 720 },
+      data: {
+        target: { tagName: "DIV", role: "textbox", text: "secret draft" },
+        inputMethod: "insertText",
+      },
+    });
+
+    await recorder.close();
+
+    expect(writer.events[0]).toEqual(
+      expect.objectContaining({
+        type: "fill",
+        data: {
+          target: { tagName: "DIV", role: "textbox" },
+          inputMethod: "insertText",
+          redacted: true,
+          valueKind: "unknown",
+          valueLength: 0,
+        },
+      }),
+    );
+  });
+
+  it("records page navigation snapshots", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    page.currentUrl = "https://example.com/dashboard";
+    page.currentTitle = "Dashboard";
+    page.navigationHandler?.();
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        sequence: 1,
+        type: "navigation",
+        pageUrl: "https://example.com/dashboard",
+        pageTitle: "Dashboard",
+        viewport: { width: 1280, height: 720 },
+        data: { phase: "framenavigated" },
+      }),
+    ]);
   });
 
   it("records console and page error summaries", async () => {

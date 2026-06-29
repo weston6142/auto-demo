@@ -50,6 +50,8 @@ class FakePage implements PlaywrightPage {
 
   onConsole(_callback: (message: PlaywrightConsoleMessage) => void): void {}
 
+  onNavigation(_callback: () => void): void {}
+
   onPageError(_callback: (error: PlaywrightPageError) => void): void {}
 
   async snapshotMetadata() {
