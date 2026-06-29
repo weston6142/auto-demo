@@ -164,8 +164,10 @@ Behavior:
 4. Write `autodemo.project.json` using temp-file-then-rename.
 5. Return the loaded project result.
 
-Expected invalid capture bundles return structured validation errors from the capture
-package. Unexpected file-system or programming failures may throw.
+Expected invalid capture bundles return structured project-level validation errors with
+stable non-secret messages. They must not forward capture-package error text because
+capture diagnostics can contain manifest-controlled artifact paths. Unexpected
+file-system or programming failures may throw.
 
 ### `validateProject(projectDirOrManifest)`
 
@@ -196,7 +198,8 @@ Validation checks:
 - timestamps are ISO-parseable;
 - file references are portable relative paths;
 - required referenced files exist;
-- `variants`, `previews`, and `exports` are arrays, and can be empty;
+- `variants`, `previews`, and `exports` are arrays with length 0 in schema v1 until a
+  later schema version defines their contents;
 - diagnostics do not expose raw typed values or obvious secret-bearing fields.
 
 Validation errors should use stable codes plus concise non-secret messages.
@@ -235,7 +238,7 @@ Tests should be black-box and behavior-oriented:
   versions, missing required files, absolute paths, `..` paths, and paths that leave the
   project root.
 - Empty `variants`, `previews`, and `exports` sections validate without requiring concrete
-  downstream artifacts.
+  downstream artifacts, and non-empty sections are rejected in schema v1.
 
 Tests should not assert private implementation details such as helper function names,
 copy ordering, or internal parser structure.

@@ -597,7 +597,8 @@ git commit -m "feat: define project manifest validation"
 Append this group to `packages/project/src/index.test.ts`:
 
 ```ts
-import { readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { validateProject, loadProject, saveProject, type LoadedProject } from "./index.js";
 
 describe("project load/save validation", () => {
@@ -719,6 +720,30 @@ describe("project load/save validation", () => {
       beforeManifest,
     );
   });
+
+  it("saves only to the canonical manifest path for the project directory", async () => {
+    const projectDir = await createFixtureProject();
+    const otherDir = await mkdtemp(join(tmpdir(), "autodemo-other-"));
+    const loaded = await loadProject(projectDir);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+
+    const project: LoadedProject = {
+      ...loaded,
+      manifestPath: join(otherDir, PROJECT_MANIFEST_FILENAME),
+      manifest: { ...loaded.manifest, name: "Canonical save demo" },
+    };
+
+    const saved = await saveProject(project);
+
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.manifestPath).toBe(join(projectDir, PROJECT_MANIFEST_FILENAME));
+    expect(await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).toContain(
+      '"name": "Canonical save demo"',
+    );
+    await expect(readFile(join(otherDir, PROJECT_MANIFEST_FILENAME), "utf8")).rejects.toThrow();
+  });
 });
 ```
 
@@ -799,31 +824,33 @@ export async function loadProject(projectDirOrManifest: string): Promise<Project
 }
 
 export async function saveProject(project: LoadedProject): Promise<ProjectValidationResult> {
+  const projectDir = resolve(project.projectDir);
+  const manifestPath = join(projectDir, PROJECT_MANIFEST_FILENAME);
   const manifestResult = validateProjectManifest(project.manifest);
   if (!manifestResult.ok) {
     return {
       ok: false,
-      projectDir: project.projectDir,
-      manifestPath: project.manifestPath,
+      projectDir,
+      manifestPath,
       errors: manifestResult.errors,
     };
   }
 
-  const fileErrors = await validateProjectFiles(project.projectDir, manifestResult.manifest);
+  const fileErrors = await validateProjectFiles(projectDir, manifestResult.manifest);
   if (fileErrors.length > 0) {
     return {
       ok: false,
-      projectDir: project.projectDir,
-      manifestPath: project.manifestPath,
+      projectDir,
+      manifestPath,
       errors: fileErrors,
     };
   }
 
-  await mkdir(dirname(project.manifestPath), { recursive: true });
-  const tempPath = `${project.manifestPath}.tmp`;
+  await mkdir(dirname(manifestPath), { recursive: true });
+  const tempPath = `${manifestPath}.tmp`;
   await writeFile(tempPath, `${JSON.stringify(project.manifest, null, 2)}\n`);
-  await rename(tempPath, project.manifestPath);
-  return await validateProject(project.manifestPath);
+  await rename(tempPath, manifestPath);
+  return await validateProject(manifestPath);
 }
 
 async function validateProjectFiles(
