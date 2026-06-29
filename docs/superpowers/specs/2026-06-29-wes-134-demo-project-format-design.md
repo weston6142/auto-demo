@@ -73,14 +73,15 @@ project-dir/
   exports/
 ```
 
-The temporary capture bundle is input only. Import copies:
+The temporary capture bundle is input only. Import copies or rewrites:
 
 - `media/viewport.webm` to `raw/capture.webm`
 - `metadata/events.jsonl` to `metadata/events.jsonl`
-- `capture.manifest.json` to `metadata/capture.manifest.json`
+- sanitized capture summary metadata to `metadata/capture.manifest.json`
 
 The final project manifest references the normalized paths. It must not reference the
-original capture-bundle directory.
+original capture-bundle directory. The copied capture metadata is project-owned summary
+metadata, not verbatim capture-runtime audit metadata.
 
 ## Manifest Shape
 
@@ -142,8 +143,10 @@ paths, Windows absolute paths, `..` traversal, and normalized paths that leave t
 project root.
 
 `sourceCapture` is a summary of the imported capture bundle, not a second source of truth
-for artifact locations. The copied `metadata/capture.manifest.json` preserves the original
-capture-runtime metadata for audit and future migration work.
+for artifact locations. The copied `metadata/capture.manifest.json` is rewritten as
+sanitized project metadata. It preserves audit value through stable non-secret summary
+fields only and must not persist secret-bearing source URLs, error fields, child-command
+fields, or original artifact paths.
 
 ## Package API
 
@@ -160,7 +163,8 @@ Behavior:
 
 1. Validate the WES-147 bundle through `@auto-demo/capture`.
 2. Create `raw/`, `metadata/`, `variants/`, `previews/`, and `exports/`.
-3. Copy viewport media, event metadata, and capture manifest into normalized project paths.
+3. Copy viewport media and event metadata into normalized project paths, and write
+   sanitized project-owned capture summary metadata.
 4. Write `autodemo.project.json` using temp-file-then-rename.
 5. Return the loaded project result.
 

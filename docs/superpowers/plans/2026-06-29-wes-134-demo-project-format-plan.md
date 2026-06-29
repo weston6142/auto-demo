@@ -1302,7 +1302,7 @@ describe("createProjectFromCaptureBundle", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("rewrites copied capture metadata without source, error, or artifact path secrets", async () => {
+  it("rewrites copied capture metadata without source, error, child command, or artifact path secrets", async () => {
     const captureDir = await mkdtemp(join(tmpdir(), "auto-demo-capture-"));
     await mkdir(join(captureDir, "media"), { recursive: true });
     await mkdir(join(captureDir, "metadata"), { recursive: true });
@@ -1324,8 +1324,13 @@ describe("createProjectFromCaptureBundle", () => {
           media: "media/token=secret.webm",
           events: "metadata/events.jsonl",
         },
-        childCommand: null,
-        error: { code: "capture_failed", message: "failed with token=secret" },
+        childCommand: {
+          command: "token=secret",
+          argCount: 2,
+          argsRedacted: true,
+          exitCode: 1,
+        },
+        error: { code: "token=secret", message: "failed with token=secret" },
       }),
     );
     const projectDir = await mkdtemp(join(tmpdir(), "auto-demo-imported-project-"));
@@ -1353,6 +1358,7 @@ describe("createProjectFromCaptureBundle", () => {
       code: "capture_failed",
       message: "Capture ended with an error.",
     });
+    expect(copiedManifest.childCommand).toBeNull();
     expect(copiedManifestText).not.toContain("secret");
     expect(copiedManifestText).not.toContain("token=");
   });
@@ -1524,12 +1530,12 @@ function sanitizeCaptureManifestForProject(
       media: "raw/capture.webm",
       events: "metadata/events.jsonl",
     },
-    childCommand: manifest.childCommand,
+    childCommand: null,
     error:
       manifest.error === null
         ? null
         : {
-            code: manifest.error.code,
+            code: "capture_failed",
             message: "Capture ended with an error.",
           },
   };
