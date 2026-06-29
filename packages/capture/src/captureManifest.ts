@@ -41,6 +41,7 @@ export type CaptureManifestChildCommandInput = CaptureChildCommand & {
 
 export type CaptureManifestError = {
   code: string;
+  /** Stable non-secret diagnostic text; URL query strings and fragments are stripped on write. */
   message: string;
 };
 

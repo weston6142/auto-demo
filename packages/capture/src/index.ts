@@ -102,6 +102,7 @@ export type CaptureStopResult =
       ok: true;
       output: CaptureOutput;
     }
+  /** Stop failures keep outputDir/manifestPath so callers can report preserved diagnostic bundles. */
   | {
       ok: false;
       code: CaptureErrorCode;
