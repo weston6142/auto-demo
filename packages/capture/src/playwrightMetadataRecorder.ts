@@ -519,7 +519,20 @@ function sanitizeCaptureData(data: Record<string, unknown>): Record<string, unkn
   if (typeof sanitized.sourceUrl === "string") {
     sanitized.sourceUrl = stripUrlSecrets(sanitized.sourceUrl);
   }
+  if (isRecord(sanitized.childCommand)) {
+    sanitized.childCommand = sanitizeChildCommand(sanitized.childCommand);
+  }
   return sanitized;
+}
+
+function sanitizeChildCommand(command: Record<string, unknown>): Record<string, unknown> {
+  const name = typeof command.command === "string" ? command.command : undefined;
+  const args = Array.isArray(command.args) ? command.args : [];
+  return omitUndefined({
+    command: name,
+    argCount: args.length,
+    argsRedacted: args.length > 0 ? true : undefined,
+  });
 }
 
 function sanitizeUrlField(value: string | undefined): string | undefined {

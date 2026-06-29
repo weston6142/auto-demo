@@ -211,7 +211,7 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
       outputDir,
       viewport: { width: 1280, height: 720 },
       startedAt: "2026-06-29T11:59:59.000Z",
-      childCommand: { command: "npm", args: ["run", "walkthrough"] },
+      childCommand: { command: "npm", args: ["run", "walkthrough", "--token", "secret"] },
     });
 
     expect(startResult.ok).toBe(true);
@@ -244,7 +244,7 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
         data: {
           sourceUrl: "https://example.com/demo",
           viewport: { width: 1280, height: 720 },
-          childCommand: { command: "npm", args: ["run", "walkthrough"] },
+          childCommand: { command: "npm", argCount: 4, argsRedacted: true },
         },
       }),
       expect.objectContaining({
@@ -254,6 +254,8 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
         data: { reason: "completed", durationMs: 2500 },
       }),
     ]);
+    expect(JSON.stringify(events)).not.toContain("--token");
+    expect(JSON.stringify(events)).not.toContain("secret");
   });
 
   it("returns stop failure when metadata cannot be flushed", async () => {
