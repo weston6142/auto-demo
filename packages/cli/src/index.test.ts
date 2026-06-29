@@ -1,5 +1,8 @@
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { CaptureOutput } from "@auto-demo/capture";
+import { writeCaptureManifest, type CaptureOutput } from "@auto-demo/capture";
 import { runCli, runCliAsync } from "./index.js";
 
 function fakeCaptureOutput(outputDir: string): CaptureOutput {
@@ -22,6 +25,34 @@ function fakeCaptureOutput(outputDir: string): CaptureOutput {
       durationMs: 2500,
     },
   };
+}
+
+async function createValidCaptureBundle(): Promise<string> {
+  const outputDir = join(tmpdir(), "auto-demo-cli-validate");
+  await rm(outputDir, { recursive: true, force: true });
+  await mkdir(join(outputDir, "media"), { recursive: true });
+  await mkdir(join(outputDir, "metadata"), { recursive: true });
+  await writeFile(join(outputDir, "media", "viewport.webm"), "video");
+  await writeFile(join(outputDir, "metadata", "events.jsonl"), "{}\n");
+  await writeCaptureManifest({
+    outputDir,
+    status: "completed",
+    source: { kind: "browser", url: "https://example.com/demo" },
+    adapter: { kind: "browser", backend: "playwright" },
+    viewport: { width: 1280, height: 720 },
+    timing: {
+      startedAt: "2026-06-29T12:00:00.000Z",
+      endedAt: "2026-06-29T12:00:02.500Z",
+      durationMs: 2500,
+    },
+    artifacts: {
+      media: join(outputDir, "media", "viewport.webm"),
+      events: join(outputDir, "metadata", "events.jsonl"),
+    },
+    childCommand: null,
+    error: null,
+  });
+  return outputDir;
 }
 
 describe("runCli", () => {
@@ -443,5 +474,41 @@ describe("runCliAsync capture", () => {
         startedAt: "2026-06-28T12:00:00.000Z",
       },
     ]);
+  });
+});
+
+describe("runCliAsync validate", () => {
+  it("requires a capture bundle path", async () => {
+    const result = await runCliAsync(["validate"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo validate requires <capture-dir-or-manifest>.\n",
+    });
+  });
+
+  it("reports a valid capture bundle", async () => {
+    const outputDir = await createValidCaptureBundle();
+
+    const result = await runCliAsync(["validate", outputDir]);
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: `Capture bundle valid: ${join(outputDir, "capture.manifest.json")}\n`,
+      stderr: "",
+    });
+  });
+
+  it("reports validation errors for an invalid capture bundle", async () => {
+    const outputDir = await createValidCaptureBundle();
+    await rm(join(outputDir, "media", "viewport.webm"));
+
+    const result = await runCliAsync(["validate", join(outputDir, "capture.manifest.json")]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Capture bundle invalid:");
+    expect(result.stderr).toContain("Missing media artifact: media/viewport.webm");
   });
 });

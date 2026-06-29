@@ -189,6 +189,25 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     });
     expect(driver.browser.context.closed).toBe(true);
     expect(driver.browser.closed).toBe(true);
+
+    const manifest = JSON.parse(await readFile(`${outputDir}/capture.manifest.json`, "utf8"));
+    expect(manifest).toEqual({
+      schemaVersion: 1,
+      status: "completed",
+      source: { kind: "browser", url: "https://example.com/demo" },
+      adapter: { kind: "browser", backend: "playwright" },
+      tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-28T12:00:00.000Z",
+      endedAt: "2026-06-28T12:00:02.500Z",
+      durationMs: 2500,
+      artifacts: {
+        media: "media/raw.webm",
+        events: "metadata/events.jsonl",
+      },
+      childCommand: null,
+      error: null,
+    });
   });
 
   it("returns metadata path and writes capture lifecycle events when the session stops", async () => {

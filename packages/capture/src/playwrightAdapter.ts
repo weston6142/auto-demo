@@ -14,6 +14,7 @@ import {
   createPlaywrightMetadataRecorder,
   type PlaywrightMetadataRecorder,
 } from "./playwrightMetadataRecorder.js";
+import { writeCaptureManifest } from "./captureManifest.js";
 import {
   createDefaultPlaywrightDriver,
   type PlaywrightBrowser,
@@ -99,6 +100,7 @@ async function startPlaywrightCapture(
         startedAt: captureStartedAt,
         now: dependencies.now,
         metadataRecorder,
+        options,
       }),
     };
   } catch {
@@ -131,6 +133,7 @@ class PlaywrightCaptureSession {
       startedAt: Date;
       now: () => Date;
       metadataRecorder: PlaywrightMetadataRecorder;
+      options: BrowserCaptureOptions;
     },
   ) {
     this.outputDir = state.paths.outputDir;
@@ -182,6 +185,23 @@ class PlaywrightCaptureSession {
           durationMs: endedAt.getTime() - this.state.startedAt.getTime(),
         },
       };
+      await writeCaptureManifest({
+        outputDir: this.state.paths.outputDir,
+        status: reason,
+        source: this.state.options.source,
+        adapter: { kind: "browser", backend: "playwright" },
+        viewport: this.state.options.viewport,
+        timing: output.timing,
+        artifacts: {
+          media: output.media.path,
+          events: output.metadata.path,
+        },
+        childCommand:
+          this.state.options.childCommand === undefined
+            ? null
+            : { ...this.state.options.childCommand, exitCode: null },
+        error: null,
+      });
       return { ok: true, output };
     } catch {
       await closeMetadataQuietly(this.state.metadataRecorder);
