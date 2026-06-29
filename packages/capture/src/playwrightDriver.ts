@@ -39,7 +39,7 @@ export type BrowserBindingPayload = {
   data?: Record<string, unknown>;
 };
 
-export type BrowserBindingCallback = (payload: BrowserBindingPayload) => Promise<void> | void;
+export type BrowserBindingCallback = (payload: unknown) => Promise<void> | void;
 
 export type PlaywrightConsoleMessage = {
   type: string;

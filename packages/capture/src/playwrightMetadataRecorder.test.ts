@@ -123,6 +123,22 @@ class DeferredSnapshotPage extends FakePage {
   }
 }
 
+function trustedBrowserPayload(
+  page: FakePage,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const script = page.initScripts[0] ?? "";
+  const tokenLiteral = script.match(/const captureToken = ("(?:\\.|[^"\\])*");/)?.[1];
+  if (tokenLiteral === undefined) {
+    throw new Error("capture token not found in browser instrumentation");
+  }
+
+  return {
+    ...payload,
+    captureToken: JSON.parse(tokenLiteral) as string,
+  };
+}
+
 describe("createPlaywrightMetadataRecorder", () => {
   it("removes query strings and hashes from stored URL fields", async () => {
     const page = new FakePage();
@@ -140,13 +156,15 @@ describe("createPlaywrightMetadataRecorder", () => {
     await recorder.writeCaptureStarted({
       sourceUrl: "https://example.com/source?code=oauth#access_token",
     });
-    await page.binding?.({
-      type: "click",
-      pageUrl: "https://example.com/click?token=secret#session",
-      pageTitle: "Example",
-      viewport: { width: 1280, height: 720 },
-      data: { x: 10, y: 20 },
-    });
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "click",
+        pageUrl: "https://example.com/click?token=secret#session",
+        pageTitle: "Example",
+        viewport: { width: 1280, height: 720 },
+        data: { x: 10, y: 20 },
+      }),
+    );
     page.currentUrl = "https://example.com/dashboard?magic=link#token";
     page.navigationHandler?.();
     await recorder.close();
@@ -186,18 +204,20 @@ describe("createPlaywrightMetadataRecorder", () => {
     expect(page.initScripts).toHaveLength(1);
     expect(page.binding).toBeDefined();
 
-    await page.binding?.({
-      type: "fill",
-      pageUrl: "https://example.com/settings",
-      pageTitle: "Settings",
-      viewport: { width: 1280, height: 720 },
-      data: {
-        target: { tagName: "INPUT", inputType: "email", label: "Email" },
-        value: "person@example.com",
-        inputType: "email",
-        inputMethod: "keyboard",
-      },
-    });
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "fill",
+        pageUrl: "https://example.com/settings",
+        pageTitle: "Settings",
+        viewport: { width: 1280, height: 720 },
+        data: {
+          target: { tagName: "INPUT", inputType: "email", label: "Email" },
+          value: "person@example.com",
+          inputType: "email",
+          inputMethod: "keyboard",
+        },
+      }),
+    );
 
     await recorder.close();
 
@@ -233,13 +253,15 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     });
 
-    const browserWrite = page.binding?.({
-      type: "click",
-      pageUrl: "https://example.com",
-      pageTitle: "Example",
-      viewport: { width: 1280, height: 720 },
-      data: { x: 10, y: 20 },
-    });
+    const browserWrite = page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "click",
+        pageUrl: "https://example.com",
+        pageTitle: "Example",
+        viewport: { width: 1280, height: 720 },
+        data: { x: 10, y: 20 },
+      }),
+    );
     expect(browserWrite).toBeDefined();
     await writer.writeStarted;
 
@@ -278,16 +300,18 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     });
 
-    await page.binding?.({
-      type: "fill",
-      pageUrl: "https://example.com/editor",
-      pageTitle: "Editor",
-      viewport: { width: 1280, height: 720 },
-      data: {
-        target: { tagName: "DIV", role: "textbox", text: "secret draft" },
-        inputMethod: "insertText",
-      },
-    });
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "fill",
+        pageUrl: "https://example.com/editor",
+        pageTitle: "Editor",
+        viewport: { width: 1280, height: 720 },
+        data: {
+          target: { tagName: "DIV", role: "textbox", text: "secret draft" },
+          inputMethod: "insertText",
+        },
+      }),
+    );
 
     await recorder.close();
 
@@ -317,38 +341,42 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     });
 
-    await page.binding?.({
-      type: "press",
-      pageUrl: "https://example.com/login",
-      pageTitle: "Login",
-      viewport: { width: 1280, height: 720 },
-      data: {
-        key: "s",
-        modifiers: { alt: false, ctrl: false, meta: false, shift: false },
-        target: {
-          tagName: "INPUT",
-          inputType: "password",
-          label: "Password",
-          text: "secret",
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "press",
+        pageUrl: "https://example.com/login",
+        pageTitle: "Login",
+        viewport: { width: 1280, height: 720 },
+        data: {
+          key: "s",
+          modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+          target: {
+            tagName: "INPUT",
+            inputType: "password",
+            label: "Password",
+            text: "secret",
+          },
         },
-      },
-    });
-    await page.binding?.({
-      type: "press",
-      pageUrl: "https://example.com/login",
-      pageTitle: "Login",
-      viewport: { width: 1280, height: 720 },
-      data: {
-        key: "Backspace",
-        modifiers: { alt: false, ctrl: false, meta: false, shift: false },
-        target: {
-          tagName: "INPUT",
-          inputType: "password",
-          label: "Password",
-          text: "secret",
+      }),
+    );
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "press",
+        pageUrl: "https://example.com/login",
+        pageTitle: "Login",
+        viewport: { width: 1280, height: 720 },
+        data: {
+          key: "Backspace",
+          modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+          target: {
+            tagName: "INPUT",
+            inputType: "password",
+            label: "Password",
+            text: "secret",
+          },
         },
-      },
-    });
+      }),
+    );
 
     await recorder.close();
 
@@ -385,22 +413,24 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     });
 
-    await page.binding?.({
-      type: "press",
-      pageUrl: "https://example.com/message",
-      pageTitle: "Message",
-      viewport: { width: 1280, height: 720 },
-      data: {
-        key: "🔐",
-        modifiers: { alt: false, ctrl: false, meta: false, shift: false },
-        target: {
-          tagName: "DIV",
-          role: "textbox",
-          editable: true,
-          text: "🔐",
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "press",
+        pageUrl: "https://example.com/message",
+        pageTitle: "Message",
+        viewport: { width: 1280, height: 720 },
+        data: {
+          key: "🔐",
+          modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+          target: {
+            tagName: "DIV",
+            role: "textbox",
+            editable: true,
+            text: "🔐",
+          },
         },
-      },
-    });
+      }),
+    );
 
     await recorder.close();
 
@@ -463,13 +493,15 @@ describe("createPlaywrightMetadataRecorder", () => {
       text: "first",
     });
     await page.firstSnapshotStarted;
-    const clickWrite = page.binding?.({
-      type: "click",
-      pageUrl: "https://example.com",
-      pageTitle: "Example",
-      viewport: { width: 1280, height: 720 },
-      data: { x: 10, y: 20 },
-    });
+    const clickWrite = page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "click",
+        pageUrl: "https://example.com",
+        pageTitle: "Example",
+        viewport: { width: 1280, height: 720 },
+        data: { x: 10, y: 20 },
+      }),
+    );
     page.releaseSnapshot();
     await clickWrite;
     await recorder.close();
@@ -522,13 +554,15 @@ describe("createPlaywrightMetadataRecorder", () => {
 
     const stop = recorder.writeCaptureStopped({ reason: "completed" });
     await page.firstSnapshotStarted;
-    const lateClick = page.binding?.({
-      type: "click",
-      pageUrl: "https://example.com",
-      pageTitle: "Example",
-      viewport: { width: 1280, height: 720 },
-      data: { x: 10, y: 20 },
-    });
+    const lateClick = page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "click",
+        pageUrl: "https://example.com",
+        pageTitle: "Example",
+        viewport: { width: 1280, height: 720 },
+        data: { x: 10, y: 20 },
+      }),
+    );
     page.releaseSnapshot();
     await Promise.all([stop, lateClick]);
     await recorder.close();
@@ -555,13 +589,15 @@ describe("createPlaywrightMetadataRecorder", () => {
     await page.firstSnapshotStarted;
     const close = recorder.close();
 
-    await page.binding?.({
-      type: "click",
-      pageUrl: "https://example.com",
-      pageTitle: "Example",
-      viewport: { width: 1280, height: 720 },
-      data: { x: 10, y: 20 },
-    });
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "click",
+        pageUrl: "https://example.com",
+        pageTitle: "Example",
+        viewport: { width: 1280, height: 720 },
+        data: { x: 10, y: 20 },
+      }),
+    );
     page.releaseSnapshot();
     await close;
 
@@ -619,5 +655,90 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     ]);
     expect(JSON.stringify(writer.events)).not.toContain("secret-cookie-value");
+  });
+
+  it("ignores browser binding payloads without the recorder token", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await page.binding?.({
+      type: "click",
+      pageUrl: "https://example.com",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: { text: "secret injected by page script" },
+    });
+    await page.binding?.({
+      type: "click",
+      captureToken: "wrong-token",
+      pageUrl: "https://example.com",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: { text: "secret injected by page script" },
+    } as never);
+    await recorder.close();
+
+    expect(writer.events).toEqual([]);
+  });
+
+  it("keeps only known browser payload data fields", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "click",
+        pageUrl: "https://example.com/dashboard?token=secret",
+        pageTitle: "Dashboard",
+        viewport: { width: 1280, height: 720 },
+        data: {
+          x: 10,
+          y: 20,
+          button: 0,
+          text: "secret injected by page script",
+          target: {
+            tagName: "BUTTON",
+            label: "Save",
+            text: "Save",
+            secret: "raw secret",
+          },
+        },
+      }),
+    );
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "click",
+        pageUrl: "https://example.com/dashboard",
+        data: {
+          x: 10,
+          y: 20,
+          button: 0,
+          target: {
+            tagName: "BUTTON",
+            label: "Save",
+            text: "Save",
+          },
+        },
+      }),
+    ]);
+    expect(JSON.stringify(writer.events)).not.toContain("secret");
   });
 });

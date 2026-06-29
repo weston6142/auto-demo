@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { redactCapturedValue, type CaptureEventFactory } from "./captureEvents.js";
 import type { JsonlEventWriter } from "./jsonlEventWriter.js";
 import type {
@@ -73,6 +74,7 @@ export async function createPlaywrightMetadataRecorder(options: {
 
 class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
   private readonly pendingWrites = new Set<Promise<void>>();
+  private readonly browserBindingToken = randomBytes(32).toString("base64url");
   private writeChain: Promise<void> = Promise.resolve();
   private closing = false;
 
@@ -84,10 +86,17 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
 
   async attach(): Promise<void> {
     await this.page.exposeBinding(BINDING_NAME, async (payload) => {
+      const browserPayload = parseBrowserBindingPayload(payload, this.browserBindingToken);
+      if (browserPayload === undefined) {
+        return;
+      }
+
       const timestampMs = this.eventFactory.reserveTimestamp();
-      await this.enqueue(() => this.writeBrowserPayload(payload, timestampMs));
+      await this.enqueue(() => this.writeBrowserPayload(browserPayload, timestampMs));
     });
-    await this.page.addInitScript(browserInstrumentationScript(BINDING_NAME));
+    await this.page.addInitScript(
+      browserInstrumentationScript(BINDING_NAME, this.browserBindingToken),
+    );
     this.page.onConsole((message) => {
       const timestampMs = this.eventFactory.reserveTimestamp();
       this.enqueue(() => this.writeConsole(message, timestampMs));
@@ -107,10 +116,14 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
     await this.enqueue(async () => {
       const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
       await this.writer.write(
-        this.eventFactory.create("capture_started", {
-          ...snapshot,
-          data: sanitizeCaptureData(data),
-        }, { timestampMs }),
+        this.eventFactory.create(
+          "capture_started",
+          {
+            ...snapshot,
+            data: sanitizeCaptureData(data),
+          },
+          { timestampMs },
+        ),
       );
     });
   }
@@ -122,15 +135,22 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
 
     this.closing = true;
     const timestampMs = this.eventFactory.reserveTimestamp();
-    await this.enqueue(async () => {
-      const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
-      await this.writer.write(
-        this.eventFactory.create("capture_stopped", {
-          ...snapshot,
-          data,
-        }, { timestampMs }),
-      );
-    }, { allowWhileClosing: true });
+    await this.enqueue(
+      async () => {
+        const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
+        await this.writer.write(
+          this.eventFactory.create(
+            "capture_stopped",
+            {
+              ...snapshot,
+              data,
+            },
+            { timestampMs },
+          ),
+        );
+      },
+      { allowWhileClosing: true },
+    );
   }
 
   async close(): Promise<void> {
@@ -166,54 +186,215 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
     timestampMs: number,
   ): Promise<void> {
     await this.writer.write(
-      this.eventFactory.create(payload.type, {
-        pageUrl: sanitizeUrlField(payload.pageUrl),
-        pageTitle: payload.pageTitle,
-        viewport: payload.viewport,
-        data: normalizeBrowserPayloadData(payload),
-      }, { timestampMs }),
+      this.eventFactory.create(
+        payload.type,
+        {
+          pageUrl: sanitizeUrlField(payload.pageUrl),
+          pageTitle: payload.pageTitle,
+          viewport: payload.viewport,
+          data: normalizeBrowserPayloadData(payload),
+        },
+        { timestampMs },
+      ),
     );
   }
 
-  private async writeConsole(message: PlaywrightConsoleMessage, timestampMs: number): Promise<void> {
+  private async writeConsole(
+    message: PlaywrightConsoleMessage,
+    timestampMs: number,
+  ): Promise<void> {
     const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
     await this.writer.write(
-      this.eventFactory.create("console", {
-        ...snapshot,
-        data: {
-          level: message.type,
-          textRedacted: true,
-          textLength: message.text.length,
-          location: sanitizeConsoleLocation(message.location),
+      this.eventFactory.create(
+        "console",
+        {
+          ...snapshot,
+          data: {
+            level: message.type,
+            textRedacted: true,
+            textLength: message.text.length,
+            location: sanitizeConsoleLocation(message.location),
+          },
         },
-      }, { timestampMs }),
+        { timestampMs },
+      ),
     );
   }
 
   private async writeNavigation(phase: string, timestampMs: number): Promise<void> {
     const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
     await this.writer.write(
-      this.eventFactory.create("navigation", {
-        ...snapshot,
-        data: { phase },
-      }, { timestampMs }),
+      this.eventFactory.create(
+        "navigation",
+        {
+          ...snapshot,
+          data: { phase },
+        },
+        { timestampMs },
+      ),
     );
   }
 
   private async writePageError(error: PlaywrightPageError, timestampMs: number): Promise<void> {
     const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
     await this.writer.write(
-      this.eventFactory.create("page_error", {
-        ...snapshot,
-        data: {
-          name: error.name,
-          messageRedacted: true,
-          messageLength: error.message.length,
-          stackRedacted: error.stack !== undefined || undefined,
+      this.eventFactory.create(
+        "page_error",
+        {
+          ...snapshot,
+          data: {
+            name: error.name,
+            messageRedacted: true,
+            messageLength: error.message.length,
+            stackRedacted: error.stack !== undefined || undefined,
+          },
         },
-      }, { timestampMs }),
+        { timestampMs },
+      ),
     );
   }
+}
+
+function parseBrowserBindingPayload(
+  payload: unknown,
+  expectedToken: string,
+): BrowserBindingPayload | undefined {
+  if (!isRecord(payload) || payload.captureToken !== expectedToken) {
+    return undefined;
+  }
+
+  if (
+    payload.type !== "click" &&
+    payload.type !== "fill" &&
+    payload.type !== "press" &&
+    payload.type !== "viewport" &&
+    payload.type !== "navigation"
+  ) {
+    return undefined;
+  }
+
+  const data = parseBrowserPayloadData(payload.type, payload.data);
+  if (payload.data !== undefined && data === undefined) {
+    return undefined;
+  }
+
+  return {
+    type: payload.type,
+    pageUrl: stringValue(payload.pageUrl),
+    pageTitle: stringValue(payload.pageTitle),
+    viewport: parseViewport(payload.viewport),
+    data,
+  };
+}
+
+function parseBrowserPayloadData(
+  type: BrowserBindingPayload["type"],
+  data: unknown,
+): Record<string, unknown> | undefined {
+  if (data === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(data)) {
+    return undefined;
+  }
+
+  if (type === "click") {
+    return omitUndefined({
+      x: numberValue(data.x),
+      y: numberValue(data.y),
+      button: numberValue(data.button),
+      modifiers: parseModifiers(data.modifiers),
+      target: parseTargetHint(data.target),
+    });
+  }
+
+  if (type === "fill") {
+    return omitUndefined({
+      target: parseTargetHint(data.target),
+      value: stringValue(data.value),
+      inputType: stringValue(data.inputType),
+      inputMethod: stringValue(data.inputMethod),
+    });
+  }
+
+  if (type === "press") {
+    return omitUndefined({
+      key: stringValue(data.key),
+      keyKind: data.keyKind === "printable" ? data.keyKind : undefined,
+      modifiers: parseModifiers(data.modifiers),
+      target: parseTargetHint(data.target),
+    });
+  }
+
+  if (type === "viewport") {
+    return omitUndefined({
+      width: numberValue(data.width),
+      height: numberValue(data.height),
+    });
+  }
+
+  return omitUndefined({
+    phase: stringValue(data.phase),
+  });
+}
+
+function parseModifiers(value: unknown): Record<string, boolean> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return omitUndefined({
+    alt: booleanValue(value.alt),
+    ctrl: booleanValue(value.ctrl),
+    meta: booleanValue(value.meta),
+    shift: booleanValue(value.shift),
+  }) as Record<string, boolean>;
+}
+
+function parseTargetHint(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return omitUndefined({
+    tagName: stringValue(value.tagName),
+    inputType: stringValue(value.inputType),
+    role: stringValue(value.role),
+    label: stringValue(value.label),
+    text: stringValue(value.text),
+    editable: booleanValue(value.editable),
+  });
+}
+
+function parseViewport(value: unknown): BrowserBindingPayload["viewport"] | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const width = numberValue(value.width);
+  const height = numberValue(value.height);
+  return width === undefined || height === undefined ? undefined : { width, height };
+}
+
+function omitUndefined<T extends Record<string, unknown>>(record: T): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function normalizeBrowserPayloadData(
@@ -230,7 +411,9 @@ function normalizeBrowserPayloadData(
   return payload.data;
 }
 
-function normalizeFillPayloadData(data: Record<string, unknown> | undefined): Record<string, unknown> {
+function normalizeFillPayloadData(
+  data: Record<string, unknown> | undefined,
+): Record<string, unknown> {
   const value = typeof data?.value === "string" ? data.value : undefined;
   const inputType = typeof data?.inputType === "string" ? data.inputType : undefined;
   const rest = { ...(data ?? {}) };
@@ -355,13 +538,14 @@ function stripUrlSecrets(value: string): string {
   }
 }
 
-function browserInstrumentationScript(bindingName: string): string {
+function browserInstrumentationScript(bindingName: string, captureToken: string): string {
   return `
 (() => {
+  const captureToken = ${JSON.stringify(captureToken)};
   const send = (payload) => {
     const binding = window["${bindingName}"];
     if (typeof binding === "function") {
-      void binding(payload);
+      void binding({ ...payload, captureToken });
     }
   };
   const isEditableTarget = (target) => {
