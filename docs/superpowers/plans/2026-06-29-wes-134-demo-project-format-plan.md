@@ -257,6 +257,26 @@ describe("validateProjectManifest", () => {
       ],
     });
   });
+
+  it("rejects source URLs with query or fragment data", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        source: { kind: "browser", url: "https://example.com/checkout?token=secret#step" },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest sourceCapture is invalid.",
+        },
+      ],
+    });
+  });
 });
 
 export async function createFixtureProject(manifest = validManifest) {
@@ -419,6 +439,7 @@ function validateSourceCapture(value: unknown, errors: ProjectValidationError[])
     !isRecord(value.source) ||
     value.source.kind !== "browser" ||
     !isNonEmptyString(value.source.url) ||
+    !isSecretSafeSourceUrl(value.source.url) ||
     !isRecord(value.viewport) ||
     !isPositiveNumber(value.viewport.width) ||
     !isPositiveNumber(value.viewport.height) ||
@@ -439,6 +460,15 @@ function validateSourceCapture(value: unknown, errors: ProjectValidationError[])
       code: "invalid_project_manifest",
       message: "Auto Demo project manifest sourceCapture is invalid.",
     });
+  }
+}
+
+function isSecretSafeSourceUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.search === "" && url.hash === "";
+  } catch {
+    return false;
   }
 }
 
@@ -635,6 +665,32 @@ describe("project load/save validation", () => {
         },
       ],
     });
+    expect(await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).toBe(
+      beforeManifest,
+    );
+  });
+
+  it("does not persist a saved manifest with source URL query or fragment data", async () => {
+    const projectDir = await createFixtureProject();
+    const loaded = await loadProject(projectDir);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+
+    const beforeManifest = await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8");
+    const project: LoadedProject = {
+      ...loaded,
+      manifest: {
+        ...loaded.manifest,
+        sourceCapture: {
+          ...loaded.manifest.sourceCapture,
+          source: { kind: "browser", url: "https://example.com?token=secret#step" },
+        },
+      },
+    };
+
+    const saved = await saveProject(project);
+
+    expect(saved.ok).toBe(false);
     expect(await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).toBe(
       beforeManifest,
     );
@@ -941,6 +997,47 @@ describe("createProjectFromCaptureBundle", () => {
       readFile(join(projectDir, "metadata", "capture.manifest.json"), "utf8"),
     ).resolves.toContain('"schemaVersion": 1');
   });
+
+  it("returns stable diagnostics for invalid capture bundles", async () => {
+    const captureDir = await mkdtemp(join(tmpdir(), "auto-demo-invalid-capture-"));
+    await writeFile(
+      join(captureDir, "capture.manifest.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        status: "completed",
+        source: { kind: "browser", url: "https://example.com/checkout" },
+        adapter: { kind: "browser", backend: "playwright" },
+        tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+        viewport: { width: 1280, height: 720 },
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+        artifacts: {
+          media: "media/token=secret.webm",
+          events: "metadata/events.jsonl",
+        },
+      }),
+    );
+    const projectDir = await mkdtemp(join(tmpdir(), "auto-demo-imported-project-"));
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Imported checkout demo",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual([
+        {
+          code: "invalid_project_manifest",
+          message: "Capture bundle is invalid and cannot be imported.",
+        },
+      ]);
+      expect(result.errors.map((error) => error.message).join("\n")).not.toContain("secret");
+      expect(result.errors.map((error) => error.message).join("\n")).not.toContain("token=");
+    }
+  });
 });
 ```
 
@@ -985,10 +1082,12 @@ export async function createProjectFromCaptureBundle(
       ok: false,
       projectDir,
       manifestPath,
-      errors: capture.errors.map((message) => ({
-        code: "invalid_project_manifest",
-        message,
-      })),
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Capture bundle is invalid and cannot be imported.",
+        },
+      ],
     };
   }
 
@@ -1035,7 +1134,10 @@ export async function createProjectFromCaptureBundle(
     sourceCapture: {
       kind: "browser",
       status: capture.manifest.status,
-      source: capture.manifest.source,
+      source: {
+        kind: "browser",
+        url: stripUrlSecrets(capture.manifest.source.url),
+      },
       viewport: capture.manifest.viewport,
       timing: {
         startedAt: capture.manifest.startedAt,
@@ -1058,6 +1160,13 @@ export async function createProjectFromCaptureBundle(
   };
 
   return await saveProject({ projectDir, manifestPath, manifest });
+}
+
+function stripUrlSecrets(value: string): string {
+  const url = new URL(value);
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }
 ```
 
@@ -1115,12 +1224,9 @@ describe("project validation diagnostics", () => {
   it("does not include URL query secrets in validation error messages", async () => {
     const projectDir = await createFixtureProject({
       ...validManifest,
-      media: {
-        primary: {
-          kind: "viewport",
-          path: "/tmp/capture.webm?token=secret",
-          contentType: "video/webm",
-        },
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        source: { kind: "browser", url: "https://example.com/checkout?token=secret#step" },
       },
     });
 
