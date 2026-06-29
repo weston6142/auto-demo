@@ -52,6 +52,7 @@ class DeferredWriter extends MemoryWriter {
 class FakePage implements PlaywrightPage {
   public readonly gotos: string[] = [];
   public readonly initScripts: string[] = [];
+  public bindingName: string | undefined;
   public binding: BrowserBindingCallback | undefined;
   public consoleHandler: ((message: PlaywrightConsoleMessage) => void) | undefined;
   public navigationHandler: (() => void) | undefined;
@@ -69,7 +70,8 @@ class FakePage implements PlaywrightPage {
     return null;
   }
 
-  async exposeBinding(_name: string, callback: BrowserBindingCallback): Promise<void> {
+  async exposeBinding(name: string, callback: BrowserBindingCallback): Promise<void> {
+    this.bindingName = name;
     this.binding = callback;
   }
 
@@ -127,15 +129,12 @@ function trustedBrowserPayload(
   page: FakePage,
   payload: Record<string, unknown>,
 ): Record<string, unknown> {
-  const script = page.initScripts[0] ?? "";
-  const tokenLiteral = script.match(/const captureToken = ("(?:\\.|[^"\\])*");/)?.[1];
-  if (tokenLiteral === undefined) {
-    throw new Error("capture token not found in browser instrumentation");
+  if (page.bindingName === undefined) {
+    throw new Error("browser binding not exposed");
   }
 
   return {
     ...payload,
-    captureToken: JSON.parse(tokenLiteral) as string,
   };
 }
 
@@ -227,10 +226,9 @@ describe("createPlaywrightMetadataRecorder", () => {
         type: "fill",
         timestampMs: 1000,
         pageUrl: "https://example.com/settings",
-        pageTitle: "Settings",
         viewport: { width: 1280, height: 720 },
         data: {
-          target: { tagName: "INPUT", inputType: "email", label: "Email" },
+          target: { tagName: "INPUT", inputType: "email", labelRedacted: true, labelLength: 5 },
           inputMethod: "keyboard",
           redacted: true,
           valueKind: "email_like",
@@ -387,7 +385,12 @@ describe("createPlaywrightMetadataRecorder", () => {
           key: "[redacted]",
           keyKind: "printable",
           modifiers: { alt: false, ctrl: false, meta: false, shift: false },
-          target: { tagName: "INPUT", inputType: "password", label: "Password" },
+          target: {
+            tagName: "INPUT",
+            inputType: "password",
+            labelRedacted: true,
+            labelLength: 8,
+          },
         },
       }),
       expect.objectContaining({
@@ -395,7 +398,12 @@ describe("createPlaywrightMetadataRecorder", () => {
         data: {
           key: "Backspace",
           modifiers: { alt: false, ctrl: false, meta: false, shift: false },
-          target: { tagName: "INPUT", inputType: "password", label: "Password" },
+          target: {
+            tagName: "INPUT",
+            inputType: "password",
+            labelRedacted: true,
+            labelLength: 8,
+          },
         },
       }),
     ]);
@@ -469,7 +477,6 @@ describe("createPlaywrightMetadataRecorder", () => {
         sequence: 1,
         type: "navigation",
         pageUrl: "https://example.com/dashboard",
-        pageTitle: "Dashboard",
         viewport: { width: 1280, height: 720 },
         data: { phase: "framenavigated" },
       }),
@@ -657,7 +664,7 @@ describe("createPlaywrightMetadataRecorder", () => {
     expect(JSON.stringify(writer.events)).not.toContain("secret-cookie-value");
   });
 
-  it("ignores browser binding payloads without the recorder token", async () => {
+  it("accepts validated browser payloads without relying on a recorder token", async () => {
     const page = new FakePage();
     const writer = new MemoryWriter();
     const recorder = await createPlaywrightMetadataRecorder({
@@ -678,7 +685,6 @@ describe("createPlaywrightMetadataRecorder", () => {
     });
     await page.binding?.({
       type: "click",
-      captureToken: "wrong-token",
       pageUrl: "https://example.com",
       pageTitle: "Example",
       viewport: { width: 1280, height: 720 },
@@ -686,7 +692,10 @@ describe("createPlaywrightMetadataRecorder", () => {
     } as never);
     await recorder.close();
 
-    expect(writer.events).toEqual([]);
+    expect(writer.events).toEqual([
+      expect.objectContaining({ type: "click", pageUrl: "https://example.com" }),
+      expect.objectContaining({ type: "click", pageUrl: "https://example.com" }),
+    ]);
   });
 
   it("keeps only known browser payload data fields", async () => {
@@ -733,12 +742,124 @@ describe("createPlaywrightMetadataRecorder", () => {
           button: 0,
           target: {
             tagName: "BUTTON",
-            label: "Save",
-            text: "Save",
+            labelRedacted: true,
+            labelLength: 4,
+            textRedacted: true,
+            textLength: 4,
           },
         },
       }),
     ]);
     expect(JSON.stringify(writer.events)).not.toContain("secret");
+  });
+
+  it("does not expose privileged tokens through browser instrumentation", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    expect(page.initScripts[0]).not.toContain("captureToken");
+
+    await page.binding?.({
+      type: "click",
+      pageUrl: "https://example.com/dashboard?token=url-secret",
+      pageTitle: "token=title-secret",
+      viewport: { width: 1280, height: 720 },
+      data: {
+        x: 10,
+        y: 20,
+        target: {
+          tagName: "BUTTON",
+          label: "token=label-secret",
+          text: "token=text-secret",
+        },
+      },
+    });
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "click",
+        pageUrl: "https://example.com/dashboard",
+        pageTitle: undefined,
+        data: {
+          x: 10,
+          y: 20,
+          target: {
+            tagName: "BUTTON",
+            labelRedacted: true,
+            labelLength: 18,
+            textRedacted: true,
+            textLength: 17,
+          },
+        },
+      }),
+    ]);
+    expect(JSON.stringify(writer.events)).not.toContain("title-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("label-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("text-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("url-secret");
+  });
+
+  it("redacts injected printable press keys and rejects unsafe target tokens", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await page.binding?.({
+      type: "press",
+      pageUrl: "https://example.com",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: {
+        key: "token=key-secret",
+        modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+        target: {
+          tagName: "token-tag-secret",
+          inputType: "token-input-secret",
+          role: "token-role-secret",
+          label: "token-label-secret",
+          text: "token-text-secret",
+        },
+      },
+    });
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "press",
+        data: {
+          key: "[redacted]",
+          keyKind: "printable",
+          modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+          target: {
+            labelRedacted: true,
+            labelLength: 18,
+            textRedacted: true,
+            textLength: 17,
+          },
+        },
+      }),
+    ]);
+    expect(JSON.stringify(writer.events)).not.toContain("key-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("tag-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("input-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("role-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("label-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("text-secret");
   });
 });
