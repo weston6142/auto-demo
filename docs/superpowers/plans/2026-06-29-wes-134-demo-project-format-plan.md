@@ -258,6 +258,52 @@ describe("validateProjectManifest", () => {
     });
   });
 
+  it("rejects backslash-separated project artifact paths", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      media: {
+        primary: {
+          kind: "viewport",
+          path: "raw\\capture.webm",
+          contentType: "video/webm",
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "unsafe_project_path",
+          message: "Project media.primary.path must be a relative path inside the project.",
+        },
+      ],
+    });
+  });
+
+  it("rejects unknown secret-bearing manifest fields", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        source: {
+          ...validManifest.sourceCapture.source,
+          token: "token=secret",
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest contains unknown fields.",
+        },
+      ],
+    });
+  });
+
   it("rejects source URLs with query or fragment data", () => {
     const result = validateProjectManifest({
       ...validManifest,
@@ -390,6 +436,23 @@ export function validateProjectManifest(input: unknown): ProjectManifestValidati
     };
   }
 
+  rejectUnknownKeys(
+    input,
+    [
+      "schemaVersion",
+      "name",
+      "createdAt",
+      "updatedAt",
+      "sourceCapture",
+      "media",
+      "metadata",
+      "variants",
+      "previews",
+      "exports",
+    ],
+    errors,
+  );
+
   if (input.schemaVersion !== SUPPORTED_PROJECT_SCHEMA_VERSION) {
     errors.push({
       code: "unsupported_project_version",
@@ -453,6 +516,27 @@ function validateSourceCapture(value: unknown, errors: ProjectValidationError[])
     return;
   }
 
+  rejectUnknownKeys(
+    value,
+    ["kind", "status", "source", "viewport", "timing", "adapter", "tools", "manifestPath"],
+    errors,
+  );
+  if (isRecord(value.source)) {
+    rejectUnknownKeys(value.source, ["kind", "url"], errors);
+  }
+  if (isRecord(value.viewport)) {
+    rejectUnknownKeys(value.viewport, ["width", "height"], errors);
+  }
+  if (isRecord(value.timing)) {
+    rejectUnknownKeys(value.timing, ["startedAt", "endedAt", "durationMs"], errors);
+  }
+  if (isRecord(value.adapter)) {
+    rejectUnknownKeys(value.adapter, ["kind", "backend"], errors);
+  }
+  if (isRecord(value.tools)) {
+    rejectUnknownKeys(value.tools, ["capturePackage", "playwright"], errors);
+  }
+
   if (
     value.kind !== "browser" ||
     !["completed", "failed", "interrupted"].includes(stringValue(value.status)) ||
@@ -497,6 +581,13 @@ function isSecretSafeSourceUrl(value: string): boolean {
 }
 
 function validateMedia(value: unknown, errors: ProjectValidationError[]): void {
+  if (isRecord(value)) {
+    rejectUnknownKeys(value, ["primary"], errors);
+  }
+  if (isRecord(value) && isRecord(value.primary)) {
+    rejectUnknownKeys(value.primary, ["kind", "path", "contentType"], errors);
+  }
+
   if (
     !isRecord(value) ||
     !isRecord(value.primary) ||
@@ -518,6 +609,13 @@ function validateMedia(value: unknown, errors: ProjectValidationError[]): void {
 }
 
 function validateMetadata(value: unknown, errors: ProjectValidationError[]): void {
+  if (isRecord(value)) {
+    rejectUnknownKeys(value, ["events"], errors);
+  }
+  if (isRecord(value) && isRecord(value.events)) {
+    rejectUnknownKeys(value.events, ["path", "contentType"], errors);
+  }
+
   if (
     !isRecord(value) ||
     !isRecord(value.events) ||
@@ -541,6 +639,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function rejectUnknownKeys(
+  value: Record<string, unknown>,
+  allowedKeys: string[],
+  errors: ProjectValidationError[],
+): void {
+  const allowed = new Set(allowedKeys);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message: "Auto Demo project manifest contains unknown fields.",
+    });
+  }
+}
+
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -561,9 +673,10 @@ function isPortablePath(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value.length > 0 &&
+    !value.includes("\\") &&
     !isAbsolute(value) &&
     !win32.isAbsolute(value) &&
-    !value.split(/[\\/]/).includes("..")
+    !value.split("/").includes("..")
   );
 }
 ```
@@ -721,6 +834,29 @@ describe("project load/save validation", () => {
     );
   });
 
+  it("does not persist a saved manifest with unknown secret-bearing fields", async () => {
+    const projectDir = await createFixtureProject();
+    const loaded = await loadProject(projectDir);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+
+    const beforeManifest = await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8");
+    const project: LoadedProject = {
+      ...loaded,
+      manifest: {
+        ...loaded.manifest,
+        token: "token=secret",
+      } as ProjectManifest,
+    };
+
+    const saved = await saveProject(project);
+
+    expect(saved.ok).toBe(false);
+    expect(await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).toBe(
+      beforeManifest,
+    );
+  });
+
   it("saves only to the canonical manifest path for the project directory", async () => {
     const projectDir = await createFixtureProject();
     const otherDir = await mkdtemp(join(tmpdir(), "autodemo-other-"));
@@ -848,7 +984,7 @@ export async function saveProject(project: LoadedProject): Promise<ProjectValida
 
   await mkdir(dirname(manifestPath), { recursive: true });
   const tempPath = `${manifestPath}.tmp`;
-  await writeFile(tempPath, `${JSON.stringify(project.manifest, null, 2)}\n`);
+  await writeFile(tempPath, `${JSON.stringify(manifestResult.manifest, null, 2)}\n`);
   await rename(tempPath, manifestPath);
   return await validateProject(manifestPath);
 }
