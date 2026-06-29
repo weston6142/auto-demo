@@ -701,4 +701,53 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     });
     expect(JSON.stringify(validation.manifest)).not.toContain("token=secret");
   });
+
+  it("uses the generated Playwright video path for stop failure diagnostics", async () => {
+    class FailingCloseFileWriter implements JsonlEventWriter {
+      public constructor(private readonly eventsPath: string) {}
+
+      async write(event: CaptureEvent): Promise<void> {
+        await appendFile(this.eventsPath, `${JSON.stringify(event)}\n`, "utf8");
+      }
+
+      async close(): Promise<void> {
+        throw new Error("metadata close failed");
+      }
+    }
+
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-generated-video-"));
+    await mkdir(join(outputDir, "media"), { recursive: true });
+    const generatedVideoPath = join(outputDir, "media", "playwright-generated.webm");
+    await writeFile(generatedVideoPath, "partial video");
+    const driver = new FakeDriver(generatedVideoPath);
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: (() => {
+        const dates = [new Date("2026-06-29T12:00:00.000Z"), new Date("2026-06-29T12:00:02.500Z")];
+        return () => dates.shift() ?? new Date("2026-06-29T12:00:02.500Z");
+      })(),
+      createEventWriter: async (eventsPath) => new FailingCloseFileWriter(eventsPath),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("completed");
+
+    expect(stopResult.ok).toBe(false);
+    const validation = await validateCaptureBundle(outputDir);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) {
+      return;
+    }
+    expect(validation.manifest.artifacts.media).toBe("media/playwright-generated.webm");
+  });
 });

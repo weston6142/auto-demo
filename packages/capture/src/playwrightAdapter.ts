@@ -21,6 +21,7 @@ import {
   type PlaywrightBrowserContext,
   type PlaywrightDriver,
   type PlaywrightPage,
+  type PlaywrightVideo,
 } from "./playwrightDriver.js";
 
 type PlaywrightAdapterDependencies = {
@@ -208,10 +209,15 @@ class PlaywrightCaptureSession {
       await closeMetadataQuietly(this.state.metadataRecorder);
       await closeQuietly(this.state.context);
       await closeQuietly(this.state.browser);
-      await this.writeDiagnosticManifestQuietly(reason, timing, {
-        code: "capture_stop_failed",
-        message: "Browser capture stop failed.",
-      });
+      await this.writeDiagnosticManifestQuietly(
+        reason,
+        timing,
+        {
+          code: "capture_stop_failed",
+          message: "Browser capture stop failed.",
+        },
+        video,
+      );
       return this.stopFailed();
     }
   }
@@ -220,14 +226,18 @@ class PlaywrightCaptureSession {
     reason: CaptureStopReason,
     timing: CaptureOutput["timing"],
     error: { code: string; message: string },
+    video: PlaywrightVideo | null,
   ): Promise<void> {
+    const generatedVideoPath =
+      video === null ? undefined : await existingPlaywrightVideoPathQuietly(video);
     const mediaPath = await existingArtifactPath([
       this.state.paths.viewportMediaPath,
+      ...(generatedVideoPath === undefined ? [] : [generatedVideoPath]),
       `${this.state.paths.mediaDir}/raw.webm`,
     ]);
     const eventsPath = await existingArtifactPath([this.state.paths.eventsPath]);
 
-    if (mediaPath === undefined && eventsPath === undefined) {
+    if (mediaPath === undefined || eventsPath === undefined) {
       return;
     }
 
@@ -298,6 +308,16 @@ async function existingArtifactPath(paths: string[]): Promise<string | undefined
   }
 
   return undefined;
+}
+
+async function existingPlaywrightVideoPathQuietly(
+  video: PlaywrightVideo,
+): Promise<string | undefined> {
+  try {
+    return await existingArtifactPath([await video.path()]);
+  } catch {
+    return undefined;
+  }
 }
 
 async function moveViewportVideo(
