@@ -39,7 +39,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-147. Next expected Capture Runtime child after WES-147 is WES-146.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-146.
 
 ## Issues By Milestone
 
@@ -55,7 +55,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-143: Browser capture adapter skeleton and CLI contract - Done - https://linear.app/weston-bushyeager/issue/WES-143/browser-capture-adapter-skeleton-and-cli-contract
 - WES-142: Playwright viewport media recording - Done - https://linear.app/weston-bushyeager/issue/WES-142/playwright-viewport-media-recording
 - WES-145: Browser interaction metadata capture - Done - https://linear.app/weston-bushyeager/issue/WES-145/browser-interaction-metadata-capture
-- WES-147: Capture bundle writer and manifest - Locally in progress - https://linear.app/weston-bushyeager/issue/WES-147/capture-bundle-writer-and-manifest
+- WES-147: Capture bundle writer and manifest - Done - https://linear.app/weston-bushyeager/issue/WES-147/capture-bundle-writer-and-manifest
 - WES-146: Failure handling and capture validation tests - Backlog - https://linear.app/weston-bushyeager/issue/WES-146/failure-handling-and-capture-validation-tests
 
 ### 3. Demo Project Format
@@ -151,6 +151,8 @@ capture-dir/
 - WES-142: Playwright viewport media recording implemented as the default CLI capture backend; smoke test verifies a non-empty viewport video file, and unit tests cover adapter start/stop behavior through fakes.
 - Linear: evidence comment added and WES-142 moved to Done on 2026-06-28.
 - WES-145 verification: `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, `npm run validate`, and `npm --workspace @auto-demo/capture run test:smoke` passed locally on 2026-06-29.
+- WES-147: Capture bundle manifest writing and validation merged in PR #4 (`c1c714e`). `@auto-demo/capture` now writes and validates `capture.manifest.json` with portable artifact paths, sanitized source and child-command fields, adapter/tool versions, status, timing, media, and metadata artifacts. `autodemo validate <capture-dir-or-manifest>` validates temporary capture bundles.
+- WES-147 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed before no-mistakes. No-mistakes PR #4 passed review, test, document, lint, and GitHub CI `validate` before merge.
 
 ## Update Rules
 
