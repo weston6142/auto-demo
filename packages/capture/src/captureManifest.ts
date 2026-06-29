@@ -91,6 +91,7 @@ export type CaptureBundleValidationResult =
       errors: string[];
     };
 
+/** Writes `capture.manifest.json` with portable artifact paths and redacted capture details. */
 export async function writeCaptureManifest(
   input: WriteCaptureManifestInput,
 ): Promise<CaptureManifest> {
@@ -119,12 +120,14 @@ export async function writeCaptureManifest(
   return manifest;
 }
 
+/** Reads `capture.manifest.json` from either a bundle directory or direct manifest path. */
 export async function readCaptureManifest(pathOrBundleDir: string): Promise<CaptureManifest> {
   const manifestPath = await resolveManifestPath(pathOrBundleDir);
   const content = await readFile(manifestPath, "utf8");
   return JSON.parse(content) as CaptureManifest;
 }
 
+/** Validates the temporary capture bundle manifest and referenced media/events artifacts. */
 export async function validateCaptureBundle(
   pathOrBundleDir: string,
 ): Promise<CaptureBundleValidationResult> {
