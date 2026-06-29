@@ -13,6 +13,7 @@ export async function createJsonlEventWriter(eventsPath: string): Promise<JsonlE
 
 class FileHandleJsonlEventWriter implements JsonlEventWriter {
   private closed = false;
+  private writeChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly file: FileHandle) {}
 
@@ -21,7 +22,10 @@ class FileHandleJsonlEventWriter implements JsonlEventWriter {
       throw new Error("Cannot write to a closed capture event writer.");
     }
 
-    await this.file.appendFile(`${JSON.stringify(event)}\n`, "utf8");
+    const line = `${JSON.stringify(event)}\n`;
+    const write = this.writeChain.then(() => this.file.appendFile(line, "utf8"));
+    this.writeChain = write.catch(() => undefined);
+    await write;
   }
 
   async close(): Promise<void> {
@@ -30,6 +34,7 @@ class FileHandleJsonlEventWriter implements JsonlEventWriter {
     }
 
     this.closed = true;
+    await this.writeChain;
     await this.file.close();
   }
 }

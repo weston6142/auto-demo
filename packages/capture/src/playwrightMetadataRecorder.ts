@@ -8,6 +8,47 @@ import type {
 } from "./playwrightDriver.js";
 
 const BINDING_NAME = "__autoDemoCaptureEvent";
+const NON_PRINTABLE_KEYS = new Set([
+  "Alt",
+  "AltGraph",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "Backspace",
+  "CapsLock",
+  "Clear",
+  "ContextMenu",
+  "Control",
+  "Delete",
+  "End",
+  "Enter",
+  "Escape",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+  "F5",
+  "F6",
+  "F7",
+  "F8",
+  "F9",
+  "F10",
+  "F11",
+  "F12",
+  "Home",
+  "Insert",
+  "Meta",
+  "NumLock",
+  "PageDown",
+  "PageUp",
+  "Pause",
+  "PrintScreen",
+  "ScrollLock",
+  "Shift",
+  "Tab",
+  "Unidentified",
+]);
 
 export type PlaywrightMetadataRecorder = {
   writeCaptureStarted(data: Record<string, unknown>): Promise<void>;
@@ -234,7 +275,7 @@ function isEditableTarget(target: unknown): boolean {
 }
 
 function isPrintableKey(key: string): boolean {
-  return key.length === 1;
+  return !NON_PRINTABLE_KEYS.has(key);
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -258,6 +299,8 @@ function browserInstrumentationScript(bindingName: string): string {
     }
     return target.isContentEditable;
   };
+  const nonPrintableKeys = new Set(${JSON.stringify([...NON_PRINTABLE_KEYS])});
+  const isPrintableKey = (key) => !nonPrintableKeys.has(key);
   const targetHint = (target) => {
     if (!(target instanceof Element)) return undefined;
     const editable = isEditableTarget(target) || undefined;
@@ -269,7 +312,7 @@ function browserInstrumentationScript(bindingName: string): string {
     return { tagName, inputType, role, label, text, editable };
   };
   const pressKey = (event) => {
-    if (isEditableTarget(event.target) && event.key.length === 1) {
+    if (isEditableTarget(event.target) && isPrintableKey(event.key)) {
       return "[redacted]";
     }
     return event.key;
@@ -313,7 +356,7 @@ function browserInstrumentationScript(bindingName: string): string {
       ...pageFields(),
       data: {
         key: pressKey(event),
-        keyKind: isEditableTarget(event.target) && event.key.length === 1 ? "printable" : undefined,
+        keyKind: isEditableTarget(event.target) && isPrintableKey(event.key) ? "printable" : undefined,
         modifiers: { alt: event.altKey, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey },
         target: targetHint(event.target)
       }

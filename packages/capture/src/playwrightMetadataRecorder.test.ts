@@ -301,6 +301,50 @@ describe("createPlaywrightMetadataRecorder", () => {
     ]);
   });
 
+  it("redacts multi-code-unit printable press keys from editable targets", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await page.binding?.({
+      type: "press",
+      pageUrl: "https://example.com/message",
+      pageTitle: "Message",
+      viewport: { width: 1280, height: 720 },
+      data: {
+        key: "🔐",
+        modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+        target: {
+          tagName: "DIV",
+          role: "textbox",
+          editable: true,
+          text: "🔐",
+        },
+      },
+    });
+
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "press",
+        data: {
+          key: "[redacted]",
+          keyKind: "printable",
+          modifiers: { alt: false, ctrl: false, meta: false, shift: false },
+          target: { tagName: "DIV", role: "textbox", editable: true },
+        },
+      }),
+    ]);
+  });
+
   it("records page navigation snapshots", async () => {
     const page = new FakePage();
     const writer = new MemoryWriter();
