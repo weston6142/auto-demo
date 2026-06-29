@@ -261,18 +261,18 @@ function validateManifestShape(value: unknown): string[] {
     errors.push("Manifest artifacts must include relative media and events paths.");
   }
 
-  if (
-    value.childCommand !== null &&
-    value.childCommand !== undefined &&
-    !isRecord(value.childCommand)
-  ) {
-    errors.push("Manifest childCommand must be null or an object.");
+  if (!hasOwn(value, "childCommand")) {
+    errors.push("Manifest childCommand must be explicit null or an object.");
+  } else if (value.childCommand !== null && !isRecord(value.childCommand)) {
+    errors.push("Manifest childCommand must be explicit null or an object.");
   } else if (isRecord(value.childCommand) && !isValidChildCommand(value.childCommand)) {
     errors.push("Manifest childCommand must include argCount and exitCode when present.");
   }
 
-  if (value.error !== null && value.error !== undefined && !isRecord(value.error)) {
-    errors.push("Manifest error must be null or an object.");
+  if (!hasOwn(value, "error")) {
+    errors.push("Manifest error must be explicit null or an object.");
+  } else if (value.error !== null && !isRecord(value.error)) {
+    errors.push("Manifest error must be explicit null or an object.");
   } else if (isRecord(value.error) && !isValidManifestError(value.error)) {
     errors.push("Manifest error must include code and message when present.");
   }
@@ -298,6 +298,10 @@ async function validateArtifact(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.hasOwn(value, key);
 }
 
 function stringValue(value: unknown): string {

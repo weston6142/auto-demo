@@ -218,6 +218,37 @@ describe("capture manifest", () => {
     );
   });
 
+  it("rejects manifests with omitted nullable fields", async () => {
+    const outputDir = await createBundleArtifacts("auto-demo-manifest-missing-nullables");
+    await writeFile(
+      join(outputDir, "capture.manifest.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        status: "completed",
+        source: { kind: "browser", url: "https://example.com/demo" },
+        adapter: { kind: "browser", backend: "playwright" },
+        tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+        viewport: { width: 1280, height: 720 },
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+        artifacts: {
+          media: "media/viewport.webm",
+          events: "metadata/events.jsonl",
+        },
+      })}\n`,
+    );
+
+    const validation = await validateCaptureBundle(outputDir);
+
+    expect(validation.ok).toBe(false);
+    if (validation.ok) {
+      return;
+    }
+    expect(validation.errors).toContain("Manifest childCommand must be explicit null or an object.");
+    expect(validation.errors).toContain("Manifest error must be explicit null or an object.");
+  });
+
   it("rejects adapter backends other than playwright", async () => {
     const outputDir = await createBundleArtifacts("auto-demo-manifest-adapter-backend");
     await writeFile(
