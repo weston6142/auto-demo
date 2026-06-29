@@ -11,6 +11,11 @@ function fakeCaptureOutput(outputDir: string): CaptureOutput {
       path: `${outputDir}/media/viewport.webm`,
       contentType: "video/webm",
     },
+    metadata: {
+      kind: "events",
+      path: `${outputDir}/metadata/events.jsonl`,
+      contentType: "application/x-ndjson",
+    },
     timing: {
       startedAt: "2026-06-28T12:00:00.000Z",
       endedAt: "2026-06-28T12:00:02.500Z",

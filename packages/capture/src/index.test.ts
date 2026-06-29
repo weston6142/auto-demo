@@ -30,7 +30,7 @@ describe("createUnsupportedBrowserCaptureAdapter", () => {
 });
 
 describe("CaptureOutput", () => {
-  it("represents the media path and timing returned by a successful capture", () => {
+  it("represents media, metadata, and timing returned by a successful capture", () => {
     const output: CaptureOutput = {
       outputDir: "demo-capture",
       manifestPath: "demo-capture/capture.manifest.json",
@@ -38,6 +38,11 @@ describe("CaptureOutput", () => {
         kind: "viewport",
         path: "demo-capture/media/viewport.webm",
         contentType: "video/webm",
+      },
+      metadata: {
+        kind: "events",
+        path: "demo-capture/metadata/events.jsonl",
+        contentType: "application/x-ndjson",
       },
       timing: {
         startedAt: "2026-06-28T12:00:00.000Z",
@@ -47,6 +52,7 @@ describe("CaptureOutput", () => {
     };
 
     expect(output.media.path).toBe("demo-capture/media/viewport.webm");
+    expect(output.metadata.path).toBe("demo-capture/metadata/events.jsonl");
     expect(output.timing.durationMs).toBe(3250);
   });
 });

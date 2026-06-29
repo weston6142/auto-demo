@@ -11,6 +11,8 @@ describe("buildCapturePaths", () => {
       manifestPath: "demo-capture/capture.manifest.json",
       mediaDir: "demo-capture/media",
       viewportMediaPath: "demo-capture/media/viewport.webm",
+      metadataDir: "demo-capture/metadata",
+      eventsPath: "demo-capture/metadata/events.jsonl",
     });
   });
 
@@ -20,6 +22,8 @@ describe("buildCapturePaths", () => {
       manifestPath: "/capture.manifest.json",
       mediaDir: "/media",
       viewportMediaPath: "/media/viewport.webm",
+      metadataDir: "/metadata",
+      eventsPath: "/metadata/events.jsonl",
     });
   });
 
@@ -29,7 +33,7 @@ describe("buildCapturePaths", () => {
 });
 
 describe("ensureCaptureDirectories", () => {
-  it("creates the output and media directories", async () => {
+  it("creates the output, media, and metadata directories", async () => {
     const root = await mkdtemp(join(tmpdir(), "auto-demo-capture-paths-"));
     const paths = buildCapturePaths(join(root, "demo-capture"));
 
@@ -37,8 +41,10 @@ describe("ensureCaptureDirectories", () => {
 
     const outputStat = await stat(paths.outputDir);
     const mediaStat = await stat(paths.mediaDir);
+    const metadataStat = await stat(paths.metadataDir);
 
     expect(outputStat.isDirectory()).toBe(true);
     expect(mediaStat.isDirectory()).toBe(true);
+    expect(metadataStat.isDirectory()).toBe(true);
   });
 });

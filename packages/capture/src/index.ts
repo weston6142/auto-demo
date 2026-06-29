@@ -40,6 +40,12 @@ export type CaptureMediaArtifact = {
   contentType: "video/webm";
 };
 
+export type CaptureMetadataArtifact = {
+  kind: "events";
+  path: string;
+  contentType: "application/x-ndjson";
+};
+
 export type CaptureTiming = {
   startedAt: string;
   endedAt: string;
@@ -50,6 +56,7 @@ export type CaptureOutput = {
   outputDir: string;
   manifestPath: string;
   media: CaptureMediaArtifact;
+  metadata: CaptureMetadataArtifact;
   timing: CaptureTiming;
 };
 

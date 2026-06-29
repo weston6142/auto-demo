@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording. Interaction metadata, durable manifests, polish, render, and editor behavior are still planned work.
+This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording and writes browser interaction metadata to JSONL. Durable manifests, polish, render, and editor behavior are still planned work.
 
 ## Quick Start
 
@@ -27,7 +27,7 @@ npm run setup:browser
 
 - `@auto-demo/cli`: `autodemo` command entrypoint, command routing, and the async `capture` CLI contract.
 - `@auto-demo/project`: Auto Demo project schema, path conventions, validation, and load/save APIs.
-- `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, capture output paths, and unsupported-backend fallback.
+- `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, interaction metadata JSONL capture, capture output paths, and unsupported-backend fallback.
 - `@auto-demo/polish`: edit-decision generation boundary.
 - `@auto-demo/render`: export and render orchestration boundary.
 - `@auto-demo/editor`: local browser editor package.

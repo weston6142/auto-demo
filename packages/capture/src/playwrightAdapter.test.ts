@@ -1,13 +1,18 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { CaptureEvent } from "./captureEvents.js";
+import type { JsonlEventWriter } from "./jsonlEventWriter.js";
 import { createPlaywrightBrowserCaptureAdapterForDriver } from "./playwrightAdapter.js";
 import type {
+  BrowserBindingCallback,
+  PlaywrightConsoleMessage,
   PlaywrightBrowser,
   PlaywrightBrowserContext,
   PlaywrightDriver,
   PlaywrightPage,
+  PlaywrightPageError,
   PlaywrightVideo,
 } from "./playwrightDriver.js";
 
@@ -21,15 +26,38 @@ class FakeVideo implements PlaywrightVideo {
 
 class FakePage implements PlaywrightPage {
   public readonly gotos: string[] = [];
+  public readonly initScripts: string[] = [];
+  public currentUrl = "https://example.com/demo";
+  public currentTitle = "Demo";
+  public viewport = { width: 1280, height: 720 };
 
   constructor(private readonly fakeVideo: PlaywrightVideo | null) {}
 
   async goto(url: string): Promise<void> {
     this.gotos.push(url);
+    this.currentUrl = url;
   }
 
   video(): PlaywrightVideo | null {
     return this.fakeVideo;
+  }
+
+  async exposeBinding(_name: string, _callback: BrowserBindingCallback): Promise<void> {}
+
+  async addInitScript(script: string): Promise<void> {
+    this.initScripts.push(script);
+  }
+
+  onConsole(_callback: (message: PlaywrightConsoleMessage) => void): void {}
+
+  onPageError(_callback: (error: PlaywrightPageError) => void): void {}
+
+  async snapshotMetadata() {
+    return {
+      pageUrl: this.currentUrl,
+      pageTitle: this.currentTitle,
+      viewport: this.viewport,
+    };
   }
 }
 
@@ -145,12 +173,127 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
           path: `${outputDir}/media/raw.webm`,
           contentType: "video/webm",
         },
+        metadata: {
+          kind: "events",
+          path: `${outputDir}/metadata/events.jsonl`,
+          contentType: "application/x-ndjson",
+        },
         timing: {
           startedAt: "2026-06-28T12:00:00.000Z",
           endedAt: "2026-06-28T12:00:02.500Z",
           durationMs: 2500,
         },
       },
+    });
+    expect(driver.browser.context.closed).toBe(true);
+    expect(driver.browser.closed).toBe(true);
+  });
+
+  it("returns metadata path and writes capture lifecycle events when the session stops", async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-metadata-"));
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: (() => {
+        const dates = [
+          new Date("2026-06-29T12:00:00.000Z"),
+          new Date("2026-06-29T12:00:00.000Z"),
+          new Date("2026-06-29T12:00:02.500Z"),
+          new Date("2026-06-29T12:00:02.500Z"),
+        ];
+        return () => dates.shift() ?? new Date("2026-06-29T12:00:02.500Z");
+      })(),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T11:59:59.000Z",
+      childCommand: { command: "npm", args: ["run", "walkthrough"] },
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("completed");
+
+    expect(stopResult.ok).toBe(true);
+    if (!stopResult.ok) {
+      return;
+    }
+
+    expect(stopResult.output.metadata).toEqual({
+      kind: "events",
+      path: `${outputDir}/metadata/events.jsonl`,
+      contentType: "application/x-ndjson",
+    });
+
+    const events = (await readFile(stopResult.output.metadata.path, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(events).toEqual([
+      expect.objectContaining({
+        sequence: 1,
+        type: "capture_started",
+        timestampMs: 0,
+        data: {
+          sourceUrl: "https://example.com/demo",
+          viewport: { width: 1280, height: 720 },
+          childCommand: { command: "npm", args: ["run", "walkthrough"] },
+        },
+      }),
+      expect.objectContaining({
+        sequence: 2,
+        type: "capture_stopped",
+        timestampMs: 2500,
+        data: { reason: "completed", durationMs: 2500 },
+      }),
+    ]);
+  });
+
+  it("returns stop failure when metadata cannot be flushed", async () => {
+    class FailingCloseWriter implements JsonlEventWriter {
+      public readonly events: CaptureEvent[] = [];
+
+      async write(event: CaptureEvent): Promise<void> {
+        this.events.push(event);
+      }
+
+      async close(): Promise<void> {
+        throw new Error("metadata close failed");
+      }
+    }
+
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-metadata-stop-failure-"));
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: () => new Date("2026-06-29T12:00:00.000Z"),
+      createEventWriter: async () => new FailingCloseWriter(),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("completed");
+
+    expect(stopResult).toEqual({
+      ok: false,
+      code: "capture_stop_failed",
+      message: "Browser capture stop failed.",
+      outputDir,
+      manifestPath: `${outputDir}/capture.manifest.json`,
     });
     expect(driver.browser.context.closed).toBe(true);
     expect(driver.browser.closed).toBe(true);

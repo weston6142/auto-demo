@@ -7,7 +7,13 @@ import type {
   CaptureStopReason,
   CaptureStopResult,
 } from "./index.js";
+import { createCaptureEventFactory } from "./captureEvents.js";
 import { buildCapturePaths, ensureCaptureDirectories, type CapturePaths } from "./capturePaths.js";
+import { createJsonlEventWriter, type JsonlEventWriter } from "./jsonlEventWriter.js";
+import {
+  createPlaywrightMetadataRecorder,
+  type PlaywrightMetadataRecorder,
+} from "./playwrightMetadataRecorder.js";
 import {
   createDefaultPlaywrightDriver,
   type PlaywrightBrowser,
@@ -18,6 +24,7 @@ import {
 
 type PlaywrightAdapterDependencies = {
   now: () => Date;
+  createEventWriter?: (eventsPath: string) => Promise<JsonlEventWriter>;
 };
 
 export function createPlaywrightBrowserCaptureAdapter(): BrowserCaptureAdapter {
@@ -46,6 +53,8 @@ async function startPlaywrightCapture(
   const paths = buildCapturePaths(options.outputDir);
   let browser: PlaywrightBrowser | undefined;
   let context: PlaywrightBrowserContext | undefined;
+  let metadataRecorder: PlaywrightMetadataRecorder | undefined;
+  const createEventWriter = dependencies.createEventWriter ?? createJsonlEventWriter;
 
   try {
     await ensureCaptureDirectories(paths);
@@ -58,6 +67,22 @@ async function startPlaywrightCapture(
       },
     });
     const page = await context.newPage();
+    const captureStartedAt = dependencies.now();
+    const eventFactory = createCaptureEventFactory({
+      captureStartedAt,
+      now: dependencies.now,
+    });
+    const writer = await createEventWriter(paths.eventsPath);
+    metadataRecorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory,
+    });
+    await metadataRecorder.writeCaptureStarted({
+      sourceUrl: options.source.url,
+      viewport: options.viewport,
+      childCommand: options.childCommand,
+    });
     await page.goto(options.source.url);
 
     return {
@@ -69,11 +94,13 @@ async function startPlaywrightCapture(
         context,
         page,
         paths,
-        startedAt: dependencies.now(),
+        startedAt: captureStartedAt,
         now: dependencies.now,
+        metadataRecorder,
       }),
     };
   } catch {
+    await closeMetadataQuietly(metadataRecorder);
     await closeQuietly(context);
     await closeQuietly(browser);
 
@@ -100,24 +127,31 @@ class PlaywrightCaptureSession {
       paths: CapturePaths;
       startedAt: Date;
       now: () => Date;
+      metadataRecorder: PlaywrightMetadataRecorder;
     },
   ) {
     this.outputDir = state.paths.outputDir;
     this.manifestPath = state.paths.manifestPath;
   }
 
-  async stop(_reason: CaptureStopReason): Promise<CaptureStopResult> {
+  async stop(reason: CaptureStopReason): Promise<CaptureStopResult> {
     if (this.stopPromise !== undefined) {
       return await this.stopPromise;
     }
 
-    this.stopPromise = this.stopOnce();
+    this.stopPromise = this.stopOnce(reason);
     return await this.stopPromise;
   }
 
-  private async stopOnce(): Promise<CaptureStopResult> {
+  private async stopOnce(reason: CaptureStopReason): Promise<CaptureStopResult> {
     const video = this.state.page.video();
     try {
+      const endedAt = this.state.now();
+      await this.state.metadataRecorder.writeCaptureStopped({
+        reason,
+        durationMs: endedAt.getTime() - this.state.startedAt.getTime(),
+      });
+      await this.state.metadataRecorder.close();
       await this.state.context.close();
       await this.state.browser.close();
       if (video === null) {
@@ -126,7 +160,6 @@ class PlaywrightCaptureSession {
 
       const generatedPath = await video.path();
       const mediaPath = await moveViewportVideo(generatedPath, this.state.paths.viewportMediaPath);
-      const endedAt = this.state.now();
       const output: CaptureOutput = {
         outputDir: this.state.paths.outputDir,
         manifestPath: this.state.paths.manifestPath,
@@ -134,6 +167,11 @@ class PlaywrightCaptureSession {
           kind: "viewport",
           path: mediaPath,
           contentType: "video/webm",
+        },
+        metadata: {
+          kind: "events",
+          path: this.state.paths.eventsPath,
+          contentType: "application/x-ndjson",
         },
         timing: {
           startedAt: this.state.startedAt.toISOString(),
@@ -143,6 +181,8 @@ class PlaywrightCaptureSession {
       };
       return { ok: true, output };
     } catch {
+      await closeMetadataQuietly(this.state.metadataRecorder);
+      await closeQuietly(this.state.context);
       await closeQuietly(this.state.browser);
       return this.stopFailed();
     }
@@ -178,6 +218,16 @@ async function moveViewportVideo(
 async function closeQuietly(resource: { close(): Promise<void> } | undefined): Promise<void> {
   try {
     await resource?.close();
+  } catch {
+    // Preserve the original setup or stop failure.
+  }
+}
+
+async function closeMetadataQuietly(
+  recorder: PlaywrightMetadataRecorder | undefined,
+): Promise<void> {
+  try {
+    await recorder?.close();
   } catch {
     // Preserve the original setup or stop failure.
   }
