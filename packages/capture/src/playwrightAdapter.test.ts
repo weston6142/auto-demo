@@ -436,4 +436,68 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(driver.browser.context.closed).toBe(true);
     expect(driver.browser.closed).toBe(true);
   });
+
+  it("closes the metadata writer when recorder attachment fails", async () => {
+    class FailingAttachPage extends FakePage {
+      override async addInitScript(): Promise<void> {
+        throw new Error("init script failed");
+      }
+    }
+
+    class FailingAttachContext extends FakeContext {
+      constructor() {
+        super(new FailingAttachPage(new FakeVideo("unused.webm")));
+      }
+    }
+
+    class FailingAttachBrowser extends FakeBrowser {
+      constructor() {
+        super(new FailingAttachContext());
+      }
+    }
+
+    class FailingAttachDriver implements PlaywrightDriver {
+      public readonly browser = new FailingAttachBrowser();
+
+      async launchChromium(): Promise<PlaywrightBrowser> {
+        return this.browser;
+      }
+    }
+
+    class CloseTrackingWriter implements JsonlEventWriter {
+      public closed = false;
+
+      async write(): Promise<void> {}
+
+      async close(): Promise<void> {
+        this.closed = true;
+      }
+    }
+
+    const writer = new CloseTrackingWriter();
+    const driver = new FailingAttachDriver();
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-recorder-failure-"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: () => new Date("2026-06-29T12:00:00.000Z"),
+      createEventWriter: async () => writer,
+    });
+
+    const result = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "capture_setup_failed",
+      message: "Browser capture setup failed.",
+      outputDir,
+      manifestPath: `${outputDir}/capture.manifest.json`,
+    });
+    expect(writer.closed).toBe(true);
+    expect(driver.browser.context.closed).toBe(true);
+    expect(driver.browser.closed).toBe(true);
+  });
 });

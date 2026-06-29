@@ -54,6 +54,7 @@ async function startPlaywrightCapture(
   let browser: PlaywrightBrowser | undefined;
   let context: PlaywrightBrowserContext | undefined;
   let metadataRecorder: PlaywrightMetadataRecorder | undefined;
+  let metadataWriter: JsonlEventWriter | undefined;
   const createEventWriter = dependencies.createEventWriter ?? createJsonlEventWriter;
 
   try {
@@ -72,12 +73,13 @@ async function startPlaywrightCapture(
       captureStartedAt,
       now: dependencies.now,
     });
-    const writer = await createEventWriter(paths.eventsPath);
+    metadataWriter = await createEventWriter(paths.eventsPath);
     metadataRecorder = await createPlaywrightMetadataRecorder({
       page,
-      writer,
+      writer: metadataWriter,
       eventFactory,
     });
+    metadataWriter = undefined;
     await metadataRecorder.writeCaptureStarted({
       sourceUrl: options.source.url,
       viewport: options.viewport,
@@ -101,6 +103,7 @@ async function startPlaywrightCapture(
     };
   } catch {
     await closeMetadataQuietly(metadataRecorder);
+    await closeQuietly(metadataWriter);
     await closeQuietly(context);
     await closeQuietly(browser);
 

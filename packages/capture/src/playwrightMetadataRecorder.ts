@@ -145,14 +145,21 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
 function normalizeBrowserPayloadData(
   payload: BrowserBindingPayload,
 ): Record<string, unknown> | undefined {
-  if (payload.type !== "fill") {
-    return payload.data;
+  if (payload.type === "fill") {
+    return normalizeFillPayloadData(payload.data);
   }
 
-  const value = typeof payload.data?.value === "string" ? payload.data.value : undefined;
-  const inputType =
-    typeof payload.data?.inputType === "string" ? payload.data.inputType : undefined;
-  const rest = { ...(payload.data ?? {}) };
+  if (payload.type === "press") {
+    return normalizePressPayloadData(payload.data);
+  }
+
+  return payload.data;
+}
+
+function normalizeFillPayloadData(data: Record<string, unknown> | undefined): Record<string, unknown> {
+  const value = typeof data?.value === "string" ? data.value : undefined;
+  const inputType = typeof data?.inputType === "string" ? data.inputType : undefined;
+  const rest = { ...(data ?? {}) };
   delete rest.value;
   delete rest.inputType;
   const target = sanitizeFillTarget(rest.target);
@@ -167,6 +174,29 @@ function normalizeBrowserPayloadData(
   };
 }
 
+function normalizePressPayloadData(
+  data: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (data === undefined) {
+    return undefined;
+  }
+
+  const rest = { ...data };
+  const target = sanitizeEditableTarget(rest.target);
+  if (target === undefined) {
+    delete rest.target;
+  } else {
+    rest.target = target;
+  }
+
+  if (isEditableTarget(target) && typeof rest.key === "string" && isPrintableKey(rest.key)) {
+    rest.key = "[redacted]";
+    rest.keyKind = "printable";
+  }
+
+  return rest;
+}
+
 function sanitizeFillTarget(target: unknown): Record<string, unknown> | undefined {
   if (target === null || typeof target !== "object" || Array.isArray(target)) {
     return undefined;
@@ -175,6 +205,36 @@ function sanitizeFillTarget(target: unknown): Record<string, unknown> | undefine
   const sanitized = { ...(target as Record<string, unknown>) };
   delete sanitized.text;
   return sanitized;
+}
+
+function sanitizeEditableTarget(target: unknown): Record<string, unknown> | undefined {
+  if (target === null || typeof target !== "object" || Array.isArray(target)) {
+    return undefined;
+  }
+
+  const sanitized = { ...(target as Record<string, unknown>) };
+  if (isEditableTarget(sanitized)) {
+    delete sanitized.text;
+  }
+  return sanitized;
+}
+
+function isEditableTarget(target: unknown): boolean {
+  if (target === null || typeof target !== "object" || Array.isArray(target)) {
+    return false;
+  }
+
+  const record = target as Record<string, unknown>;
+  return (
+    record.editable === true ||
+    record.tagName === "TEXTAREA" ||
+    record.tagName === "SELECT" ||
+    (record.tagName === "INPUT" && record.inputType !== "button" && record.inputType !== "submit")
+  );
+}
+
+function isPrintableKey(key: string): boolean {
+  return key.length === 1;
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -190,14 +250,29 @@ function browserInstrumentationScript(bindingName: string): string {
       void binding(payload);
     }
   };
+  const isEditableTarget = (target) => {
+    if (!(target instanceof Element)) return false;
+    if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+    if (target instanceof HTMLInputElement) {
+      return target.type !== "button" && target.type !== "submit";
+    }
+    return target.isContentEditable;
+  };
   const targetHint = (target) => {
     if (!(target instanceof Element)) return undefined;
-    const text = (target.textContent || "").trim().slice(0, 120) || undefined;
+    const editable = isEditableTarget(target) || undefined;
+    const text = editable ? undefined : (target.textContent || "").trim().slice(0, 120) || undefined;
     const label = target.getAttribute("aria-label") || undefined;
     const role = target.getAttribute("role") || undefined;
     const tagName = target.tagName;
     const inputType = target instanceof HTMLInputElement ? target.type : undefined;
-    return { tagName, inputType, role, label, text };
+    return { tagName, inputType, role, label, text, editable };
+  };
+  const pressKey = (event) => {
+    if (isEditableTarget(event.target) && event.key.length === 1) {
+      return "[redacted]";
+    }
+    return event.key;
   };
   const pageFields = () => ({
     pageUrl: window.location.href,
@@ -237,7 +312,8 @@ function browserInstrumentationScript(bindingName: string): string {
       type: "press",
       ...pageFields(),
       data: {
-        key: event.key,
+        key: pressKey(event),
+        keyKind: isEditableTarget(event.target) && event.key.length === 1 ? "printable" : undefined,
         modifiers: { alt: event.altKey, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey },
         target: targetHint(event.target)
       }
