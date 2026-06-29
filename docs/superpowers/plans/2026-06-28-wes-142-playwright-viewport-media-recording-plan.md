@@ -1501,7 +1501,7 @@ Edit the `Status` and `CLI` sections in `README.md` so they say:
 ```md
 ## Status
 
-This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording. Interaction metadata, durable manifests, polish, render, and editor behavior are still planned work.
+This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, and emits a temporary capture bundle manifest. Polish, render, and editor behavior are still planned work.
 ```
 
 In the CLI section, replace the unsupported-backend sentence with:
@@ -1515,7 +1515,7 @@ The CLI validates `--url`, `--out`, optional `--viewport`, and an optional child
 Add this note under `## Investigation Notes` in `docs/linear/auto-demo-project-structure.md`:
 
 ```md
-- 2026-06-28 WES-142 implementation plan: Playwright becomes the default `autodemo capture` backend. WES-142 returns media path and timing from `session.stop()` but does not write the durable manifest; WES-147 still owns manifest writing. WES-145 still owns interaction metadata.
+- 2026-06-28 WES-142 implementation plan: Playwright becomes the default `autodemo capture` backend. WES-142 returns media path and timing from `session.stop()` but does not write the durable manifest; WES-147 later added manifest writing. WES-145 later added interaction metadata.
 ```
 
 Add this line under `## Completion Evidence` only after implementation and verification pass:

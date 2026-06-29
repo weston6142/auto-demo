@@ -707,7 +707,7 @@ function helpText(): string {
     "  generate   Generate polished variants",
     "  export     Render selected variants",
     "  open       Open the local editor",
-    "  validate   Validate an Auto Demo project",
+    "  validate   Validate a capture bundle",
     "",
   ].join("\n");
 }
@@ -1057,7 +1057,7 @@ autodemo capture
 autodemo generate
 autodemo export
 autodemo open
-autodemo validate
+autodemo validate <capture-dir-or-manifest>
 ```
 
 Commands may exist before their behavior is implemented. Unimplemented commands fail clearly.

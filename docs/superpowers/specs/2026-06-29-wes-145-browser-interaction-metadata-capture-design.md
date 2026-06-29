@@ -15,7 +15,7 @@ WES-145 adds structured browser interaction metadata capture alongside the exist
 
 The new work belongs primarily in `packages/capture`. The Playwright adapter should create `metadata/events.jsonl`, attach browser and Playwright observers when the page is created, append ordered metadata events during capture, and return the metadata artifact path in the successful capture output.
 
-WES-145 writes the metadata event file but does not write the durable `capture.manifest.json`. WES-147 remains responsible for manifest writing and final bundle schema hardening.
+WES-145 writes the metadata event file but does not write the durable `capture.manifest.json`. WES-147 later added manifest writing and final bundle schema hardening.
 
 ## Goals
 
@@ -29,7 +29,7 @@ WES-145 writes the metadata event file but does not write the durable `capture.m
 
 ## Non-Goals
 
-- Durable `capture.manifest.json` writing; WES-147 owns that.
+- Durable `capture.manifest.json` writing; WES-147 owns that follow-up.
 - A public agent SDK or browser-control wrapper API.
 - Full agent integration for step markers; later Agent Integrations work owns that.
 - Raw mousemove streams.

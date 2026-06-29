@@ -48,7 +48,7 @@ type ParsedCaptureCommand =
 
 const plannedCommands = new Set(["init", "capture", "generate", "export", "open"]);
 
-/** Runs synchronous CLI commands. Use `runCliAsync` for `autodemo capture`. */
+/** Runs synchronous CLI commands. Use `runCliAsync` for async commands. */
 export function runCli(args: string[]): CliResult {
   const [command] = args;
 
@@ -91,7 +91,7 @@ export function runCli(args: string[]): CliResult {
   };
 }
 
-/** Runs the CLI, including the async browser capture lifecycle. */
+/** Runs the CLI, including browser capture and capture bundle validation. */
 export async function runCliAsync(
   args: string[],
   dependencies: CliDependencies = defaultDependencies(),
@@ -394,7 +394,7 @@ function helpText(): string {
     "  generate   Generate polished variants",
     "  export     Render selected variants",
     "  open       Open the local editor",
-    "  validate   Validate an Auto Demo project",
+    "  validate   Validate a capture bundle",
     "",
   ].join("\n");
 }

@@ -11,7 +11,7 @@ Date: 2026-06-29
 
 ## Context
 
-WES-142 made Playwright viewport media recording the default capture backend. WES-145 added browser interaction metadata capture to `metadata/events.jsonl`. The capture runtime already creates the bundle directories and returns media, metadata, and timing paths from `CaptureOutput`, but `capture.manifest.json` is not durable yet.
+WES-142 made Playwright viewport media recording the default capture backend. WES-145 added browser interaction metadata capture to `metadata/events.jsonl`. Before WES-147, the capture runtime already created the bundle directories and returned media, metadata, and timing paths from `CaptureOutput`, but `capture.manifest.json` was only a future handoff path.
 
 WES-147 fills that gap. It writes the temporary Capture Runtime bundle manifest and exposes a lightweight validation check. This remains capture-runtime input for the later Demo Project Format milestone, not the final Auto Demo project schema.
 
@@ -19,7 +19,7 @@ WES-147 fills that gap. It writes the temporary Capture Runtime bundle manifest 
 
 - Write `capture.manifest.json` for completed, failed, and interrupted capture sessions that stop cleanly.
 - Keep artifact paths relative to the bundle root so bundles are portable.
-- Include schema version, status, capture source, target URL, viewport, adapter/tool versions, timing, artifact paths, child command result, and non-secret error details.
+- Include schema version, status, capture source, target URL, viewport, adapter/tool versions, timing, artifact paths, redacted child command metadata, and optional non-secret error details.
 - Provide a package API that validates a manifest and expected artifact files.
 - Add a CLI validation path that uses the package API.
 - Document the temporary bundle shape in the Linear project map.
@@ -95,13 +95,13 @@ capture-dir/
     "command": "npm",
     "argCount": 1,
     "argsRedacted": true,
-    "exitCode": 0
+    "exitCode": null
   },
   "error": null
 }
 ```
 
-For `failed` and `interrupted` stops, `status` records the stop reason. `error` is either `null` or a small object with a code and message. Error content must be non-secret and must not include raw environment values, cookies, local storage, request bodies, or typed values.
+For `failed` and `interrupted` stops that flush cleanly, `status` records the stop reason. `childCommand.exitCode` is nullable because the current Playwright adapter writes the manifest from capture options and stop reason, while the CLI process exit code is reported separately. `error` is either `null` or a small object with a code and message when the package API caller can provide non-secret error details. Error content must not include raw environment values, cookies, local storage, request bodies, or typed values.
 
 ### Package API
 
@@ -124,7 +124,7 @@ type CaptureBundleValidationResult =
 
 `PlaywrightCaptureSession.stop()` already has the source URL, viewport, child command, started/ended timing, media artifact, metadata artifact, and stop reason. It will call `writeCaptureManifest()` after media is moved and before returning `CaptureOutput`.
 
-`CaptureOutput` should continue returning absolute local artifact paths for immediate process use. The manifest should store relative paths so bundles can move across machines or directories.
+`CaptureOutput` should continue returning caller-facing local artifact paths for immediate process use. The manifest should store relative paths so bundles can move across machines or directories.
 
 WES-147 should also extend `BrowserCaptureOptions` with optional tool/package metadata only if current package versions cannot be read cleanly. The default writer should derive version strings from local package metadata or explicit package-local constants so tests do not depend on runtime package-manager behavior.
 

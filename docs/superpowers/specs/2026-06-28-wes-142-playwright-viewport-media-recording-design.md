@@ -15,9 +15,9 @@ WES-142 replaces the current unsupported browser capture backend with a real Pla
 
 The new work belongs primarily in `packages/capture`. It launches Playwright's bundled Chromium, records viewport video to the capture output directory, stops deterministically through the existing `CaptureSession` API, and returns the media path plus basic timing from `session.stop()`.
 
-WES-142 does not write the durable capture manifest. WES-147 remains responsible for manifest writing and bundle schema hardening.
+WES-142 does not write the durable capture manifest. WES-147 later added manifest writing and bundle schema hardening.
 
-Current implementation note: WES-145 later added browser interaction metadata capture, so successful `CaptureOutput` now includes both the viewport media artifact and the `metadata/events.jsonl` artifact. Durable manifest writing is still deferred to WES-147.
+Current implementation note: WES-145 later added browser interaction metadata capture, so successful `CaptureOutput` now includes both the viewport media artifact and the `metadata/events.jsonl` artifact. WES-147 later added `capture.manifest.json` writing and capture bundle validation.
 
 ## Goals
 
@@ -35,7 +35,7 @@ Current implementation note: WES-145 later added browser interaction metadata ca
 - Browser chrome, desktop, system dialog, or native menu recording.
 - Audio capture.
 - Interaction metadata capture; WES-145 owns that.
-- Durable `capture.manifest.json` writing; WES-147 owns that.
+- Durable `capture.manifest.json` writing; WES-147 owns that follow-up.
 - Broad failure validation and recovery hardening; WES-146 owns that.
 - Final Auto Demo project schema.
 
@@ -191,7 +191,7 @@ Add the `playwright` package as a dependency of `@auto-demo/capture`, because th
 ## Open Decisions Resolved
 
 - Default backend: Playwright becomes the default `autodemo capture` backend in WES-142.
-- Manifest: WES-142 does not write the durable manifest; WES-147 owns it.
+- Manifest: WES-142 does not write the durable manifest; WES-147 later added it.
 - Browser target: WES-142 launches bundled Chromium only.
 - Existing browser attach: deferred.
 - Interaction metadata: deferred to WES-145.

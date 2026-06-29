@@ -14,7 +14,7 @@
 
 - Create `packages/capture/src/captureManifest.ts`: manifest types, writer, reader, validator, relative artifact path handling.
 - Create `packages/capture/src/captureManifest.test.ts`: behavior tests for manifest writing and validation.
-- Modify `packages/capture/src/index.ts`: export manifest APIs and add optional child command result to stop metadata.
+- Modify `packages/capture/src/index.ts`: export manifest APIs.
 - Modify `packages/capture/src/playwrightAdapter.ts`: write manifest after artifact flush.
 - Modify `packages/capture/src/playwrightAdapter.test.ts`: verify stopped fake capture produces readable manifest.
 - Modify `packages/capture/package.json`: include `captureManifest.test.ts` in focused package tests.
@@ -33,7 +33,7 @@
 
 - [ ] **Step 1: Write failing manifest API tests**
 
-Add tests that create a temp bundle with `media/viewport.webm` and `metadata/events.jsonl`, call `writeCaptureManifest()`, assert the JSON uses relative artifact paths and includes source, viewport, timing, status, tools, and child command result, then call `validateCaptureBundle()` and assert it succeeds.
+Add tests that create a temp bundle with `media/viewport.webm` and `metadata/events.jsonl`, call `writeCaptureManifest()`, assert the JSON uses relative artifact paths and includes source, viewport, timing, status, tools, and redacted child command metadata, then call `validateCaptureBundle()` and assert it succeeds.
 
 Add a second test that writes malformed JSON or omits an artifact and asserts `validateCaptureBundle()` returns `ok: false` with a human-readable error.
 
