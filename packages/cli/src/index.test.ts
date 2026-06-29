@@ -286,6 +286,47 @@ describe("runCliAsync capture", () => {
     expect(stopReasons).toEqual(["failed"]);
   });
 
+  it("prints the diagnostic bundle path when a started capture cannot stop cleanly", async () => {
+    const result = await runCliAsync(
+      ["capture", "--url", "https://example.com", "--out", "demo-capture", "--", "npm", "test"],
+      {
+        now: () => new Date("2026-06-28T12:00:00.000Z"),
+        async runChildCommand() {
+          return { exitCode: 0 };
+        },
+        browserCaptureAdapter: {
+          kind: "browser",
+          async start(options) {
+            return {
+              ok: true,
+              outputDir: options.outputDir,
+              manifestPath: `${options.outputDir}/capture.manifest.json`,
+              session: {
+                outputDir: options.outputDir,
+                manifestPath: `${options.outputDir}/capture.manifest.json`,
+                async stop() {
+                  return {
+                    ok: false,
+                    code: "capture_stop_failed",
+                    message: "Browser capture stop failed.",
+                    outputDir: options.outputDir,
+                    manifestPath: `${options.outputDir}/capture.manifest.json`,
+                  };
+                },
+              },
+            };
+          },
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "Browser capture stop failed.\nCapture bundle: demo-capture/capture.manifest.json\n",
+    });
+  });
+
   it("stops a started capture as failed when the child command throws", async () => {
     const stopReasons: string[] = [];
 

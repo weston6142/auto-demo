@@ -113,7 +113,7 @@ export async function writeCaptureManifest(
       events: portableArtifactPath(input.outputDir, input.artifacts.events),
     },
     childCommand: sanitizeManifestChildCommand(input.childCommand),
-    error: input.error,
+    error: sanitizeManifestError(input.error),
   };
 
   await writeFile(manifestPathFor(input.outputDir), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -190,6 +190,17 @@ function sanitizeManifestChildCommand(
     argsRedacted: command.args.length > 0 ? (true as const) : undefined,
     exitCode: command.exitCode,
   });
+}
+
+function sanitizeManifestError(error: CaptureManifestError | null): CaptureManifestError | null {
+  if (error === null) {
+    return null;
+  }
+
+  return {
+    code: error.code,
+    message: stripUrlSecrets(error.message),
+  };
 }
 
 async function resolveManifestPath(pathOrBundleDir: string): Promise<string> {
