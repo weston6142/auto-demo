@@ -15,7 +15,7 @@ WES-144 defines the first capture-runtime contract before implementation begins.
 
 This spec intentionally does not define the final Auto Demo project schema. The capture bundle is a milestone-local handoff format for WES-143 through WES-146. Demo Project Format will later formalize how capture bundles become full Auto Demo projects.
 
-Current implementation note: WES-142 later made Playwright viewport media recording the default CLI capture backend. Interaction metadata and durable manifest writing remain assigned to WES-145 and WES-147.
+Current implementation note: WES-142 later made Playwright viewport media recording the default CLI capture backend. WES-145 then added `metadata/events.jsonl` capture and `CaptureOutput.metadata`; durable manifest writing remains assigned to WES-147.
 
 ## Goals
 
@@ -91,7 +91,7 @@ Capture package responsibilities:
 - Launch and close the browser context.
 - Start and stop viewport media capture.
 - Write interaction metadata events.
-- Write the capture manifest and artifact paths.
+- Return artifact paths for media, metadata, and the future capture manifest.
 - Preserve partial artifacts when practical.
 
 ## Capture Adapter Boundary
@@ -136,7 +136,7 @@ Primary child-command lifecycle:
 4. Capture starts media recording and metadata collection before the walkthrough begins.
 5. CLI runs the child walkthrough command while capture remains active.
 6. When the child exits, CLI asks capture to stop with `completed` or `failed`.
-7. Capture flushes media, metadata, and manifest.
+7. Capture flushes media and metadata, and returns the future manifest path.
 8. CLI exits with the child status if capture succeeded, or nonzero if capture failed.
 
 Manual fallback lifecycle:

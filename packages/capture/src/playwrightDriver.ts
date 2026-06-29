@@ -1,4 +1,12 @@
-import { chromium, type Browser, type BrowserContext, type Page, type Video } from "playwright";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type ConsoleMessage,
+  type Frame,
+  type Page,
+  type Video,
+} from "playwright";
 import type { CaptureViewport } from "./index.js";
 
 export type PlaywrightDriver = {
@@ -23,9 +31,47 @@ export type PlaywrightBrowserContext = {
   close(): Promise<void>;
 };
 
+export type BrowserBindingPayload = {
+  type: "click" | "fill" | "press" | "viewport" | "navigation";
+  pageUrl?: string;
+  pageTitle?: string;
+  viewport?: CaptureViewport;
+  data?: Record<string, unknown>;
+};
+
+export type BrowserBindingCallback = (payload: unknown) => Promise<void> | void;
+
+export type PlaywrightConsoleMessage = {
+  type: string;
+  text: string;
+  location?: {
+    url: string;
+    lineNumber: number;
+    columnNumber: number;
+  };
+};
+
+export type PlaywrightPageError = {
+  name?: string;
+  message: string;
+  stack?: string;
+};
+
+export type PlaywrightPageSnapshot = {
+  pageUrl?: string;
+  pageTitle?: string;
+  viewport?: CaptureViewport;
+};
+
 export type PlaywrightPage = {
   goto(url: string): Promise<void>;
   video(): PlaywrightVideo | null;
+  exposeBinding(name: string, callback: BrowserBindingCallback): Promise<void>;
+  addInitScript(script: string): Promise<void>;
+  onConsole(callback: (message: PlaywrightConsoleMessage) => void): void;
+  onNavigation(callback: (phase: string) => void): void;
+  onPageError(callback: (error: PlaywrightPageError) => void): void;
+  snapshotMetadata(): Promise<PlaywrightPageSnapshot>;
 };
 
 export type PlaywrightVideo = {
@@ -73,6 +119,54 @@ function wrapPage(page: Page): PlaywrightPage {
     video() {
       const video = page.video();
       return video === null ? null : wrapVideo(video);
+    },
+    async exposeBinding(name, callback) {
+      await page.exposeBinding(name, async (_source, payload) => {
+        await callback(payload);
+      });
+    },
+    async addInitScript(script) {
+      await page.addInitScript(script);
+    },
+    onConsole(callback) {
+      page.on("console", (message: ConsoleMessage) => {
+        callback({
+          type: message.type(),
+          text: message.text(),
+          location: message.location(),
+        });
+      });
+    },
+    onNavigation(callback) {
+      page.on("domcontentloaded", () => {
+        callback("domcontentloaded");
+      });
+      page.on("framenavigated", (frame: Frame) => {
+        if (frame === page.mainFrame()) {
+          callback("framenavigated");
+        }
+      });
+      page.on("load", () => {
+        callback("load");
+      });
+    },
+    onPageError(callback) {
+      page.on("pageerror", (error) => {
+        callback({
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+        });
+      });
+    },
+    async snapshotMetadata() {
+      const viewport = page.viewportSize() ?? undefined;
+      return {
+        pageUrl: page.url(),
+        pageTitle: await page.title().catch(() => undefined),
+        viewport:
+          viewport === undefined ? undefined : { width: viewport.width, height: viewport.height },
+      };
     },
   };
 }

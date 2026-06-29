@@ -35,7 +35,7 @@ Prefer behavior-oriented tests. Test what the command, package API, or user-faci
 
 - `packages/cli`: command entrypoint and routing
 - `packages/project`: project manifest and validation contracts
-- `packages/capture`: capture adapter contracts and Playwright viewport recording
+- `packages/capture`: capture adapter contracts, Playwright viewport recording, and metadata JSONL capture
 - `packages/polish`: edit-decision generation
 - `packages/render`: render/export orchestration
 - `packages/editor`: local browser editor

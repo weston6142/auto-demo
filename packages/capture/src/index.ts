@@ -40,6 +40,13 @@ export type CaptureMediaArtifact = {
   contentType: "video/webm";
 };
 
+/** Interaction metadata artifact written as newline-delimited JSON events. */
+export type CaptureMetadataArtifact = {
+  kind: "events";
+  path: string;
+  contentType: "application/x-ndjson";
+};
+
 export type CaptureTiming = {
   startedAt: string;
   endedAt: string;
@@ -50,6 +57,8 @@ export type CaptureOutput = {
   outputDir: string;
   manifestPath: string;
   media: CaptureMediaArtifact;
+  /** Browser interaction metadata captured alongside viewport media. */
+  metadata: CaptureMetadataArtifact;
   timing: CaptureTiming;
 };
 
@@ -95,7 +104,7 @@ export type BrowserCaptureAdapter = {
   start(options: BrowserCaptureOptions): Promise<CaptureStartResult>;
 };
 
-/** Creates the default browser capture backend for real viewport media recording. */
+/** Creates the default browser capture backend for real viewport media and interaction metadata recording. */
 export { createPlaywrightBrowserCaptureAdapter };
 
 /** Creates a backend that reports unsupported capture. Useful for tests and explicit fallback behavior. */
