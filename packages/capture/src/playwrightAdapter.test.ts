@@ -702,7 +702,7 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(JSON.stringify(validation.manifest)).not.toContain("token=secret");
   });
 
-  it("uses the generated Playwright video path for stop failure diagnostics", async () => {
+  it("uses the generated Playwright video path for stop failure diagnostics in reused output directories", async () => {
     class FailingCloseFileWriter implements JsonlEventWriter {
       public constructor(private readonly eventsPath: string) {}
 
@@ -717,6 +717,7 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
 
     const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-generated-video-"));
     await mkdir(join(outputDir, "media"), { recursive: true });
+    await writeFile(join(outputDir, "media", "viewport.webm"), "stale video");
     const generatedVideoPath = join(outputDir, "media", "playwright-generated.webm");
     await writeFile(generatedVideoPath, "partial video");
     const driver = new FakeDriver(generatedVideoPath);

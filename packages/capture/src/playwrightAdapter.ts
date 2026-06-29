@@ -228,13 +228,7 @@ class PlaywrightCaptureSession {
     error: { code: string; message: string },
     video: PlaywrightVideo | null,
   ): Promise<void> {
-    const generatedVideoPath =
-      video === null ? undefined : await existingPlaywrightVideoPathQuietly(video);
-    const mediaPath = await existingArtifactPath([
-      this.state.paths.viewportMediaPath,
-      ...(generatedVideoPath === undefined ? [] : [generatedVideoPath]),
-      `${this.state.paths.mediaDir}/raw.webm`,
-    ]);
+    const mediaPath = video === null ? undefined : await existingPlaywrightVideoPathQuietly(video);
     const eventsPath = await existingArtifactPath([this.state.paths.eventsPath]);
 
     if (mediaPath === undefined || eventsPath === undefined) {
@@ -250,8 +244,8 @@ class PlaywrightCaptureSession {
         viewport: this.state.options.viewport,
         timing,
         artifacts: {
-          media: mediaPath ?? this.state.paths.viewportMediaPath,
-          events: eventsPath ?? this.state.paths.eventsPath,
+          media: mediaPath,
+          events: eventsPath,
         },
         childCommand:
           this.state.options.childCommand === undefined
