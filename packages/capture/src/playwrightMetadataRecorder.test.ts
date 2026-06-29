@@ -124,6 +124,53 @@ class DeferredSnapshotPage extends FakePage {
 }
 
 describe("createPlaywrightMetadataRecorder", () => {
+  it("removes query strings and hashes from stored URL fields", async () => {
+    const page = new FakePage();
+    page.currentUrl = "https://example.com/start?token=secret#session";
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await recorder.writeCaptureStarted({
+      sourceUrl: "https://example.com/source?code=oauth#access_token",
+    });
+    await page.binding?.({
+      type: "click",
+      pageUrl: "https://example.com/click?token=secret#session",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: { x: 10, y: 20 },
+    });
+    page.currentUrl = "https://example.com/dashboard?magic=link#token";
+    page.navigationHandler?.();
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "capture_started",
+        pageUrl: "https://example.com/start",
+        data: { sourceUrl: "https://example.com/source" },
+      }),
+      expect.objectContaining({
+        type: "click",
+        pageUrl: "https://example.com/click",
+      }),
+      expect.objectContaining({
+        type: "navigation",
+        pageUrl: "https://example.com/dashboard",
+      }),
+    ]);
+    expect(JSON.stringify(writer.events)).not.toContain("secret");
+    expect(JSON.stringify(writer.events)).not.toContain("oauth");
+    expect(JSON.stringify(writer.events)).not.toContain("magic");
+  });
+
   it("records browser-side interaction events with redacted fill values", async () => {
     const page = new FakePage();
     const writer = new MemoryWriter();
@@ -429,6 +476,64 @@ describe("createPlaywrightMetadataRecorder", () => {
 
     expect(writer.events.map((event) => event.type)).toEqual(["console", "click"]);
     expect(writer.events.map((event) => event.sequence)).toEqual([1, 2]);
+  });
+
+  it("uses observer-time timestamps when queued writes drain later", async () => {
+    const page = new DeferredSnapshotPage();
+    const writer = new MemoryWriter();
+    let now = new Date("2026-06-29T12:00:00.250Z");
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => now,
+      }),
+    });
+
+    page.consoleHandler?.({
+      type: "warning",
+      text: "first",
+    });
+    await page.firstSnapshotStarted;
+    now = new Date("2026-06-29T12:00:03.000Z");
+    page.releaseSnapshot();
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "console",
+        timestampMs: 250,
+      }),
+    ]);
+  });
+
+  it("keeps capture stopped as the final metadata event", async () => {
+    const page = new DeferredSnapshotPage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    const stop = recorder.writeCaptureStopped({ reason: "completed" });
+    await page.firstSnapshotStarted;
+    const lateClick = page.binding?.({
+      type: "click",
+      pageUrl: "https://example.com",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: { x: 10, y: 20 },
+    });
+    page.releaseSnapshot();
+    await Promise.all([stop, lateClick]);
+    await recorder.close();
+
+    expect(writer.events.map((event) => event.type)).toEqual(["capture_stopped"]);
   });
 
   it("ignores browser events received after close starts", async () => {

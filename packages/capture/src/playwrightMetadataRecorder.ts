@@ -5,6 +5,7 @@ import type {
   PlaywrightConsoleMessage,
   PlaywrightPage,
   PlaywrightPageError,
+  PlaywrightPageSnapshot,
 } from "./playwrightDriver.js";
 
 const BINDING_NAME = "__autoDemoCaptureEvent";
@@ -83,42 +84,53 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
 
   async attach(): Promise<void> {
     await this.page.exposeBinding(BINDING_NAME, async (payload) => {
-      await this.enqueue(() => this.writeBrowserPayload(payload));
+      const timestampMs = this.eventFactory.reserveTimestamp();
+      await this.enqueue(() => this.writeBrowserPayload(payload, timestampMs));
     });
     await this.page.addInitScript(browserInstrumentationScript(BINDING_NAME));
     this.page.onConsole((message) => {
-      this.enqueue(() => this.writeConsole(message));
+      const timestampMs = this.eventFactory.reserveTimestamp();
+      this.enqueue(() => this.writeConsole(message, timestampMs));
     });
     this.page.onNavigation(() => {
-      this.enqueue(() => this.writeNavigation("framenavigated"));
+      const timestampMs = this.eventFactory.reserveTimestamp();
+      this.enqueue(() => this.writeNavigation("framenavigated", timestampMs));
     });
     this.page.onPageError((error) => {
-      this.enqueue(() => this.writePageError(error));
+      const timestampMs = this.eventFactory.reserveTimestamp();
+      this.enqueue(() => this.writePageError(error, timestampMs));
     });
   }
 
   async writeCaptureStarted(data: Record<string, unknown>): Promise<void> {
+    const timestampMs = this.eventFactory.reserveTimestamp();
     await this.enqueue(async () => {
-      const snapshot = await this.page.snapshotMetadata();
+      const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
       await this.writer.write(
         this.eventFactory.create("capture_started", {
           ...snapshot,
-          data,
-        }),
+          data: sanitizeCaptureData(data),
+        }, { timestampMs }),
       );
     });
   }
 
   async writeCaptureStopped(data: Record<string, unknown>): Promise<void> {
+    if (this.closing) {
+      return;
+    }
+
+    this.closing = true;
+    const timestampMs = this.eventFactory.reserveTimestamp();
     await this.enqueue(async () => {
-      const snapshot = await this.page.snapshotMetadata();
+      const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
       await this.writer.write(
         this.eventFactory.create("capture_stopped", {
           ...snapshot,
           data,
-        }),
+        }, { timestampMs }),
       );
-    });
+    }, { allowWhileClosing: true });
   }
 
   async close(): Promise<void> {
@@ -127,8 +139,11 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
     await this.writer.close();
   }
 
-  private enqueue(task: () => Promise<void>): Promise<void> {
-    if (this.closing) {
+  private enqueue(
+    task: () => Promise<void>,
+    options: { allowWhileClosing?: boolean } = {},
+  ): Promise<void> {
+    if (this.closing && options.allowWhileClosing !== true) {
       return Promise.resolve();
     }
 
@@ -146,19 +161,22 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
     return write;
   }
 
-  private async writeBrowserPayload(payload: BrowserBindingPayload): Promise<void> {
+  private async writeBrowserPayload(
+    payload: BrowserBindingPayload,
+    timestampMs: number,
+  ): Promise<void> {
     await this.writer.write(
       this.eventFactory.create(payload.type, {
-        pageUrl: payload.pageUrl,
+        pageUrl: sanitizeUrlField(payload.pageUrl),
         pageTitle: payload.pageTitle,
         viewport: payload.viewport,
         data: normalizeBrowserPayloadData(payload),
-      }),
+      }, { timestampMs }),
     );
   }
 
-  private async writeConsole(message: PlaywrightConsoleMessage): Promise<void> {
-    const snapshot = await this.page.snapshotMetadata();
+  private async writeConsole(message: PlaywrightConsoleMessage, timestampMs: number): Promise<void> {
+    const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
     await this.writer.write(
       this.eventFactory.create("console", {
         ...snapshot,
@@ -168,22 +186,22 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
           textLength: message.text.length,
           location: sanitizeConsoleLocation(message.location),
         },
-      }),
+      }, { timestampMs }),
     );
   }
 
-  private async writeNavigation(phase: string): Promise<void> {
-    const snapshot = await this.page.snapshotMetadata();
+  private async writeNavigation(phase: string, timestampMs: number): Promise<void> {
+    const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
     await this.writer.write(
       this.eventFactory.create("navigation", {
         ...snapshot,
         data: { phase },
-      }),
+      }, { timestampMs }),
     );
   }
 
-  private async writePageError(error: PlaywrightPageError): Promise<void> {
-    const snapshot = await this.page.snapshotMetadata();
+  private async writePageError(error: PlaywrightPageError, timestampMs: number): Promise<void> {
+    const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
     await this.writer.write(
       this.eventFactory.create("page_error", {
         ...snapshot,
@@ -193,7 +211,7 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
           messageLength: error.message.length,
           stackRedacted: error.stack !== undefined || undefined,
         },
-      }),
+      }, { timestampMs }),
     );
   }
 }
@@ -306,12 +324,32 @@ function sanitizeConsoleLocation(
   };
 }
 
+function sanitizeSnapshot(snapshot: PlaywrightPageSnapshot): PlaywrightPageSnapshot {
+  return {
+    ...snapshot,
+    pageUrl: sanitizeUrlField(snapshot.pageUrl),
+  };
+}
+
+function sanitizeCaptureData(data: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...data };
+  if (typeof sanitized.sourceUrl === "string") {
+    sanitized.sourceUrl = stripUrlSecrets(sanitized.sourceUrl);
+  }
+  return sanitized;
+}
+
+function sanitizeUrlField(value: string | undefined): string | undefined {
+  return value === undefined ? undefined : stripUrlSecrets(value);
+}
+
 function stripUrlSecrets(value: string): string {
   try {
     const url = new URL(value);
-    url.search = "";
-    url.hash = "";
-    return url.toString();
+    if (url.origin === "null") {
+      return value.split(/[?#]/, 1)[0] ?? value;
+    }
+    return `${url.origin}${url.pathname === "/" ? "" : url.pathname}`;
   } catch {
     return value.split(/[?#]/, 1)[0] ?? value;
   }
@@ -336,6 +374,17 @@ function browserInstrumentationScript(bindingName: string): string {
   };
   const nonPrintableKeys = new Set(${JSON.stringify([...NON_PRINTABLE_KEYS])});
   const isPrintableKey = (key) => !nonPrintableKeys.has(key);
+  const stripUrlSecrets = (value) => {
+    try {
+      const url = new URL(value);
+      if (url.origin === "null") {
+        return String(value).split(/[?#]/, 1)[0] || value;
+      }
+      return url.origin + (url.pathname === "/" ? "" : url.pathname);
+    } catch {
+      return String(value).split(/[?#]/, 1)[0] || value;
+    }
+  };
   const targetHint = (target) => {
     if (!(target instanceof Element)) return undefined;
     const editable = isEditableTarget(target) || undefined;
@@ -353,7 +402,7 @@ function browserInstrumentationScript(bindingName: string): string {
     return event.key;
   };
   const pageFields = () => ({
-    pageUrl: window.location.href,
+    pageUrl: stripUrlSecrets(window.location.href),
     pageTitle: document.title,
     viewport: { width: window.innerWidth, height: window.innerHeight }
   });

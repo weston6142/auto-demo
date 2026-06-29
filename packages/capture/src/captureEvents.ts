@@ -48,9 +48,11 @@ export type CaptureTargetHint = {
 };
 
 export type CaptureEventFactory = {
+  reserveTimestamp(): number;
   create(
     type: CaptureEventType,
     fields?: Omit<CaptureEvent, "id" | "sequence" | "type" | "timestampMs">,
+    options?: { timestampMs?: number },
   ): CaptureEvent;
 };
 
@@ -61,13 +63,16 @@ export function createCaptureEventFactory(options: {
   let sequence = 0;
 
   return {
-    create(type, fields = {}) {
+    reserveTimestamp() {
+      return Math.max(0, options.now().getTime() - options.captureStartedAt.getTime());
+    },
+    create(type, fields = {}, createOptions = {}) {
       sequence += 1;
       return {
         id: `event-${sequence}`,
         sequence,
         type,
-        timestampMs: Math.max(0, options.now().getTime() - options.captureStartedAt.getTime()),
+        timestampMs: createOptions.timestampMs ?? this.reserveTimestamp(),
         ...fields,
       };
     },
