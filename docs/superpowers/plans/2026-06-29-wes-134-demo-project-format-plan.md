@@ -211,7 +211,25 @@ describe("validateProjectManifest", () => {
         {
           code: "invalid_project_manifest",
           message:
-            "Auto Demo project manifest must include variants, previews, and exports arrays.",
+            "Auto Demo project manifest must include empty variants, previews, and exports arrays.",
+        },
+      ],
+    });
+  });
+
+  it("rejects non-empty forward-compatible sections in schema v1", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      variants: [{ id: "future-variant" }],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message:
+            "Auto Demo project manifest must include empty variants, previews, and exports arrays.",
         },
       ],
     });
@@ -366,12 +384,16 @@ export function validateProjectManifest(input: unknown): ProjectManifestValidati
 
   if (
     !Array.isArray(input.variants) ||
+    input.variants.length !== 0 ||
     !Array.isArray(input.previews) ||
-    !Array.isArray(input.exports)
+    input.previews.length !== 0 ||
+    !Array.isArray(input.exports) ||
+    input.exports.length !== 0
   ) {
     errors.push({
       code: "invalid_project_manifest",
-      message: "Auto Demo project manifest must include variants, previews, and exports arrays.",
+      message:
+        "Auto Demo project manifest must include empty variants, previews, and exports arrays.",
     });
   }
 
@@ -579,6 +601,44 @@ describe("project load/save validation", () => {
       '"name": "Updated checkout demo"',
     );
   });
+
+  it("does not persist a saved manifest that references missing project files", async () => {
+    const projectDir = await createFixtureProject();
+    const loaded = await loadProject(projectDir);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+
+    const beforeManifest = await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8");
+    const project: LoadedProject = {
+      ...loaded,
+      manifest: {
+        ...loaded.manifest,
+        media: {
+          primary: {
+            ...loaded.manifest.media.primary,
+            path: "raw/missing.webm",
+          },
+        },
+      },
+    };
+
+    const saved = await saveProject(project);
+
+    expect(saved).toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "missing_project_file",
+          message: "Missing project media file: raw/missing.webm",
+        },
+      ],
+    });
+    expect(await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).toBe(
+      beforeManifest,
+    );
+  });
 });
 ```
 
@@ -645,25 +705,7 @@ export async function validateProject(
     return { ok: false, projectDir, manifestPath, errors: manifestResult.errors };
   }
 
-  const fileErrors: ProjectValidationError[] = [];
-  await validateReferencedFile(
-    projectDir,
-    manifestResult.manifest.media.primary.path,
-    "media",
-    fileErrors,
-  );
-  await validateReferencedFile(
-    projectDir,
-    manifestResult.manifest.metadata.events.path,
-    "metadata",
-    fileErrors,
-  );
-  await validateReferencedFile(
-    projectDir,
-    manifestResult.manifest.sourceCapture.manifestPath,
-    "capture manifest",
-    fileErrors,
-  );
+  const fileErrors = await validateProjectFiles(projectDir, manifestResult.manifest);
 
   if (fileErrors.length > 0) {
     return { ok: false, projectDir, manifestPath, errors: fileErrors };
@@ -687,11 +729,37 @@ export async function saveProject(project: LoadedProject): Promise<ProjectValida
     };
   }
 
+  const fileErrors = await validateProjectFiles(project.projectDir, manifestResult.manifest);
+  if (fileErrors.length > 0) {
+    return {
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: fileErrors,
+    };
+  }
+
   await mkdir(dirname(project.manifestPath), { recursive: true });
   const tempPath = `${project.manifestPath}.tmp`;
   await writeFile(tempPath, `${JSON.stringify(project.manifest, null, 2)}\n`);
   await rename(tempPath, project.manifestPath);
   return await validateProject(project.manifestPath);
+}
+
+async function validateProjectFiles(
+  projectDir: string,
+  manifest: ProjectManifest,
+): Promise<ProjectValidationError[]> {
+  const fileErrors: ProjectValidationError[] = [];
+  await validateReferencedFile(projectDir, manifest.media.primary.path, "media", fileErrors);
+  await validateReferencedFile(projectDir, manifest.metadata.events.path, "metadata", fileErrors);
+  await validateReferencedFile(
+    projectDir,
+    manifest.sourceCapture.manifestPath,
+    "capture manifest",
+    fileErrors,
+  );
+  return fileErrors;
 }
 
 function resolveProjectPaths(projectDirOrManifest: string): {
