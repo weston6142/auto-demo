@@ -69,7 +69,7 @@ export type PlaywrightPage = {
   exposeBinding(name: string, callback: BrowserBindingCallback): Promise<void>;
   addInitScript(script: string): Promise<void>;
   onConsole(callback: (message: PlaywrightConsoleMessage) => void): void;
-  onNavigation(callback: () => void): void;
+  onNavigation(callback: (phase: string) => void): void;
   onPageError(callback: (error: PlaywrightPageError) => void): void;
   snapshotMetadata(): Promise<PlaywrightPageSnapshot>;
 };
@@ -138,10 +138,16 @@ function wrapPage(page: Page): PlaywrightPage {
       });
     },
     onNavigation(callback) {
+      page.on("domcontentloaded", () => {
+        callback("domcontentloaded");
+      });
       page.on("framenavigated", (frame: Frame) => {
         if (frame === page.mainFrame()) {
-          callback();
+          callback("framenavigated");
         }
+      });
+      page.on("load", () => {
+        callback("load");
       });
     },
     onPageError(callback) {

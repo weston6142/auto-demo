@@ -50,7 +50,7 @@ class FakePage implements PlaywrightPage {
 
   onConsole(_callback: (message: PlaywrightConsoleMessage) => void): void {}
 
-  onNavigation(_callback: () => void): void {}
+  onNavigation(_callback: (phase: string) => void): void {}
 
   onPageError(_callback: (error: PlaywrightPageError) => void): void {}
 
@@ -197,7 +197,6 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
       now: (() => {
         const dates = [
-          new Date("2026-06-29T12:00:00.000Z"),
           new Date("2026-06-29T12:00:00.000Z"),
           new Date("2026-06-29T12:00:02.500Z"),
           new Date("2026-06-29T12:00:02.500Z"),

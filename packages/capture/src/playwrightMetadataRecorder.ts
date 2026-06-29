@@ -112,8 +112,10 @@ const INPUT_METHODS = new Set([
   "insertText",
 ]);
 const NAVIGATION_PHASES = new Set([
+  "domcontentloaded",
   "framenavigated",
   "hashchange",
+  "load",
   "popstate",
   "pushState",
   "replaceState",
@@ -166,9 +168,9 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
       const timestampMs = this.eventFactory.reserveTimestamp();
       this.enqueue(() => this.writeConsole(message, timestampMs));
     });
-    this.page.onNavigation(() => {
+    this.page.onNavigation((phase) => {
       const timestampMs = this.eventFactory.reserveTimestamp();
-      this.enqueue(() => this.writeNavigation("framenavigated", timestampMs));
+      this.enqueue(() => this.writeNavigation(phase, timestampMs));
     });
     this.page.onPageError((error) => {
       const timestampMs = this.eventFactory.reserveTimestamp();
@@ -177,7 +179,7 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
   }
 
   async writeCaptureStarted(data: Record<string, unknown>): Promise<void> {
-    const timestampMs = this.eventFactory.reserveTimestamp();
+    const timestampMs = 0;
     await this.enqueue(async () => {
       const snapshot = sanitizeSnapshot(await this.page.snapshotMetadata());
       await this.writer.write(

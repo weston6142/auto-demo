@@ -55,7 +55,7 @@ class FakePage implements PlaywrightPage {
   public bindingName: string | undefined;
   public binding: BrowserBindingCallback | undefined;
   public consoleHandler: ((message: PlaywrightConsoleMessage) => void) | undefined;
-  public navigationHandler: (() => void) | undefined;
+  public navigationHandler: ((phase: string) => void) | undefined;
   public pageErrorHandler: ((error: PlaywrightPageError) => void) | undefined;
   public currentUrl = "https://example.com";
   public currentTitle = "Example";
@@ -83,7 +83,7 @@ class FakePage implements PlaywrightPage {
     this.consoleHandler = callback;
   }
 
-  onNavigation(callback: () => void): void {
+  onNavigation(callback: (phase: string) => void): void {
     this.navigationHandler = callback;
   }
 
@@ -139,6 +139,29 @@ function trustedBrowserPayload(
 }
 
 describe("createPlaywrightMetadataRecorder", () => {
+  it("writes capture started at timestamp zero", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.500Z"),
+      }),
+    });
+
+    await recorder.writeCaptureStarted({ sourceUrl: "https://example.com/start" });
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "capture_started",
+        timestampMs: 0,
+      }),
+    ]);
+  });
+
   it("removes query strings and hashes from stored URL fields", async () => {
     const page = new FakePage();
     page.currentUrl = "https://example.com/start?token=secret#session";
@@ -165,7 +188,7 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     );
     page.currentUrl = "https://example.com/dashboard?magic=link#token";
-    page.navigationHandler?.();
+    page.navigationHandler?.("framenavigated");
     await recorder.close();
 
     expect(writer.events).toEqual([
@@ -469,7 +492,7 @@ describe("createPlaywrightMetadataRecorder", () => {
 
     page.currentUrl = "https://example.com/dashboard";
     page.currentTitle = "Dashboard";
-    page.navigationHandler?.();
+    page.navigationHandler?.("framenavigated");
     await recorder.close();
 
     expect(writer.events).toEqual([
@@ -479,6 +502,34 @@ describe("createPlaywrightMetadataRecorder", () => {
         pageUrl: "https://example.com/dashboard",
         viewport: { width: 1280, height: 720 },
         data: { phase: "framenavigated" },
+      }),
+    ]);
+  });
+
+  it("records page lifecycle timing as navigation events", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    page.navigationHandler?.("domcontentloaded");
+    page.navigationHandler?.("load");
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "navigation",
+        data: { phase: "domcontentloaded" },
+      }),
+      expect.objectContaining({
+        type: "navigation",
+        data: { phase: "load" },
       }),
     ]);
   });
