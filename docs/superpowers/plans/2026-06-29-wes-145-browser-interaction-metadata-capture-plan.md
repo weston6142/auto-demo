@@ -1625,7 +1625,7 @@ Expected: PASS. If Chromium is not installed, run `npm --workspace @auto-demo/ca
 In `README.md`, update the early status paragraph to:
 
 ```md
-This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording and writes browser interaction metadata to JSONL. Durable manifests, polish, render, and editor behavior are still planned work.
+This repository is in early capture-runtime setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, and emits a temporary capture bundle manifest. Polish, render, and editor behavior are still planned work.
 ```
 
 Update the capture package bullet to:

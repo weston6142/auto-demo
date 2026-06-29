@@ -15,7 +15,7 @@ WES-144 defines the first capture-runtime contract before implementation begins.
 
 This spec intentionally does not define the final Auto Demo project schema. The capture bundle is a milestone-local handoff format for WES-143 through WES-146. Demo Project Format will later formalize how capture bundles become full Auto Demo projects.
 
-Current implementation note: WES-142 later made Playwright viewport media recording the default CLI capture backend. WES-145 then added `metadata/events.jsonl` capture and `CaptureOutput.metadata`; durable manifest writing remains assigned to WES-147.
+Current implementation note: WES-142 later made Playwright viewport media recording the default CLI capture backend. WES-145 then added `metadata/events.jsonl` capture and `CaptureOutput.metadata`; WES-147 later added durable manifest writing and capture bundle validation.
 
 ## Goals
 
@@ -178,6 +178,10 @@ The manifest records the capture run and artifact paths:
     "kind": "browser",
     "backend": "playwright"
   },
+  "tools": {
+    "capturePackage": "0.0.0",
+    "playwright": "1.61.1"
+  },
   "viewport": {
     "width": 1280,
     "height": 720
@@ -191,12 +195,15 @@ The manifest records the capture run and artifact paths:
   },
   "childCommand": {
     "command": "npm",
-    "args": ["run", "demo:walkthrough"],
-    "exitCode": 0
+    "argCount": 2,
+    "argsRedacted": true,
+    "exitCode": null
   },
   "error": null
 }
 ```
+
+Current implementation note: WES-147 redacts child command arguments in the manifest, stores only `argCount`, and leaves `childCommand.exitCode` nullable because the CLI reports process exit separately from the adapter-written manifest.
 
 Allowed statuses:
 
@@ -316,7 +323,7 @@ WES-142 should add Playwright viewport media recording.
 
 WES-145 should add browser interaction metadata capture.
 
-WES-147 should add capture bundle writer and manifest behavior.
+WES-147 added capture bundle writer and manifest behavior.
 
 WES-146 should harden failure handling and validation tests.
 

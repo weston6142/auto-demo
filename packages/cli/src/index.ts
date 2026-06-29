@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import {
   createPlaywrightBrowserCaptureAdapter,
   DEFAULT_BROWSER_VIEWPORT,
+  validateCaptureBundle,
   type BrowserCaptureAdapter,
   type BrowserCaptureOptions,
   type CaptureChildCommand,
@@ -45,9 +46,9 @@ type ParsedCaptureCommand =
       message: string;
     };
 
-const plannedCommands = new Set(["init", "capture", "generate", "export", "open", "validate"]);
+const plannedCommands = new Set(["init", "capture", "generate", "export", "open"]);
 
-/** Runs synchronous CLI commands. Use `runCliAsync` for `autodemo capture`. */
+/** Runs synchronous CLI commands. Use `runCliAsync` for async commands. */
 export function runCli(args: string[]): CliResult {
   const [command] = args;
 
@@ -67,6 +68,14 @@ export function runCli(args: string[]): CliResult {
     };
   }
 
+  if (command === "validate") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo validate requires async execution.\n",
+    };
+  }
+
   if (plannedCommands.has(command)) {
     return {
       exitCode: 1,
@@ -82,12 +91,16 @@ export function runCli(args: string[]): CliResult {
   };
 }
 
-/** Runs the CLI, including the async browser capture lifecycle. */
+/** Runs the CLI, including browser capture and capture bundle validation. */
 export async function runCliAsync(
   args: string[],
   dependencies: CliDependencies = defaultDependencies(),
 ): Promise<CliResult> {
   const [command, ...rest] = args;
+
+  if (command === "validate") {
+    return await runValidateCommand(rest);
+  }
 
   if (command !== "capture") {
     return runCli(args);
@@ -152,6 +165,32 @@ export async function runCliAsync(
     childResult.exitCode,
     childResult.exitCode === 0 ? "" : `Child command exited with code ${childResult.exitCode}.\n`,
   );
+}
+
+async function runValidateCommand(args: string[]): Promise<CliResult> {
+  const [target, ...extra] = args;
+  if (target === undefined || target.trim().length === 0 || extra.length > 0) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo validate requires <capture-dir-or-manifest>.\n",
+    };
+  }
+
+  const result = await validateCaptureBundle(target);
+  if (!result.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `Capture bundle invalid:\n${result.errors.map((error) => `- ${error}`).join("\n")}\n`,
+    };
+  }
+
+  return {
+    exitCode: 0,
+    stdout: `Capture bundle valid: ${result.manifestPath}\n`,
+    stderr: "",
+  };
 }
 
 async function waitForManualInterrupt(
@@ -355,7 +394,7 @@ function helpText(): string {
     "  generate   Generate polished variants",
     "  export     Render selected variants",
     "  open       Open the local editor",
-    "  validate   Validate an Auto Demo project",
+    "  validate   Validate a capture bundle",
     "",
   ].join("\n");
 }

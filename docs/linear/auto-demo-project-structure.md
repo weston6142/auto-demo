@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 ## Project
 
@@ -20,6 +20,7 @@ Last updated: 2026-06-28
 - WES-144 capture runtime design spec: `docs/superpowers/specs/2026-06-28-wes-144-capture-runtime-design.md`
 - WES-143 implementation plan: `docs/superpowers/plans/2026-06-28-wes-143-browser-capture-adapter-cli-contract-plan.md`
 - Current WES-145 baseline: `packages/cli/src/index.ts` owns capture lifecycle orchestration; `packages/capture/src/index.ts` exposes the default Playwright browser adapter plus unsupported fallback behavior. Local WES-145 work now writes browser interaction metadata JSONL alongside viewport media.
+- WES-147 capture bundle writer design spec: `docs/superpowers/specs/2026-06-29-wes-147-capture-bundle-writer-design.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -38,7 +39,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next local product task: WES-145.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-147. Next expected Capture Runtime child after WES-147 is WES-146.
 
 ## Issues By Milestone
 
@@ -53,8 +54,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-144: Capture runtime design/spec - Done - https://linear.app/weston-bushyeager/issue/WES-144/capture-runtime-designspec
 - WES-143: Browser capture adapter skeleton and CLI contract - Done - https://linear.app/weston-bushyeager/issue/WES-143/browser-capture-adapter-skeleton-and-cli-contract
 - WES-142: Playwright viewport media recording - Done - https://linear.app/weston-bushyeager/issue/WES-142/playwright-viewport-media-recording
-- WES-145: Browser interaction metadata capture - Locally implemented, PR pending - https://linear.app/weston-bushyeager/issue/WES-145/browser-interaction-metadata-capture
-- WES-147: Capture bundle writer and manifest - Backlog - https://linear.app/weston-bushyeager/issue/WES-147/capture-bundle-writer-and-manifest
+- WES-145: Browser interaction metadata capture - Done - https://linear.app/weston-bushyeager/issue/WES-145/browser-interaction-metadata-capture
+- WES-147: Capture bundle writer and manifest - Locally in progress - https://linear.app/weston-bushyeager/issue/WES-147/capture-bundle-writer-and-manifest
 - WES-146: Failure handling and capture validation tests - Backlog - https://linear.app/weston-bushyeager/issue/WES-146/failure-handling-and-capture-validation-tests
 
 ### 3. Demo Project Format
@@ -104,11 +105,29 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-142 open design decisions: how to introduce Playwright as a package dependency; whether the default adapter should switch from unsupported to Playwright in this issue; where backend-specific code should live inside `packages/capture`; the minimal output shape needed for media path and timing before WES-147 writes the durable manifest; and how to test behavior without asserting private Playwright mechanics or requiring brittle real-browser tests for every case.
 - 2026-06-28 sync-gate design: future `linear-next-task` runs should use a `pre-task` sync gate before issue selection, and Linear-backed finishing flows should use a blocking `completion-gate` before work is called done. The gate reconciles the active issue, project map, and nearby dependency issues so future tasks do not start from stale scope.
 - 2026-06-28 pre-task sync: Linear shows WES-143 and WES-144 as Done, with WES-142, WES-145, WES-147, WES-146, and WES-135 still Backlog in Capture Runtime. Local code at that point confirmed the adapter remained unsupported while `packages/cli/src/index.ts` already owned capture lifecycle orchestration. WES-142 was the next-task pointer before local Playwright implementation.
-- 2026-06-28 WES-142 implementation plan: Playwright becomes the default `autodemo capture` backend. WES-142 returns media path and timing from `session.stop()` but does not write the durable manifest; WES-147 still owns manifest writing. WES-145 still owns interaction metadata.
+- 2026-06-28 WES-142 implementation plan: Playwright becomes the default `autodemo capture` backend. WES-142 returns media path and timing from `session.stop()` but does not write the durable manifest; WES-147 later added manifest writing. WES-145 later added interaction metadata.
 - 2026-06-28 pre-task sync: Linear still had WES-142 in Backlog, but local evidence showed WES-142 was implemented and merged in PR #2. A completion evidence comment was added to WES-142 and the issue was moved to Done. Active Capture Runtime issues are now WES-145, WES-147, WES-146, and WES-135.
 - 2026-06-28 next-task investigation: WES-145 is the selected next product task because it is the earliest incomplete Capture Runtime child whose dependencies are satisfied by WES-142. WES-145 is ready for brainstorming. The expected outcome is concrete: capture timestamped browser interaction metadata in parallel with viewport media, including navigation/URL changes, viewport/page lifecycle timing, click/key/typing/wait markers, page/console errors, timestamp normalization, and sensitive typed-value handling according to the approved design.
 - WES-145 design decisions for brainstorming: whether metadata is written as JSONL during capture or returned in memory until WES-147 writes the bundle; how to keep sensitive typed values redacted by default; how the Playwright adapter should observe clicks/keys/navigation without asserting private Playwright internals; whether child-command step markers need an explicit API now or can be deferred; and how much page/console error detail is non-secret enough for the first pass.
-- 2026-06-29 WES-145 implementation: browser interaction metadata capture writes `metadata/events.jsonl` alongside Playwright viewport media, returns a metadata artifact path in `CaptureOutput`, redacts typed values by default with coarse classification, and preserves CLI lifecycle behavior. WES-147 still owns durable manifest writing.
+- 2026-06-29 WES-145 implementation: browser interaction metadata capture writes `metadata/events.jsonl` alongside Playwright viewport media, returns a metadata artifact path in `CaptureOutput`, redacts typed values by default with coarse classification, and preserves CLI lifecycle behavior. WES-147 later added durable manifest writing.
+- 2026-06-29 pre-task sync from firstmate: WES-145 was stale in Linear, completion evidence was added, and WES-145 was moved to Done. WES-147 is the selected next Capture Runtime child because WES-142 and WES-145 are complete.
+- 2026-06-29 WES-147 design: capture bundle writing remains package-owned in `@auto-demo/capture`; `capture.manifest.json` stores portable relative artifact paths, capture source, target URL, viewport, timing, status, adapter/tool versions, and artifact paths. `autodemo validate <capture-dir-or-manifest>` is the lightweight CLI check. This bundle is temporary Capture Runtime input for the later Demo Project Format milestone, not final Auto Demo project schema.
+- 2026-06-29 WES-147 implementation: `@auto-demo/capture` now exports `writeCaptureManifest()`, `readCaptureManifest()`, and `validateCaptureBundle()`. The Playwright adapter writes `capture.manifest.json` after media and metadata artifacts are flushed, and `autodemo validate <capture-dir-or-manifest>` validates the temporary bundle.
+
+## Temporary Capture Bundle
+
+WES-147 owns the current Capture Runtime bundle:
+
+```text
+capture-dir/
+  capture.manifest.json
+  media/
+    viewport.webm
+  metadata/
+    events.jsonl
+```
+
+`capture.manifest.json` uses schema version `1`, records `completed`, `failed`, or `interrupted` status, and stores artifact paths relative to the bundle root. Demo Project Format will later define the final project schema and conversion from this temporary bundle.
 
 ## Completion Evidence
 

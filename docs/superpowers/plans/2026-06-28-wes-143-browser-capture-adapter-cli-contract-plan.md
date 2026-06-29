@@ -514,7 +514,7 @@ function helpText(): string {
     "  generate   Generate polished variants",
     "  export     Render selected variants",
     "  open       Open the local editor",
-    "  validate   Validate an Auto Demo project",
+    "  validate   Validate a capture bundle",
     "",
   ].join("\n");
 }

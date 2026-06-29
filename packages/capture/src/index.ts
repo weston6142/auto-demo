@@ -1,4 +1,21 @@
 import { createPlaywrightBrowserCaptureAdapter } from "./playwrightAdapter.js";
+export {
+  CAPTURE_MANIFEST_SCHEMA_VERSION,
+  CAPTURE_PACKAGE_VERSION,
+  PLAYWRIGHT_TOOL_VERSION,
+  readCaptureManifest,
+  validateCaptureBundle,
+  writeCaptureManifest,
+  type CaptureBundleValidationResult,
+  type CaptureManifest,
+  type CaptureManifestAdapter,
+  type CaptureManifestArtifacts,
+  type CaptureManifestChildCommand,
+  type CaptureManifestError,
+  type CaptureManifestStatus,
+  type CaptureManifestTools,
+  type WriteCaptureManifestInput,
+} from "./captureManifest.js";
 
 export const CAPTURE_MANIFEST_FILENAME = "capture.manifest.json";
 /** Default browser viewport used by `autodemo capture` when `--viewport` is omitted. */
