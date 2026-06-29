@@ -857,6 +857,31 @@ describe("project load/save validation", () => {
     );
   });
 
+  it("reports an absent project manifest as a validation error", async () => {
+    const projectDir = await mkdtemp(join(tmpdir(), "autodemo-project-"));
+
+    const result = await validateProject(projectDir);
+
+    expect(result).toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "missing_project_manifest",
+          message: "Auto Demo project manifest cannot be read.",
+        },
+      ],
+    });
+  });
+
+  it("rethrows unexpected project manifest read errors", async () => {
+    const projectDir = await mkdtemp(join(tmpdir(), "autodemo-project-"));
+    await mkdir(join(projectDir, PROJECT_MANIFEST_FILENAME));
+
+    await expect(validateProject(projectDir)).rejects.toMatchObject({ code: "EISDIR" });
+  });
+
   it("saves only to the canonical manifest path for the project directory", async () => {
     const projectDir = await createFixtureProject();
     const otherDir = await mkdtemp(join(tmpdir(), "autodemo-other-"));
@@ -900,7 +925,7 @@ Extend `packages/project/src/index.ts` with these imports and exports:
 
 ```ts
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 ```
 
 Add these types and functions below `ProjectManifestValidationResult`:
@@ -925,25 +950,45 @@ export async function validateProject(
   try {
     parsed = JSON.parse(await readFile(manifestPath, "utf8"));
   } catch (error) {
-    return {
-      ok: false,
-      projectDir,
-      manifestPath,
-      errors: [
-        {
-          code: error instanceof SyntaxError ? "invalid_project_json" : "missing_project_manifest",
-          message:
-            error instanceof SyntaxError
-              ? "Auto Demo project manifest JSON is not parseable."
-              : "Auto Demo project manifest cannot be read.",
-        },
-      ],
-    };
+    if (error instanceof SyntaxError) {
+      return {
+        ok: false,
+        projectDir,
+        manifestPath,
+        errors: [
+          {
+            code: "invalid_project_json",
+            message: "Auto Demo project manifest JSON is not parseable.",
+          },
+        ],
+      };
+    }
+
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return {
+        ok: false,
+        projectDir,
+        manifestPath,
+        errors: [
+          {
+            code: "missing_project_manifest",
+            message: "Auto Demo project manifest cannot be read.",
+          },
+        ],
+      };
+    }
+
+    throw error;
   }
 
   const manifestResult = validateProjectManifest(parsed);
   if (!manifestResult.ok) {
-    return { ok: false, projectDir, manifestPath, errors: manifestResult.errors };
+    return {
+      ok: false,
+      projectDir,
+      manifestPath,
+      errors: manifestResult.errors,
+    };
   }
 
   const fileErrors = await validateProjectFiles(projectDir, manifestResult.manifest);
@@ -1024,7 +1069,8 @@ async function validateReferencedFile(
 ): Promise<void> {
   const target = resolve(projectDir, relativePath);
   const root = resolve(projectDir);
-  if (target !== root && !target.startsWith(`${root}/`)) {
+  const pathFromRoot = relative(root, target);
+  if (pathFromRoot === ".." || pathFromRoot.startsWith(`..${sep}`) || isAbsolute(pathFromRoot)) {
     errors.push({
       code: "unsafe_project_path",
       message: `Project ${label} path must stay inside the project.`,
@@ -1040,7 +1086,11 @@ async function validateReferencedFile(
         message: `Missing project ${label} file.`,
       });
     }
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      throw error;
+    }
+
     errors.push({
       code: "missing_project_file",
       message: `Missing project ${label} file.`,
