@@ -325,7 +325,7 @@ WES-145 should add browser interaction metadata capture.
 
 WES-147 added capture bundle writer and manifest behavior.
 
-WES-146 should harden failure handling and validation tests.
+WES-146 later hardened failure handling and validation tests.
 
 Milestone 3, Demo Project Format, should define the final project schema and conversion from capture bundle to full Auto Demo project.
 

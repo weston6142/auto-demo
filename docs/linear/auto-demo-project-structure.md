@@ -39,7 +39,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-146.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-134.
 
 ## Issues By Milestone
 
@@ -50,13 +50,13 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 2. Capture Runtime
 
-- WES-135: Milestone 2: Capture runtime tracker - Backlog - https://linear.app/weston-bushyeager/issue/WES-135/milestone-2-capture-runtime-tracker
+- WES-135: Milestone 2: Capture runtime tracker - Done - https://linear.app/weston-bushyeager/issue/WES-135/milestone-2-capture-runtime-tracker
 - WES-144: Capture runtime design/spec - Done - https://linear.app/weston-bushyeager/issue/WES-144/capture-runtime-designspec
 - WES-143: Browser capture adapter skeleton and CLI contract - Done - https://linear.app/weston-bushyeager/issue/WES-143/browser-capture-adapter-skeleton-and-cli-contract
 - WES-142: Playwright viewport media recording - Done - https://linear.app/weston-bushyeager/issue/WES-142/playwright-viewport-media-recording
 - WES-145: Browser interaction metadata capture - Done - https://linear.app/weston-bushyeager/issue/WES-145/browser-interaction-metadata-capture
 - WES-147: Capture bundle writer and manifest - Done - https://linear.app/weston-bushyeager/issue/WES-147/capture-bundle-writer-and-manifest
-- WES-146: Failure handling and capture validation tests - Backlog - https://linear.app/weston-bushyeager/issue/WES-146/failure-handling-and-capture-validation-tests
+- WES-146: Failure handling and capture validation tests - Done - https://linear.app/weston-bushyeager/issue/WES-146/failure-handling-and-capture-validation-tests
 
 ### 3. Demo Project Format
 
@@ -114,6 +114,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-06-29 WES-147 design: capture bundle writing remains package-owned in `@auto-demo/capture`; `capture.manifest.json` stores portable relative artifact paths, capture source, target URL, viewport, timing, status, adapter/tool versions, and artifact paths. `autodemo validate <capture-dir-or-manifest>` is the lightweight CLI check. This bundle is temporary Capture Runtime input for the later Demo Project Format milestone, not final Auto Demo project schema.
 - 2026-06-29 WES-147 implementation: `@auto-demo/capture` now exports `writeCaptureManifest()`, `readCaptureManifest()`, and `validateCaptureBundle()`. The Playwright adapter writes `capture.manifest.json` after media and metadata artifacts are flushed, and `autodemo validate <capture-dir-or-manifest>` validates the temporary bundle.
 - 2026-06-29 WES-146 implementation: failed and interrupted Playwright capture stops now write stable non-secret manifest diagnostics when artifacts exist, stop failures best-effort preserve a diagnostic bundle, and the CLI reports the manifest path when a started capture cannot stop cleanly.
+- 2026-06-29 pre-task sync: Linear shows WES-135 and all Capture Runtime child issues WES-142, WES-143, WES-144, WES-145, WES-146, and WES-147 as Done. Capture Runtime is complete, so WES-134 is the next task in the earliest incomplete milestone, Demo Project Format.
 
 ## Temporary Capture Bundle
 
@@ -156,6 +157,8 @@ capture-dir/
 - WES-147 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed before no-mistakes. No-mistakes PR #4 passed review, test, document, lint, and GitHub CI `validate` before merge.
 - WES-146: Capture failure hardening implemented for started captures. Non-completed stops write `failed` or `interrupted` manifests with stable non-secret diagnostics, diagnostic manifests are preserved best-effort after stop failures when artifacts exist, manifest diagnostics are sanitized, and CLI stop failures include the capture bundle path.
 - WES-146 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed on 2026-06-29.
+- WES-135: Capture Runtime tracker completed after all child issues WES-142, WES-143, WES-144, WES-145, WES-146, and WES-147 moved to Done.
+- Linear: evidence comment added and WES-135 moved to Done on 2026-06-29.
 
 ## Update Rules
 
