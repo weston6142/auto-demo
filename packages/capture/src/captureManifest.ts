@@ -1,4 +1,4 @@
-import { access, readFile, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, sep, win32 } from "node:path";
 import type {
   BrowserCaptureSource,
@@ -267,10 +267,14 @@ function validateManifestShape(value: unknown): string[] {
     !isRecord(value.childCommand)
   ) {
     errors.push("Manifest childCommand must be null or an object.");
+  } else if (isRecord(value.childCommand) && !isValidChildCommand(value.childCommand)) {
+    errors.push("Manifest childCommand must include argCount and exitCode when present.");
   }
 
   if (value.error !== null && value.error !== undefined && !isRecord(value.error)) {
     errors.push("Manifest error must be null or an object.");
+  } else if (isRecord(value.error) && !isValidManifestError(value.error)) {
+    errors.push("Manifest error must include code and message when present.");
   }
 
   return errors;
@@ -283,7 +287,10 @@ async function validateArtifact(
   errors: string[],
 ): Promise<void> {
   try {
-    await access(join(bundleDir, artifactPath));
+    const artifact = await stat(join(bundleDir, artifactPath));
+    if (!artifact.isFile()) {
+      errors.push(`Invalid ${label} artifact: ${artifactPath} must reference a file.`);
+    }
   } catch {
     errors.push(`Missing ${label} artifact: ${artifactPath}`);
   }
@@ -305,8 +312,31 @@ function isPositiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function isNonnegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
 function isIsoDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+function isValidChildCommand(value: Record<string, unknown>): boolean {
+  const hasValidCommand = value.command === undefined || isNonEmptyString(value.command);
+  const hasValidArgsRedacted = value.argsRedacted === undefined || value.argsRedacted === true;
+  const hasValidExitCode =
+    value.exitCode === null ||
+    (typeof value.exitCode === "number" && Number.isInteger(value.exitCode));
+
+  return (
+    hasValidCommand &&
+    isNonnegativeInteger(value.argCount) &&
+    hasValidArgsRedacted &&
+    hasValidExitCode
+  );
+}
+
+function isValidManifestError(value: Record<string, unknown>): boolean {
+  return isNonEmptyString(value.code) && isNonEmptyString(value.message);
 }
 
 function isPortablePath(value: unknown): value is string {

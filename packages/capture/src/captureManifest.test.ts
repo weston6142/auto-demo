@@ -145,4 +145,76 @@ describe("capture manifest", () => {
       "Manifest artifacts must include relative media and events paths.",
     );
   });
+
+  it("rejects artifact paths that point at directories", async () => {
+    const outputDir = await createBundleArtifacts("auto-demo-manifest-directory-artifacts");
+    await writeFile(
+      join(outputDir, "capture.manifest.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        status: "completed",
+        source: { kind: "browser", url: "https://example.com/demo" },
+        adapter: { kind: "browser", backend: "playwright" },
+        tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+        viewport: { width: 1280, height: 720 },
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+        artifacts: {
+          media: "media",
+          events: "metadata",
+        },
+        childCommand: null,
+        error: null,
+      })}\n`,
+    );
+
+    const validation = await validateCaptureBundle(outputDir);
+
+    expect(validation.ok).toBe(false);
+    if (validation.ok) {
+      return;
+    }
+    expect(validation.errors).toEqual([
+      "Invalid media artifact: media must reference a file.",
+      "Invalid events artifact: metadata must reference a file.",
+    ]);
+  });
+
+  it("rejects incomplete nested child command and error details", async () => {
+    const outputDir = await createBundleArtifacts("auto-demo-manifest-nested-shape");
+    await writeFile(
+      join(outputDir, "capture.manifest.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        status: "failed",
+        source: { kind: "browser", url: "https://example.com/demo" },
+        adapter: { kind: "browser", backend: "playwright" },
+        tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+        viewport: { width: 1280, height: 720 },
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+        artifacts: {
+          media: "media/viewport.webm",
+          events: "metadata/events.jsonl",
+        },
+        childCommand: {},
+        error: {},
+      })}\n`,
+    );
+
+    const validation = await validateCaptureBundle(outputDir);
+
+    expect(validation.ok).toBe(false);
+    if (validation.ok) {
+      return;
+    }
+    expect(validation.errors).toContain(
+      "Manifest childCommand must include argCount and exitCode when present.",
+    );
+    expect(validation.errors).toContain(
+      "Manifest error must include code and message when present.",
+    );
+  });
 });
