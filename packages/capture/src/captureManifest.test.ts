@@ -52,7 +52,7 @@ describe("capture manifest", () => {
         media: "media/viewport.webm",
         events: "metadata/events.jsonl",
       },
-      childCommand: { command: "npm", args: ["test"], exitCode: 0 },
+      childCommand: { command: "npm", argCount: 1, argsRedacted: true, exitCode: 0 },
       error: null,
     });
 
@@ -110,5 +110,39 @@ describe("capture manifest", () => {
       return;
     }
     expect(missingArtifact.errors).toContain("Missing events artifact: metadata/events.jsonl");
+  });
+
+  it("rejects artifact paths that leave the capture bundle after normalization", async () => {
+    const outputDir = await createBundleArtifacts("auto-demo-manifest-traversal");
+    await writeFile(
+      join(outputDir, "capture.manifest.json"),
+      `${JSON.stringify({
+        schemaVersion: 1,
+        status: "completed",
+        source: { kind: "browser", url: "https://example.com/demo" },
+        adapter: { kind: "browser", backend: "playwright" },
+        tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+        viewport: { width: 1280, height: 720 },
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+        artifacts: {
+          media: "media/../../outside.webm",
+          events: "metadata/events.jsonl",
+        },
+        childCommand: null,
+        error: null,
+      })}\n`,
+    );
+
+    const validation = await validateCaptureBundle(outputDir);
+
+    expect(validation.ok).toBe(false);
+    if (validation.ok) {
+      return;
+    }
+    expect(validation.errors).toContain(
+      "Manifest artifacts must include relative media and events paths.",
+    );
   });
 });

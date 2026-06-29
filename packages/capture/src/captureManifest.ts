@@ -1,5 +1,5 @@
 import { access, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, sep, win32 } from "node:path";
 import type {
   BrowserCaptureSource,
   CaptureChildCommand,
@@ -28,7 +28,14 @@ export type CaptureManifestArtifacts = {
   events: string;
 };
 
-export type CaptureManifestChildCommand = CaptureChildCommand & {
+export type CaptureManifestChildCommand = {
+  command?: string;
+  argCount: number;
+  argsRedacted?: true;
+  exitCode: number | null;
+};
+
+export type CaptureManifestChildCommandInput = CaptureChildCommand & {
   exitCode: number | null;
 };
 
@@ -68,7 +75,7 @@ export type WriteCaptureManifestInput = {
     media: string;
     events: string;
   };
-  childCommand: CaptureManifestChildCommand | null;
+  childCommand: CaptureManifestChildCommandInput | null;
   error: CaptureManifestError | null;
 };
 
@@ -90,7 +97,7 @@ export async function writeCaptureManifest(
   const manifest: CaptureManifest = {
     schemaVersion: CAPTURE_MANIFEST_SCHEMA_VERSION,
     status: input.status,
-    source: input.source,
+    source: sanitizeManifestSource(input.source),
     adapter: input.adapter,
     tools: input.tools ?? {
       capturePackage: CAPTURE_PACKAGE_VERSION,
@@ -104,7 +111,7 @@ export async function writeCaptureManifest(
       media: portableArtifactPath(input.outputDir, input.artifacts.media),
       events: portableArtifactPath(input.outputDir, input.artifacts.events),
     },
-    childCommand: input.childCommand,
+    childCommand: sanitizeManifestChildCommand(input.childCommand),
     error: input.error,
   };
 
@@ -152,6 +159,28 @@ export async function validateCaptureBundle(
 function portableArtifactPath(outputDir: string, artifactPath: string): string {
   const path = isAbsolute(artifactPath) ? relative(outputDir, artifactPath) : artifactPath;
   return path.split(sep).join("/");
+}
+
+function sanitizeManifestSource(source: BrowserCaptureSource): BrowserCaptureSource {
+  return {
+    ...source,
+    url: stripUrlSecrets(source.url),
+  };
+}
+
+function sanitizeManifestChildCommand(
+  command: CaptureManifestChildCommandInput | null,
+): CaptureManifestChildCommand | null {
+  if (command === null) {
+    return null;
+  }
+
+  return omitUndefined({
+    command: command.command,
+    argCount: command.args.length,
+    argsRedacted: command.args.length > 0 ? (true as const) : undefined,
+    exitCode: command.exitCode,
+  });
 }
 
 async function resolveManifestPath(pathOrBundleDir: string): Promise<string> {
@@ -281,7 +310,34 @@ function isIsoDateString(value: unknown): value is string {
 }
 
 function isPortablePath(value: unknown): value is string {
-  return (
-    typeof value === "string" && value.length > 0 && !isAbsolute(value) && !value.startsWith("..")
-  );
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    isAbsolute(value) ||
+    win32.isAbsolute(value)
+  ) {
+    return false;
+  }
+
+  return !value.split(/[\\/]/).includes("..");
+}
+
+function stripUrlSecrets(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.origin === "null") {
+      return `${url.protocol}[opaque]`;
+    }
+    return `${url.origin}${url.pathname === "/" ? "" : url.pathname}`;
+  } catch {
+    return value.split(/[?#]/, 1)[0] ?? value;
+  }
+}
+
+function omitUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, Exclude<unknown, undefined>] => entry[1] !== undefined,
+    ),
+  ) as T;
 }

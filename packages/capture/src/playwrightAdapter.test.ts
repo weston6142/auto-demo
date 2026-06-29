@@ -276,6 +276,44 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(JSON.stringify(events)).not.toContain("secret");
   });
 
+  it("redacts source URL secrets and child command args from the manifest", async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-manifest-redaction-"));
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: (() => {
+        const dates = [new Date("2026-06-29T12:00:00.000Z"), new Date("2026-06-29T12:00:02.500Z")];
+        return () => dates.shift() ?? new Date("2026-06-29T12:00:02.500Z");
+      })(),
+    });
+
+    const startResult = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/callback?token=secret#session" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T11:59:59.000Z",
+      childCommand: { command: "npm", args: ["run", "walkthrough", "--token", "secret"] },
+    });
+
+    expect(startResult.ok).toBe(true);
+    if (!startResult.ok) {
+      return;
+    }
+
+    const stopResult = await startResult.session.stop("completed");
+
+    expect(stopResult.ok).toBe(true);
+    const manifest = JSON.parse(await readFile(`${outputDir}/capture.manifest.json`, "utf8"));
+    expect(manifest.source).toEqual({ kind: "browser", url: "https://example.com/callback" });
+    expect(manifest.childCommand).toEqual({
+      command: "npm",
+      argCount: 4,
+      argsRedacted: true,
+      exitCode: null,
+    });
+    expect(JSON.stringify(manifest)).not.toContain("token=secret");
+    expect(JSON.stringify(manifest)).not.toContain("--token");
+  });
+
   it("returns stop failure when metadata cannot be flushed", async () => {
     class FailingCloseWriter implements JsonlEventWriter {
       public readonly events: CaptureEvent[] = [];
