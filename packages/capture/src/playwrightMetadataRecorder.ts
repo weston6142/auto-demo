@@ -72,6 +72,8 @@ export async function createPlaywrightMetadataRecorder(options: {
 
 class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
   private readonly pendingWrites = new Set<Promise<void>>();
+  private writeChain: Promise<void> = Promise.resolve();
+  private closing = false;
 
   constructor(
     private readonly page: PlaywrightPage,
@@ -81,46 +83,57 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
 
   async attach(): Promise<void> {
     await this.page.exposeBinding(BINDING_NAME, async (payload) => {
-      await this.enqueue(this.writeBrowserPayload(payload));
+      await this.enqueue(() => this.writeBrowserPayload(payload));
     });
     await this.page.addInitScript(browserInstrumentationScript(BINDING_NAME));
     this.page.onConsole((message) => {
-      this.enqueue(this.writeConsole(message));
+      this.enqueue(() => this.writeConsole(message));
     });
     this.page.onNavigation(() => {
-      this.enqueue(this.writeNavigation("framenavigated"));
+      this.enqueue(() => this.writeNavigation("framenavigated"));
     });
     this.page.onPageError((error) => {
-      this.enqueue(this.writePageError(error));
+      this.enqueue(() => this.writePageError(error));
     });
   }
 
   async writeCaptureStarted(data: Record<string, unknown>): Promise<void> {
-    const snapshot = await this.page.snapshotMetadata();
-    await this.writer.write(
-      this.eventFactory.create("capture_started", {
-        ...snapshot,
-        data,
-      }),
-    );
+    await this.enqueue(async () => {
+      const snapshot = await this.page.snapshotMetadata();
+      await this.writer.write(
+        this.eventFactory.create("capture_started", {
+          ...snapshot,
+          data,
+        }),
+      );
+    });
   }
 
   async writeCaptureStopped(data: Record<string, unknown>): Promise<void> {
-    const snapshot = await this.page.snapshotMetadata();
-    await this.writer.write(
-      this.eventFactory.create("capture_stopped", {
-        ...snapshot,
-        data,
-      }),
-    );
+    await this.enqueue(async () => {
+      const snapshot = await this.page.snapshotMetadata();
+      await this.writer.write(
+        this.eventFactory.create("capture_stopped", {
+          ...snapshot,
+          data,
+        }),
+      );
+    });
   }
 
   async close(): Promise<void> {
+    this.closing = true;
     await Promise.all(this.pendingWrites);
     await this.writer.close();
   }
 
-  private enqueue(write: Promise<void>): Promise<void> {
+  private enqueue(task: () => Promise<void>): Promise<void> {
+    if (this.closing) {
+      return Promise.resolve();
+    }
+
+    const write = this.writeChain.then(task);
+    this.writeChain = write.catch(() => undefined);
     this.pendingWrites.add(write);
     write.then(
       () => {
@@ -151,8 +164,9 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
         ...snapshot,
         data: {
           level: message.type,
-          text: truncateText(message.text, 500),
-          location: message.location,
+          textRedacted: true,
+          textLength: message.text.length,
+          location: sanitizeConsoleLocation(message.location),
         },
       }),
     );
@@ -175,8 +189,9 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
         ...snapshot,
         data: {
           name: error.name,
-          message: truncateText(error.message, 500),
-          stackSummary: error.stack?.split("\n")[0],
+          messageRedacted: true,
+          messageLength: error.message.length,
+          stackRedacted: error.stack !== undefined || undefined,
         },
       }),
     );
@@ -278,8 +293,28 @@ function isPrintableKey(key: string): boolean {
   return !NON_PRINTABLE_KEYS.has(key);
 }
 
-function truncateText(value: string, maxLength: number): string {
-  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+function sanitizeConsoleLocation(
+  location: PlaywrightConsoleMessage["location"],
+): PlaywrightConsoleMessage["location"] | undefined {
+  if (location === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...location,
+    url: stripUrlSecrets(location.url),
+  };
+}
+
+function stripUrlSecrets(value: string): string {
+  try {
+    const url = new URL(value);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value.split(/[?#]/, 1)[0] ?? value;
+  }
 }
 
 function browserInstrumentationScript(bindingName: string): string {

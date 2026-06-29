@@ -98,6 +98,31 @@ class FakePage implements PlaywrightPage {
   }
 }
 
+class DeferredSnapshotPage extends FakePage {
+  private markFirstSnapshotStarted: (() => void) | undefined;
+  private releaseFirstSnapshot: (() => void) | undefined;
+  public readonly firstSnapshotStarted = new Promise<void>((resolve) => {
+    this.markFirstSnapshotStarted = resolve;
+  });
+  private snapshotCount = 0;
+
+  override async snapshotMetadata() {
+    this.snapshotCount += 1;
+    if (this.snapshotCount === 1) {
+      this.markFirstSnapshotStarted?.();
+      await new Promise<void>((resolve) => {
+        this.releaseFirstSnapshot = resolve;
+      });
+    }
+
+    return super.snapshotMetadata();
+  }
+
+  releaseSnapshot(): void {
+    this.releaseFirstSnapshot?.();
+  }
+}
+
 describe("createPlaywrightMetadataRecorder", () => {
   it("records browser-side interaction events with redacted fill values", async () => {
     const page = new FakePage();
@@ -374,7 +399,71 @@ describe("createPlaywrightMetadataRecorder", () => {
     ]);
   });
 
-  it("records console and page error summaries", async () => {
+  it("preserves observer event order when snapshots resolve later", async () => {
+    const page = new DeferredSnapshotPage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:00.250Z"),
+      }),
+    });
+
+    page.consoleHandler?.({
+      type: "warning",
+      text: "first",
+    });
+    await page.firstSnapshotStarted;
+    const clickWrite = page.binding?.({
+      type: "click",
+      pageUrl: "https://example.com",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: { x: 10, y: 20 },
+    });
+    page.releaseSnapshot();
+    await clickWrite;
+    await recorder.close();
+
+    expect(writer.events.map((event) => event.type)).toEqual(["console", "click"]);
+    expect(writer.events.map((event) => event.sequence)).toEqual([1, 2]);
+  });
+
+  it("ignores browser events received after close starts", async () => {
+    const page = new DeferredSnapshotPage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:00.250Z"),
+      }),
+    });
+
+    page.consoleHandler?.({
+      type: "warning",
+      text: "in flight",
+    });
+    await page.firstSnapshotStarted;
+    const close = recorder.close();
+
+    await page.binding?.({
+      type: "click",
+      pageUrl: "https://example.com",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: { x: 10, y: 20 },
+    });
+    page.releaseSnapshot();
+    await close;
+
+    expect(writer.events.map((event) => event.type)).toEqual(["console"]);
+  });
+
+  it("records console and page error metadata without raw text", async () => {
     const page = new FakePage();
     const writer = new MemoryWriter();
     const recorder = await createPlaywrightMetadataRecorder({
@@ -388,13 +477,17 @@ describe("createPlaywrightMetadataRecorder", () => {
 
     page.consoleHandler?.({
       type: "warning",
-      text: "Something useful happened",
-      location: { url: "https://example.com/app.js", lineNumber: 10, columnNumber: 2 },
+      text: "token=secret-cookie-value",
+      location: {
+        url: "https://example.com/app.js?token=secret-cookie-value",
+        lineNumber: 10,
+        columnNumber: 2,
+      },
     });
     page.pageErrorHandler?.({
       name: "Error",
-      message: "Render failed",
-      stack: "Error: Render failed\n    at render (app.js:10:2)",
+      message: "Render failed with token=secret-cookie-value",
+      stack: "Error: Render failed with token=secret-cookie-value\n    at render (app.js:10:2)",
     });
     await recorder.close();
 
@@ -404,7 +497,8 @@ describe("createPlaywrightMetadataRecorder", () => {
         type: "console",
         data: {
           level: "warning",
-          text: "Something useful happened",
+          textRedacted: true,
+          textLength: 25,
           location: { url: "https://example.com/app.js", lineNumber: 10, columnNumber: 2 },
         },
       }),
@@ -413,10 +507,12 @@ describe("createPlaywrightMetadataRecorder", () => {
         type: "page_error",
         data: {
           name: "Error",
-          message: "Render failed",
-          stackSummary: "Error: Render failed",
+          messageRedacted: true,
+          messageLength: 44,
+          stackRedacted: true,
         },
       }),
     ]);
+    expect(JSON.stringify(writer.events)).not.toContain("secret-cookie-value");
   });
 });
