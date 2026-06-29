@@ -1301,6 +1301,61 @@ describe("createProjectFromCaptureBundle", () => {
       readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it("rewrites copied capture metadata without source, error, or artifact path secrets", async () => {
+    const captureDir = await mkdtemp(join(tmpdir(), "auto-demo-capture-"));
+    await mkdir(join(captureDir, "media"), { recursive: true });
+    await mkdir(join(captureDir, "metadata"), { recursive: true });
+    await writeFile(join(captureDir, "media", "token=secret.webm"), "video");
+    await writeFile(join(captureDir, "metadata", "events.jsonl"), "{}\n");
+    await writeFile(
+      join(captureDir, "capture.manifest.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        status: "failed",
+        source: { kind: "browser", url: "https://example.com/checkout?token=secret#step" },
+        adapter: { kind: "browser", backend: "playwright" },
+        tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+        viewport: { width: 1280, height: 720 },
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+        artifacts: {
+          media: "media/token=secret.webm",
+          events: "metadata/events.jsonl",
+        },
+        childCommand: null,
+        error: { code: "capture_failed", message: "failed with token=secret" },
+      }),
+    );
+    const projectDir = await mkdtemp(join(tmpdir(), "auto-demo-imported-project-"));
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Imported checkout demo",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const copiedManifestText = await readFile(
+      join(projectDir, "metadata", "capture.manifest.json"),
+      "utf8",
+    );
+    const copiedManifest = JSON.parse(copiedManifestText);
+    expect(copiedManifest.source.url).toBe("https://example.com/checkout");
+    expect(copiedManifest.artifacts).toEqual({
+      media: "raw/capture.webm",
+      events: "metadata/events.jsonl",
+    });
+    expect(copiedManifest.error).toEqual({
+      code: "capture_failed",
+      message: "Capture ended with an error.",
+    });
+    expect(copiedManifestText).not.toContain("secret");
+    expect(copiedManifestText).not.toContain("token=");
+  });
 });
 ```
 
@@ -1319,8 +1374,8 @@ Expected: FAIL because `createProjectFromCaptureBundle()` is not implemented.
 Add imports to `packages/project/src/index.ts`:
 
 ```ts
-import { copyFile } from "node:fs/promises";
-import { validateCaptureBundle } from "@auto-demo/capture";
+import { copyFile, writeFile } from "node:fs/promises";
+import { validateCaptureBundle, type CaptureManifest } from "@auto-demo/capture";
 ```
 
 Add these types and function:
@@ -1400,10 +1455,13 @@ export async function createProjectFromCaptureBundle(
     join(captureDir, capture.manifest.artifacts.events),
     join(projectDir, "metadata", "events.jsonl"),
   );
-  await copyFile(capture.manifestPath, join(projectDir, "metadata", "capture.manifest.json"));
 
   const clock = input.now === undefined ? () => new Date() : input.now;
   const timestamp = clock().toISOString();
+  const captureManifestForProject = sanitizeCaptureManifestForProject(
+    capture.manifest,
+    projectSourceUrl,
+  );
   const manifest: ProjectManifest = {
     schemaVersion: SUPPORTED_PROJECT_SCHEMA_VERSION,
     name: input.name,
@@ -1437,7 +1495,44 @@ export async function createProjectFromCaptureBundle(
     exports: [],
   };
 
+  await writeFile(
+    join(projectDir, "metadata", "capture.manifest.json"),
+    `${JSON.stringify(captureManifestForProject, null, 2)}\n`,
+  );
+
   return await saveProject({ projectDir, manifestPath, manifest });
+}
+
+function sanitizeCaptureManifestForProject(
+  manifest: CaptureManifest,
+  sourceUrl: string,
+): CaptureManifest {
+  return {
+    schemaVersion: manifest.schemaVersion,
+    status: manifest.status,
+    source: {
+      kind: "browser",
+      url: sourceUrl,
+    },
+    adapter: manifest.adapter,
+    tools: manifest.tools,
+    viewport: manifest.viewport,
+    startedAt: manifest.startedAt,
+    endedAt: manifest.endedAt,
+    durationMs: manifest.durationMs,
+    artifacts: {
+      media: "raw/capture.webm",
+      events: "metadata/events.jsonl",
+    },
+    childCommand: manifest.childCommand,
+    error:
+      manifest.error === null
+        ? null
+        : {
+            code: manifest.error.code,
+            message: "Capture ended with an error.",
+          },
+  };
 }
 
 function normalizeProjectSourceUrl(value: string): string | null {
