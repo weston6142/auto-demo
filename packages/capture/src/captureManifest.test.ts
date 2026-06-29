@@ -284,7 +284,9 @@ describe("capture manifest", () => {
     if (validation.ok) {
       return;
     }
-    expect(validation.errors).toContain("Manifest childCommand must be explicit null or an object.");
+    expect(validation.errors).toContain(
+      "Manifest childCommand must be explicit null or an object.",
+    );
     expect(validation.errors).toContain("Manifest error must be explicit null or an object.");
   });
 
