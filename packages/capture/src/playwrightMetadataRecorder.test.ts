@@ -21,6 +21,34 @@ class MemoryWriter {
   }
 }
 
+class DeferredWriter extends MemoryWriter {
+  private markWriteStarted: (() => void) | undefined;
+  private releaseWrite: (() => void) | undefined;
+  public readonly writeStarted = new Promise<void>((resolve) => {
+    this.markWriteStarted = resolve;
+  });
+  private writeReleased = false;
+
+  async write(event: CaptureEvent): Promise<void> {
+    this.markWriteStarted?.();
+    await new Promise<void>((resolve) => {
+      this.releaseWrite = () => {
+        this.writeReleased = true;
+        resolve();
+      };
+    });
+    await super.write(event);
+  }
+
+  release(): void {
+    this.releaseWrite?.();
+  }
+
+  get released(): boolean {
+    return this.writeReleased;
+  }
+}
+
 class FakePage implements PlaywrightPage {
   public readonly gotos: string[] = [];
   public readonly initScripts: string[] = [];
@@ -116,6 +144,51 @@ describe("createPlaywrightMetadataRecorder", () => {
           valueKind: "email_like",
           valueLength: 18,
         },
+      }),
+    ]);
+    expect(writer.closed).toBe(true);
+  });
+
+  it("waits for in-flight browser-side events before closing", async () => {
+    const page = new FakePage();
+    const writer = new DeferredWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    const browserWrite = page.binding?.({
+      type: "click",
+      pageUrl: "https://example.com",
+      pageTitle: "Example",
+      viewport: { width: 1280, height: 720 },
+      data: { x: 10, y: 20 },
+    });
+    expect(browserWrite).toBeDefined();
+    await writer.writeStarted;
+
+    const closeState = { closed: false };
+    const close = recorder.close().then(() => {
+      closeState.closed = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(closeState.closed).toBe(false);
+    expect(writer.closed).toBe(false);
+    expect(writer.released).toBe(false);
+
+    writer.release();
+    await browserWrite;
+    await close;
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "click",
+        pageUrl: "https://example.com",
       }),
     ]);
     expect(writer.closed).toBe(true);

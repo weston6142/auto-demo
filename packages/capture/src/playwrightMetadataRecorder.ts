@@ -40,7 +40,7 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
 
   async attach(): Promise<void> {
     await this.page.exposeBinding(BINDING_NAME, async (payload) => {
-      await this.writeBrowserPayload(payload);
+      await this.enqueue(this.writeBrowserPayload(payload));
     });
     await this.page.addInitScript(browserInstrumentationScript(BINDING_NAME));
     this.page.onConsole((message) => {
@@ -79,11 +79,17 @@ class DefaultPlaywrightMetadataRecorder implements PlaywrightMetadataRecorder {
     await this.writer.close();
   }
 
-  private enqueue(write: Promise<void>): void {
+  private enqueue(write: Promise<void>): Promise<void> {
     this.pendingWrites.add(write);
-    write.finally(() => {
-      this.pendingWrites.delete(write);
-    });
+    write.then(
+      () => {
+        this.pendingWrites.delete(write);
+      },
+      () => {
+        this.pendingWrites.delete(write);
+      },
+    );
+    return write;
   }
 
   private async writeBrowserPayload(payload: BrowserBindingPayload): Promise<void> {
