@@ -1362,6 +1362,56 @@ describe("createProjectFromCaptureBundle", () => {
     expect(copiedManifestText).not.toContain("secret");
     expect(copiedManifestText).not.toContain("token=");
   });
+
+  it("rejects non-empty target directories before copying artifacts", async () => {
+    const captureDir = await createCaptureBundle();
+    const projectDir = await mkdtemp(join(tmpdir(), "auto-demo-imported-project-"));
+    await writeFile(join(projectDir, "notes.txt"), "keep me");
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Imported checkout demo",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual([
+        {
+          code: "invalid_project_manifest",
+          message: "Project import target must be empty.",
+        },
+      ]);
+    }
+    await expect(readFile(join(projectDir, "notes.txt"), "utf8")).resolves.toBe("keep me");
+    await expect(readFile(join(projectDir, "raw", "capture.webm"), "utf8")).rejects.toMatchObject(
+      { code: "ENOENT" },
+    );
+    await expect(readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).rejects.toMatchObject(
+      { code: "ENOENT" },
+    );
+  });
+
+  it("rejects existing project artifact paths without overwriting them", async () => {
+    const captureDir = await createCaptureBundle();
+    const projectDir = await mkdtemp(join(tmpdir(), "auto-demo-imported-project-"));
+    await mkdir(join(projectDir, "raw"), { recursive: true });
+    await writeFile(join(projectDir, "raw", "capture.webm"), "existing video");
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Imported checkout demo",
+    });
+
+    expect(result.ok).toBe(false);
+    await expect(readFile(join(projectDir, "raw", "capture.webm"), "utf8")).resolves.toBe(
+      "existing video",
+    );
+    await expect(readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).rejects.toMatchObject(
+      { code: "ENOENT" },
+    );
+  });
 });
 ```
 
@@ -1377,10 +1427,13 @@ Expected: FAIL because `createProjectFromCaptureBundle()` is not implemented.
 
 - [ ] **Step 5: Implement import behavior**
 
+Schema v1 has no overwrite option. The import path must reject an existing project or
+non-empty target directory before creating project directories or copying artifacts.
+
 Add imports to `packages/project/src/index.ts`:
 
 ```ts
-import { copyFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
 import { validateCaptureBundle, type CaptureManifest } from "@auto-demo/capture";
 ```
 
@@ -1441,6 +1494,16 @@ export async function createProjectFromCaptureBundle(
           message: "Capture source URL must be http(s) and secret-safe.",
         },
       ],
+    };
+  }
+
+  const targetError = await validateEmptyProjectImportTarget(projectDir);
+  if (targetError !== null) {
+    return {
+      ok: false,
+      projectDir,
+      manifestPath,
+      errors: [targetError],
     };
   }
 
@@ -1507,6 +1570,26 @@ export async function createProjectFromCaptureBundle(
   );
 
   return await saveProject({ projectDir, manifestPath, manifest });
+}
+
+async function validateEmptyProjectImportTarget(
+  projectDir: string,
+): Promise<ProjectValidationError | null> {
+  try {
+    const entries = await readdir(projectDir);
+    if (entries.length === 0) {
+      return null;
+    }
+    return {
+      code: "invalid_project_manifest",
+      message: "Project import target must be empty.",
+    };
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function sanitizeCaptureManifestForProject(

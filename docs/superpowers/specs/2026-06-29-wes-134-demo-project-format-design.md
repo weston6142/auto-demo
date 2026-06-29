@@ -162,16 +162,21 @@ Input:
 Behavior:
 
 1. Validate the WES-147 bundle through `@auto-demo/capture`.
-2. Create `raw/`, `metadata/`, `variants/`, `previews/`, and `exports/`.
-3. Copy viewport media and event metadata into normalized project paths, and write
+2. Reject target directories that already contain project files, user files, or the
+   normalized schema v1 paths before creating directories or copying artifacts.
+3. Create `raw/`, `metadata/`, `variants/`, `previews/`, and `exports/`.
+4. Copy viewport media and event metadata into normalized project paths, and write
    sanitized project-owned capture summary metadata.
-4. Write `autodemo.project.json` using temp-file-then-rename.
-5. Return the loaded project result.
+5. Write `autodemo.project.json` using temp-file-then-rename.
+6. Return the loaded project result.
 
 Expected invalid capture bundles return structured project-level validation errors with
 stable non-secret messages. They must not forward capture-package error text because
 capture diagnostics can contain manifest-controlled artifact paths. Unexpected
 file-system or programming failures may throw.
+
+Schema v1 does not expose an overwrite option. Import into an existing project or
+non-empty directory is a validation failure.
 
 ### `validateProject(projectDirOrManifest)`
 
