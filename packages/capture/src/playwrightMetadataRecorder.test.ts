@@ -211,6 +211,56 @@ describe("createPlaywrightMetadataRecorder", () => {
     expect(JSON.stringify(writer.events)).not.toContain("magic");
   });
 
+  it("redacts opaque URL bodies from stored URL fields", async () => {
+    const page = new FakePage();
+    page.currentUrl = "data:text/html,token=start-secret";
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await recorder.writeCaptureStarted({
+      sourceUrl: "data:text/html,token=source-secret",
+    });
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "click",
+        pageUrl: "javascript:token='click-secret'",
+        pageTitle: "Example",
+        viewport: { width: 1280, height: 720 },
+        data: { x: 10, y: 20 },
+      }),
+    );
+    page.currentUrl = "about:token=navigation-secret";
+    page.navigationHandler?.("framenavigated");
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "capture_started",
+        pageUrl: "data:[opaque]",
+        data: { sourceUrl: "data:[opaque]" },
+      }),
+      expect.objectContaining({
+        type: "click",
+        pageUrl: "javascript:[opaque]",
+      }),
+      expect.objectContaining({
+        type: "navigation",
+        pageUrl: "about:[opaque]",
+      }),
+    ]);
+    expect(JSON.stringify(writer.events)).not.toContain("start-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("source-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("click-secret");
+    expect(JSON.stringify(writer.events)).not.toContain("navigation-secret");
+  });
+
   it("records browser-side interaction events with redacted fill values", async () => {
     const page = new FakePage();
     const writer = new MemoryWriter();

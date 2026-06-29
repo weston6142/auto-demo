@@ -631,7 +631,7 @@ function stripUrlSecrets(value: string): string {
   try {
     const url = new URL(value);
     if (url.origin === "null") {
-      return value.split(/[?#]/, 1)[0] ?? value;
+      return `${url.protocol}[opaque]`;
     }
     return `${url.origin}${url.pathname === "/" ? "" : url.pathname}`;
   } catch {
@@ -662,7 +662,7 @@ function browserInstrumentationScript(bindingName: string): string {
     try {
       const url = new URL(value);
       if (url.origin === "null") {
-        return String(value).split(/[?#]/, 1)[0] || value;
+        return url.protocol + "[opaque]";
       }
       return url.origin + (url.pathname === "/" ? "" : url.pathname);
     } catch {
