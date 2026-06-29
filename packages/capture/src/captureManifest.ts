@@ -1,5 +1,5 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, sep, win32 } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep, win32 } from "node:path";
 import type {
   BrowserCaptureSource,
   CaptureChildCommand,
@@ -157,7 +157,13 @@ export async function validateCaptureBundle(
 }
 
 function portableArtifactPath(outputDir: string, artifactPath: string): string {
-  const path = isAbsolute(artifactPath) ? relative(outputDir, artifactPath) : artifactPath;
+  const pathFromOutputDir = relative(resolve(outputDir), resolve(artifactPath));
+  const path =
+    pathFromOutputDir.length > 0 &&
+    !pathFromOutputDir.split(sep).includes("..") &&
+    !isAbsolute(pathFromOutputDir)
+      ? pathFromOutputDir
+      : artifactPath;
   return path.split(sep).join("/");
 }
 

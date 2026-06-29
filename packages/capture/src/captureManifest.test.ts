@@ -67,6 +67,45 @@ describe("capture manifest", () => {
     });
   });
 
+  it("writes bundle-relative artifact paths when outputDir is relative", async () => {
+    const outputDir = "auto-demo-manifest-relative";
+    await rm(outputDir, { recursive: true, force: true });
+    await mkdir(join(outputDir, "media"), { recursive: true });
+    await mkdir(join(outputDir, "metadata"), { recursive: true });
+    await writeFile(join(outputDir, "media", "viewport.webm"), "video");
+    await writeFile(join(outputDir, "metadata", "events.jsonl"), "{}\n");
+
+    const manifest = await writeCaptureManifest({
+      outputDir,
+      status: "completed",
+      source: { kind: "browser", url: "https://example.com/demo" },
+      adapter: { kind: "browser", backend: "playwright" },
+      tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+      viewport: { width: 1280, height: 720 },
+      timing: {
+        startedAt: "2026-06-29T12:00:00.000Z",
+        endedAt: "2026-06-29T12:00:02.500Z",
+        durationMs: 2500,
+      },
+      artifacts: {
+        media: join(outputDir, "media", "viewport.webm"),
+        events: join(outputDir, "metadata", "events.jsonl"),
+      },
+      childCommand: null,
+      error: null,
+    });
+
+    expect(manifest.artifacts).toEqual({
+      media: "media/viewport.webm",
+      events: "metadata/events.jsonl",
+    });
+
+    const validation = await validateCaptureBundle(outputDir);
+    expect(validation.ok).toBe(true);
+
+    await rm(outputDir, { recursive: true, force: true });
+  });
+
   it("returns readable validation errors for malformed manifests and missing artifacts", async () => {
     const malformedDir = await createBundleArtifacts("auto-demo-manifest-malformed");
     await writeFile(join(malformedDir, "capture.manifest.json"), "{bad json");
