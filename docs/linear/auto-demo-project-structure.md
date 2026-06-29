@@ -157,6 +157,8 @@ capture-dir/
 - WES-147 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed before no-mistakes. No-mistakes PR #4 passed review, test, document, lint, and GitHub CI `validate` before merge.
 - WES-146: Capture failure hardening implemented for started captures. Non-completed stops write `failed` or `interrupted` manifests with stable non-secret diagnostics, diagnostic manifests are preserved best-effort after stop failures when artifacts exist, manifest diagnostics are sanitized, and CLI stop failures include the capture bundle path.
 - WES-146 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed on 2026-06-29.
+- WES-135: Capture Runtime tracker completed after all child issues WES-142, WES-143, WES-144, WES-145, WES-146, and WES-147 moved to Done.
+- Linear: evidence comment added and WES-135 moved to Done on 2026-06-29.
 
 ## Update Rules
 

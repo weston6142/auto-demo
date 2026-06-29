@@ -312,7 +312,7 @@ Smoke test:
 
 ## Dependencies And Ordering
 
-WES-145 depends on WES-142 because it extends the Playwright browser capture adapter and successful capture output. WES-147 should consume the metadata path when writing the durable manifest. WES-146 should later harden validation and mixed-failure reporting.
+WES-145 depends on WES-142 because it extends the Playwright browser capture adapter and successful capture output. WES-147 later consumed the metadata path when writing the durable manifest. WES-146 later hardened validation and mixed-failure reporting.
 
 ## Acceptance Criteria Mapping
 
