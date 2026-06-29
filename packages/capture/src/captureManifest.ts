@@ -220,9 +220,9 @@ function validateManifestShape(value: unknown): string[] {
   if (
     !isRecord(value.adapter) ||
     value.adapter.kind !== "browser" ||
-    !isNonEmptyString(value.adapter.backend)
+    value.adapter.backend !== "playwright"
   ) {
-    errors.push("Manifest adapter must include browser backend.");
+    errors.push("Manifest adapter must be browser playwright.");
   }
 
   if (

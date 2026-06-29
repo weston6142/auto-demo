@@ -93,7 +93,8 @@ capture-dir/
   },
   "childCommand": {
     "command": "npm",
-    "args": ["test"],
+    "argCount": 1,
+    "argsRedacted": true,
     "exitCode": 0
   },
   "error": null
