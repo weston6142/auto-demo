@@ -281,6 +281,32 @@ describe("validateProjectManifest", () => {
     });
   });
 
+  it.each(["C:raw/capture.webm", "raw/capture.webm:token=secret"])(
+    "rejects colon-bearing project artifact path %s",
+    (path) => {
+      const result = validateProjectManifest({
+        ...validManifest,
+        media: {
+          primary: {
+            kind: "viewport",
+            path,
+            contentType: "video/webm",
+          },
+        },
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        errors: [
+          {
+            code: "unsafe_project_path",
+            message: "Project media.primary.path must be a relative path inside the project.",
+          },
+        ],
+      });
+    },
+  );
+
   it("rejects unknown secret-bearing manifest fields", () => {
     const result = validateProjectManifest({
       ...validManifest,
@@ -696,6 +722,7 @@ function isPortablePath(value: unknown): value is string {
     typeof value === "string" &&
     value.length > 0 &&
     !value.includes("\\") &&
+    !value.includes(":") &&
     !isAbsolute(value) &&
     !win32.isAbsolute(value) &&
     !value.split("/").includes("..")
