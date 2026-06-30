@@ -13,7 +13,7 @@ Date: 2026-06-29
 
 WES-142 made Playwright viewport media recording the default capture backend. WES-145 added browser interaction metadata capture to `metadata/events.jsonl`. Before WES-147, the capture runtime already created the bundle directories and returned media, metadata, and timing paths from `CaptureOutput`, but `capture.manifest.json` was only a future handoff path.
 
-WES-147 fills that gap. It writes the temporary Capture Runtime bundle manifest and exposes a lightweight validation check. WES-146 later hardened started-capture failures so failed/interrupted stops write stable non-secret diagnostics when artifacts exist, and stop failures best-effort preserve a diagnostic manifest. This remains capture-runtime input for the later Demo Project Format milestone, not the final Auto Demo project schema.
+WES-147 fills that gap. It writes the temporary Capture Runtime bundle manifest and exposes a lightweight validation check. WES-146 later hardened started-capture failures so failed/interrupted stops write stable non-secret diagnostics when artifacts exist, and stop failures best-effort preserve a diagnostic manifest. This remains capture-runtime input for the WES-134 Demo Project Format work, not the final Auto Demo project schema.
 
 ## Goals
 

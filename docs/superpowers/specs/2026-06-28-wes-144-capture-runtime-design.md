@@ -13,7 +13,7 @@ Date: 2026-06-28
 
 WES-144 defines the first capture-runtime contract before implementation begins. The full initial runtime is browser-first and CLI-owned: `autodemo capture` launches the browser context, starts media and metadata capture, runs an optional child walkthrough command, stops capture when that command exits, and writes a temporary capture bundle. The WES-143 implementation slice wires the CLI contract to an unsupported browser adapter without real Playwright recording.
 
-This spec intentionally does not define the final Auto Demo project schema. The capture bundle is a milestone-local handoff format for WES-143 through WES-146. Demo Project Format will later formalize how capture bundles become full Auto Demo projects.
+This spec intentionally does not define the final Auto Demo project schema. The capture bundle is a milestone-local handoff format for WES-143 through WES-146. WES-134 later defines the approved first final-project schema slice and how capture bundles become full Auto Demo projects.
 
 Current implementation note: WES-142 later made Playwright viewport media recording the default CLI capture backend. WES-145 then added `metadata/events.jsonl` capture and `CaptureOutput.metadata`; WES-147 later added durable manifest writing and capture bundle validation.
 
@@ -327,7 +327,7 @@ WES-147 added capture bundle writer and manifest behavior.
 
 WES-146 later hardened failure handling and validation tests.
 
-Milestone 3, Demo Project Format, should define the final project schema and conversion from capture bundle to full Auto Demo project.
+Milestone 3, Demo Project Format, is covered by the WES-134 design spec for the first final-project schema slice and conversion from capture bundle to full Auto Demo project.
 
 ## Acceptance Criteria Mapping
 

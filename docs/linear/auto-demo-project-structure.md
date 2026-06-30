@@ -21,6 +21,8 @@ Last updated: 2026-06-29
 - WES-143 implementation plan: `docs/superpowers/plans/2026-06-28-wes-143-browser-capture-adapter-cli-contract-plan.md`
 - Current Capture Runtime baseline: `packages/cli/src/index.ts` owns capture lifecycle orchestration; `packages/capture/src/index.ts` exposes the default Playwright browser adapter plus unsupported fallback behavior. The runtime writes viewport media, browser interaction metadata JSONL, temporary capture manifests, and stable failed/interrupted diagnostics.
 - WES-147 capture bundle writer design spec: `docs/superpowers/specs/2026-06-29-wes-147-capture-bundle-writer-design.md`
+- WES-134 demo project format design spec: `docs/superpowers/specs/2026-06-29-wes-134-demo-project-format-design.md`
+- WES-134 demo project format implementation plan: `docs/superpowers/plans/2026-06-29-wes-134-demo-project-format-plan.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -111,10 +113,14 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-145 design decisions for brainstorming: whether metadata is written as JSONL during capture or returned in memory until WES-147 writes the bundle; how to keep sensitive typed values redacted by default; how the Playwright adapter should observe clicks/keys/navigation without asserting private Playwright internals; whether child-command step markers need an explicit API now or can be deferred; and how much page/console error detail is non-secret enough for the first pass.
 - 2026-06-29 WES-145 implementation: browser interaction metadata capture writes `metadata/events.jsonl` alongside Playwright viewport media, returns a metadata artifact path in `CaptureOutput`, redacts typed values by default with coarse classification, and preserves CLI lifecycle behavior. WES-147 later added durable manifest writing.
 - 2026-06-29 pre-task sync from firstmate: WES-145 was stale in Linear, completion evidence was added, and WES-145 was moved to Done. WES-147 is the selected next Capture Runtime child because WES-142 and WES-145 are complete.
-- 2026-06-29 WES-147 design: capture bundle writing remains package-owned in `@auto-demo/capture`; `capture.manifest.json` stores portable relative artifact paths, capture source, target URL, viewport, timing, status, adapter/tool versions, and artifact paths. `autodemo validate <capture-dir-or-manifest>` is the lightweight CLI check. This bundle is temporary Capture Runtime input for the later Demo Project Format milestone, not final Auto Demo project schema.
+- 2026-06-29 WES-147 design: capture bundle writing remains package-owned in `@auto-demo/capture`; `capture.manifest.json` stores portable relative artifact paths, capture source, target URL, viewport, timing, status, adapter/tool versions, and artifact paths. `autodemo validate <capture-dir-or-manifest>` is the lightweight CLI check. This bundle is temporary Capture Runtime input for WES-134 Demo Project Format work, not final Auto Demo project schema.
 - 2026-06-29 WES-147 implementation: `@auto-demo/capture` now exports `writeCaptureManifest()`, `readCaptureManifest()`, and `validateCaptureBundle()`. The Playwright adapter writes `capture.manifest.json` after media and metadata artifacts are flushed, and `autodemo validate <capture-dir-or-manifest>` validates the temporary bundle.
 - 2026-06-29 WES-146 implementation: failed and interrupted Playwright capture stops now write stable non-secret manifest diagnostics when artifacts exist, stop failures best-effort preserve a diagnostic bundle, and the CLI reports the manifest path when a started capture cannot stop cleanly.
 - 2026-06-29 pre-task sync: Linear shows WES-135 and all Capture Runtime child issues WES-142, WES-143, WES-144, WES-145, WES-146, and WES-147 as Done. Capture Runtime is complete, so WES-134 is the next task in the earliest incomplete milestone, Demo Project Format.
+- 2026-06-29 WES-134 brainstorming/design: approved scope is a small first project-format slice in `@auto-demo/project`, not broad milestone implementation. The package owns final project schema version 1, validates/loads/saves `autodemo.project.json`, and imports WES-147 capture bundles as input only.
+- WES-134 approved project layout: `autodemo.project.json`, `raw/capture.webm`, `metadata/events.jsonl`, `metadata/capture.manifest.json`, and empty `variants/`, `previews/`, and `exports/` directories. Manifest paths are relative to the project root and constrained inside it.
+- WES-134 approved API surface: `createProjectFromCaptureBundle()`, `validateProject()`, `loadProject()`, and `saveProject()`, with structured validation results for expected invalid input and throws reserved for unexpected file-system or programming failures.
+- WES-134 decomposition note: variants, previews, exports, polish decisions, render outputs, editor behavior, and new CLI import/validation commands are intentionally deferred to later milestone issues. The next likely product task after WES-134 implementation is WES-133, Auto Polish Engine.
 
 ## Temporary Capture Bundle
 
@@ -129,7 +135,7 @@ capture-dir/
     events.jsonl
 ```
 
-`capture.manifest.json` uses schema version `1`, records `completed`, `failed`, or `interrupted` status, and stores artifact paths relative to the bundle root. Demo Project Format will later define the final project schema and conversion from this temporary bundle.
+`capture.manifest.json` uses schema version `1`, records `completed`, `failed`, or `interrupted` status, and stores artifact paths relative to the bundle root. The WES-134 design spec defines the approved first final-project schema slice and conversion from this temporary bundle; implementation remains pending.
 
 ## Completion Evidence
 
