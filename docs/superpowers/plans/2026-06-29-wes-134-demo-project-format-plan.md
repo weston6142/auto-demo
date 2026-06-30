@@ -324,6 +324,26 @@ describe("validateProjectManifest", () => {
     });
   });
 
+  it("rejects source URLs with username or password userinfo", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        source: { kind: "browser", url: "https://user:pass@example.com/checkout" },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest sourceCapture is invalid.",
+        },
+      ],
+    });
+  });
+
   it("rejects opaque or non-http source URLs", () => {
     const result = validateProjectManifest({
       ...validManifest,
@@ -573,7 +593,9 @@ function isSecretSafeSourceUrl(value: string): boolean {
     return (
       (url.protocol === "http:" || url.protocol === "https:") &&
       url.search === "" &&
-      url.hash === ""
+      url.hash === "" &&
+      url.username === "" &&
+      url.password === ""
     );
   } catch {
     return false;
@@ -822,6 +844,32 @@ describe("project load/save validation", () => {
         sourceCapture: {
           ...loaded.manifest.sourceCapture,
           source: { kind: "browser", url: "https://example.com?token=secret#step" },
+        },
+      },
+    };
+
+    const saved = await saveProject(project);
+
+    expect(saved.ok).toBe(false);
+    expect(await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).toBe(
+      beforeManifest,
+    );
+  });
+
+  it("does not persist a saved manifest with source URL userinfo", async () => {
+    const projectDir = await createFixtureProject();
+    const loaded = await loadProject(projectDir);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+
+    const beforeManifest = await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8");
+    const project: LoadedProject = {
+      ...loaded,
+      manifest: {
+        ...loaded.manifest,
+        sourceCapture: {
+          ...loaded.manifest.sourceCapture,
+          source: { kind: "browser", url: "https://user:pass@example.com/checkout" },
         },
       },
     };
@@ -1302,7 +1350,7 @@ describe("createProjectFromCaptureBundle", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("rewrites copied capture metadata without source, error, child command, or artifact path secrets", async () => {
+  it("rewrites copied capture metadata without source, userinfo, error, child command, or artifact path secrets", async () => {
     const captureDir = await mkdtemp(join(tmpdir(), "auto-demo-capture-"));
     await mkdir(join(captureDir, "media"), { recursive: true });
     await mkdir(join(captureDir, "metadata"), { recursive: true });
@@ -1313,7 +1361,10 @@ describe("createProjectFromCaptureBundle", () => {
       JSON.stringify({
         schemaVersion: 1,
         status: "failed",
-        source: { kind: "browser", url: "https://example.com/checkout?token=secret#step" },
+        source: {
+          kind: "browser",
+          url: "https://user:pass@example.com/checkout?token=secret#step",
+        },
         adapter: { kind: "browser", backend: "playwright" },
         tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
         viewport: { width: 1280, height: 720 },
@@ -1361,6 +1412,7 @@ describe("createProjectFromCaptureBundle", () => {
     expect(copiedManifest.childCommand).toBeNull();
     expect(copiedManifestText).not.toContain("secret");
     expect(copiedManifestText).not.toContain("token=");
+    expect(copiedManifestText).not.toContain("user:pass");
   });
 
   it("rejects non-empty target directories before copying artifacts", async () => {
@@ -1632,6 +1684,8 @@ function normalizeProjectSourceUrl(value: string): string | null {
     }
     url.search = "";
     url.hash = "";
+    url.username = "";
+    url.password = "";
     return url.toString();
   } catch {
     return null;
