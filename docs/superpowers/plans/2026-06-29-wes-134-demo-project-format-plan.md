@@ -1463,12 +1463,12 @@ describe("createProjectFromCaptureBundle", () => {
       ]);
     }
     await expect(readFile(join(projectDir, "notes.txt"), "utf8")).resolves.toBe("keep me");
-    await expect(readFile(join(projectDir, "raw", "capture.webm"), "utf8")).rejects.toMatchObject(
-      { code: "ENOENT" },
-    );
-    await expect(readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).rejects.toMatchObject(
-      { code: "ENOENT" },
-    );
+    await expect(readFile(join(projectDir, "raw", "capture.webm"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(
+      readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("rejects existing project artifact paths without overwriting them", async () => {
@@ -1487,9 +1487,9 @@ describe("createProjectFromCaptureBundle", () => {
     await expect(readFile(join(projectDir, "raw", "capture.webm"), "utf8")).resolves.toBe(
       "existing video",
     );
-    await expect(readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8")).rejects.toMatchObject(
-      { code: "ENOENT" },
-    );
+    await expect(
+      readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
 ```
