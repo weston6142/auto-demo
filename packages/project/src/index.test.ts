@@ -259,6 +259,29 @@ describe("validateProjectManifest", () => {
     });
   });
 
+  it("rejects fractional duration values", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        timing: {
+          ...validManifest.sourceCapture.timing,
+          durationMs: 0.5,
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest sourceCapture timing is invalid.",
+        },
+      ],
+    });
+  });
+
   it("rejects timestamp strings that are not UTC ISO-8601 date-times", () => {
     const result = validateProjectManifest({
       ...validManifest,

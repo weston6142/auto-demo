@@ -257,6 +257,7 @@ function validateTiming(value: unknown, errors: ProjectValidationError[]): void 
     !isIsoTimestamp(value.endedAt) ||
     typeof value.durationMs !== "number" ||
     !Number.isFinite(value.durationMs) ||
+    !Number.isInteger(value.durationMs) ||
     value.durationMs < 0
   ) {
     errors.push({
