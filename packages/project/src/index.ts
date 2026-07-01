@@ -80,13 +80,19 @@ export type ProjectImportError = {
   message: string;
 };
 
+/** Input for importing a temporary capture bundle into a project-owned layout. */
 export type CreateProjectFromCaptureBundleInput = {
+  /** Capture bundle directory or direct `capture.manifest.json` path. */
   captureBundlePath: string;
+  /** Empty or missing destination directory for the generated Auto Demo project. */
   projectDir: string;
+  /** Human-readable project name; surrounding whitespace is trimmed. */
   name: string;
+  /** Optional clock injection for deterministic manifest timestamps. */
   now?: () => Date;
 };
 
+/** Successfully imported project details. */
 export type ImportedProject = {
   projectDir: string;
   manifestPath: string;
@@ -180,6 +186,12 @@ export function validateProjectManifest(input: unknown): ProjectManifestValidati
   return { ok: true, manifest: input as ProjectManifest };
 }
 
+/**
+ * Imports a validated capture bundle into the normalized Auto Demo project layout.
+ *
+ * Expected invalid input returns structured errors. Unexpected filesystem failures throw so
+ * callers can surface operational problems separately from validation failures.
+ */
 export async function createProjectFromCaptureBundle(
   input: CreateProjectFromCaptureBundleInput,
 ): Promise<ProjectImportResult> {
