@@ -26,7 +26,7 @@ npm run setup:browser
 ## Packages
 
 - `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, and capture bundle validation.
-- `@auto-demo/project`: Auto Demo project manifest constants and minimal schema validation foundation.
+- `@auto-demo/project`: Auto Demo schema v1 project manifest types and strict validation with accumulated structured errors.
 - `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, interaction metadata JSONL capture, temporary capture manifest APIs, capture output paths, and unsupported-backend fallback.
 - `@auto-demo/polish`: edit-decision generation boundary.
 - `@auto-demo/render`: export and render orchestration boundary.

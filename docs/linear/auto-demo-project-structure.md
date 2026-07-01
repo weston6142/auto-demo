@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-06-29
+Last updated: 2026-07-01
 
 ## Project
 
@@ -41,7 +41,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-134.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-149.
 
 ## Issues By Milestone
 
@@ -62,7 +62,10 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 3. Demo Project Format
 
-- WES-134: Milestone 3: Demo project format - Backlog - https://linear.app/weston-bushyeager/issue/WES-134/milestone-3-demo-project-format
+- WES-134: Milestone 3: Demo Project Format tracker - Backlog - https://linear.app/weston-bushyeager/issue/WES-134/milestone-3-demo-project-format-tracker
+- WES-148: Project schema validation and public API - Done - https://linear.app/weston-bushyeager/issue/WES-148/project-schema-validation-and-public-api
+- WES-149: Import capture bundles into project layout - Backlog - https://linear.app/weston-bushyeager/issue/WES-149/import-capture-bundles-into-project-layout
+- WES-150: Project load/save and file validation behavior - Backlog - https://linear.app/weston-bushyeager/issue/WES-150/project-loadsave-and-file-validation-behavior
 
 ### 4. Auto Polish Engine
 
@@ -121,6 +124,9 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-134 approved project layout: `autodemo.project.json`, `raw/capture.webm`, `metadata/events.jsonl`, `metadata/capture.manifest.json`, and empty `variants/`, `previews/`, and `exports/` directories. Manifest paths are relative to the project root and constrained inside it.
 - WES-134 approved API surface: `createProjectFromCaptureBundle()`, `validateProject()`, `loadProject()`, and `saveProject()`, with structured validation results for expected invalid input and throws reserved for unexpected file-system or programming failures.
 - WES-134 decomposition note: variants, previews, exports, polish decisions, render outputs, editor behavior, and new CLI import/validation commands are intentionally deferred to later milestone issues. The next likely product task after WES-134 implementation is WES-133, Auto Polish Engine.
+- 2026-07-01 pre-task sync: Linear has decomposed Demo Project Format into tracker WES-134 and child issues WES-148, WES-149, and WES-150. Local evidence on `develop` shows WES-134 design and implementation plan docs are merged, but `packages/project/src/index.ts` still only exposes a minimal manifest validator and does not satisfy the child acceptance criteria for full schema v1, capture import, or project load/save validation. WES-134 should remain open as the milestone tracker.
+- 2026-07-01 next-task investigation: WES-148 is the selected next product task because it is the first incomplete Demo Project Format child and unblocks WES-149, WES-150, and the first Auto Polish Engine schema work. WES-148 is ready for brainstorming or direct plan execution from the existing WES-134 spec/plan if implementation is explicitly approved.
+- 2026-07-01 WES-148 implementation: schema version 1 manifest validation is complete in `@auto-demo/project`. WES-149 is now the next Demo Project Format child because it imports WES-147 capture bundles into the project layout using the WES-148 manifest contract.
 
 ## Temporary Capture Bundle
 
@@ -135,7 +141,7 @@ capture-dir/
     events.jsonl
 ```
 
-`capture.manifest.json` uses schema version `1`, records `completed`, `failed`, or `interrupted` status, and stores artifact paths relative to the bundle root. The WES-134 design spec defines the approved first final-project schema slice and conversion from this temporary bundle; implementation remains pending.
+`capture.manifest.json` uses schema version `1`, records `completed`, `failed`, or `interrupted` status, and stores artifact paths relative to the bundle root. The WES-134 design spec defines the approved first final-project schema slice and conversion from this temporary bundle. Implementation is decomposed across WES-148, WES-149, and WES-150.
 
 ## Completion Evidence
 
@@ -165,6 +171,8 @@ capture-dir/
 - WES-146 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed on 2026-06-29.
 - WES-135: Capture Runtime tracker completed after all child issues WES-142, WES-143, WES-144, WES-145, WES-146, and WES-147 moved to Done.
 - Linear: evidence comment added and WES-135 moved to Done on 2026-06-29.
+- WES-148: `@auto-demo/project` now exports schema version 1 project manifest types and validates full `autodemo.project.json` objects with accumulated structured errors. Validation covers required sections, literal values, timestamps, source capture URL safety, fixed artifact paths, empty forward-compatible arrays, and unknown fields without echoing secret-bearing input.
+- WES-148 verification: `npm --workspace @auto-demo/project test -- src/index.test.ts`, `npm --workspace @auto-demo/project run typecheck`, `npm --workspace @auto-demo/project run build`, and `npm run validate` passed locally on 2026-07-01.
 
 ## Update Rules
 
