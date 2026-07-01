@@ -422,7 +422,12 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isIsoTimestamp(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0 && !Number.isNaN(Date.parse(value));
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.toISOString() === value;
 }
 
 function isEmptyArray(value: unknown): value is [] {

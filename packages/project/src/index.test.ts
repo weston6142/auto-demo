@@ -259,6 +259,34 @@ describe("validateProjectManifest", () => {
     });
   });
 
+  it("rejects timestamp strings that are not UTC ISO-8601 date-times", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      createdAt: "1",
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        timing: {
+          ...validManifest.sourceCapture.timing,
+          endedAt: "2026-06-29 12:00:02",
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest timestamps are invalid.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest sourceCapture timing is invalid.",
+        },
+      ],
+    });
+  });
+
   it("rejects wrong literal values and content types", () => {
     const result = validateProjectManifest({
       ...validManifest,
