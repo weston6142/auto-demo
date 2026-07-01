@@ -1,3 +1,7 @@
+import { copyFile, mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { validateCaptureBundle, type CaptureManifest } from "@auto-demo/capture";
+
 export const PROJECT_MANIFEST_FILENAME = "autodemo.project.json";
 export const SUPPORTED_PROJECT_SCHEMA_VERSION = 1;
 
@@ -65,7 +69,53 @@ export type ProjectManifestValidationResult =
 
 export type ProjectValidationResult = ProjectManifestValidationResult;
 
+export type ProjectImportErrorCode =
+  | ProjectValidationErrorCode
+  | "invalid_capture_bundle"
+  | "invalid_project_input"
+  | "project_directory_not_empty";
+
+export type ProjectImportError = {
+  code: ProjectImportErrorCode;
+  message: string;
+};
+
+/** Input for importing a temporary capture bundle into a project-owned layout. */
+export type CreateProjectFromCaptureBundleInput = {
+  /** Capture bundle directory or direct `capture.manifest.json` path. */
+  captureBundlePath: string;
+  /** Empty or missing destination directory for the generated Auto Demo project. */
+  projectDir: string;
+  /** Human-readable project name; surrounding whitespace is trimmed. */
+  name: string;
+  /** Optional clock injection for deterministic manifest timestamps. */
+  now?: () => Date;
+};
+
+/** Successfully imported project details. */
+export type ImportedProject = {
+  projectDir: string;
+  manifestPath: string;
+  manifest: ProjectManifest;
+};
+
+export type ProjectImportResult =
+  | {
+      ok: true;
+      project: ImportedProject;
+    }
+  | {
+      ok: false;
+      projectDir: string;
+      manifestPath: string;
+      errors: ProjectImportError[];
+    };
+
 type JsonRecord = Record<string, unknown>;
+
+const PROJECT_MEDIA_PATH = "raw/capture.webm";
+const PROJECT_EVENTS_PATH = "metadata/events.jsonl";
+const PROJECT_CAPTURE_SUMMARY_PATH = "metadata/capture.manifest.json";
 
 const TOP_LEVEL_KEYS = [
   "schemaVersion",
@@ -134,6 +184,266 @@ export function validateProjectManifest(input: unknown): ProjectManifestValidati
   }
 
   return { ok: true, manifest: input as ProjectManifest };
+}
+
+/**
+ * Imports a validated capture bundle into the normalized Auto Demo project layout.
+ *
+ * Expected invalid input returns structured errors. Unexpected filesystem failures throw so
+ * callers can surface operational problems separately from validation failures.
+ */
+export async function createProjectFromCaptureBundle(
+  input: CreateProjectFromCaptureBundleInput,
+): Promise<ProjectImportResult> {
+  const projectDir = input.projectDir;
+  const manifestPath = join(projectDir, PROJECT_MANIFEST_FILENAME);
+  const inputErrors = await validateProjectImportTarget(input);
+
+  if (inputErrors.length > 0) {
+    return importFailure(projectDir, manifestPath, inputErrors);
+  }
+
+  const capture = await validateCaptureBundle(input.captureBundlePath);
+  if (!capture.ok) {
+    return importFailure(projectDir, manifestPath, [
+      {
+        code: "invalid_capture_bundle",
+        message: "Capture bundle cannot be imported.",
+      },
+    ]);
+  }
+
+  const manifest = buildProjectManifest({
+    capture: capture.manifest,
+    name: input.name,
+    now: input.now?.() ?? new Date(),
+  });
+
+  if (Array.isArray(manifest)) {
+    return importFailure(projectDir, manifestPath, manifest);
+  }
+
+  const manifestValidation = validateProjectManifest(manifest);
+  if (!manifestValidation.ok) {
+    return importFailure(projectDir, manifestPath, manifestValidation.errors);
+  }
+
+  await createProjectDirectories(projectDir);
+  await copyCaptureArtifacts({
+    captureManifestPath: capture.manifestPath,
+    capture: capture.manifest,
+    projectDir,
+  });
+
+  await writeJsonFileAtomically(
+    join(projectDir, PROJECT_CAPTURE_SUMMARY_PATH),
+    buildProjectCaptureSummary(capture.manifest, manifest.sourceCapture.source.url),
+  );
+  await writeJsonFileAtomically(manifestPath, manifestValidation.manifest);
+
+  return {
+    ok: true,
+    project: {
+      projectDir,
+      manifestPath,
+      manifest: manifestValidation.manifest,
+    },
+  };
+}
+
+async function validateProjectImportTarget(
+  input: CreateProjectFromCaptureBundleInput,
+): Promise<ProjectImportError[]> {
+  const errors: ProjectImportError[] = [];
+
+  if (input.name.trim().length === 0) {
+    errors.push({
+      code: "invalid_project_input",
+      message: "Project name must be a non-empty string.",
+    });
+  }
+
+  if (input.projectDir.trim().length === 0) {
+    errors.push({
+      code: "invalid_project_input",
+      message: "Project directory must be a non-empty path.",
+    });
+  }
+
+  if (errors.length > 0) {
+    return errors;
+  }
+
+  try {
+    const target = await stat(input.projectDir);
+    if (!target.isDirectory()) {
+      return [
+        {
+          code: "invalid_project_input",
+          message: "Project directory path must reference a directory.",
+        },
+      ];
+    }
+
+    const entries = await readdir(input.projectDir);
+    if (entries.length > 0) {
+      return [
+        {
+          code: "project_directory_not_empty",
+          message: "Project directory must be empty before import.",
+        },
+      ];
+    }
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+
+  return [];
+}
+
+function importFailure(
+  projectDir: string,
+  manifestPath: string,
+  errors: ProjectImportError[],
+): ProjectImportResult {
+  return {
+    ok: false,
+    projectDir,
+    manifestPath,
+    errors,
+  };
+}
+
+function buildProjectManifest(input: {
+  capture: CaptureManifest;
+  name: string;
+  now: Date;
+}): ProjectManifest | ProjectImportError[] {
+  const sourceUrl = sanitizeProjectSourceUrl(input.capture.source.url);
+  if (sourceUrl === null) {
+    return [
+      {
+        code: "invalid_capture_bundle",
+        message: "Capture bundle source URL cannot be imported.",
+      },
+    ];
+  }
+
+  const timestamp = input.now.toISOString();
+
+  return {
+    schemaVersion: SUPPORTED_PROJECT_SCHEMA_VERSION,
+    name: input.name.trim(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    sourceCapture: {
+      kind: "browser",
+      status: input.capture.status,
+      source: {
+        kind: "browser",
+        url: sourceUrl,
+      },
+      viewport: input.capture.viewport,
+      timing: {
+        startedAt: input.capture.startedAt,
+        endedAt: input.capture.endedAt,
+        durationMs: input.capture.durationMs,
+      },
+      adapter: input.capture.adapter,
+      tools: input.capture.tools,
+      manifestPath: PROJECT_CAPTURE_SUMMARY_PATH,
+    },
+    media: {
+      primary: {
+        kind: "viewport",
+        path: PROJECT_MEDIA_PATH,
+        contentType: "video/webm",
+      },
+    },
+    metadata: {
+      events: {
+        path: PROJECT_EVENTS_PATH,
+        contentType: "application/x-ndjson",
+      },
+    },
+    variants: [],
+    previews: [],
+    exports: [],
+  };
+}
+
+function buildProjectCaptureSummary(capture: CaptureManifest, sourceUrl: string): unknown {
+  return {
+    schemaVersion: capture.schemaVersion,
+    status: capture.status,
+    source: {
+      kind: capture.source.kind,
+      url: sourceUrl,
+    },
+    adapter: capture.adapter,
+    tools: capture.tools,
+    viewport: capture.viewport,
+    startedAt: capture.startedAt,
+    endedAt: capture.endedAt,
+    durationMs: capture.durationMs,
+    artifacts: {
+      media: PROJECT_MEDIA_PATH,
+      events: PROJECT_EVENTS_PATH,
+    },
+  };
+}
+
+function sanitizeProjectSourceUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return `${url.origin}${url.pathname === "/" ? "" : url.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+async function createProjectDirectories(projectDir: string): Promise<void> {
+  await mkdir(join(projectDir, "raw"), { recursive: true });
+  await mkdir(join(projectDir, "metadata"), { recursive: true });
+  await mkdir(join(projectDir, "variants"), { recursive: true });
+  await mkdir(join(projectDir, "previews"), { recursive: true });
+  await mkdir(join(projectDir, "exports"), { recursive: true });
+}
+
+async function copyCaptureArtifacts(input: {
+  captureManifestPath: string;
+  capture: CaptureManifest;
+  projectDir: string;
+}): Promise<void> {
+  const captureDir = dirname(input.captureManifestPath);
+  await copyFile(
+    join(captureDir, input.capture.artifacts.media),
+    join(input.projectDir, PROJECT_MEDIA_PATH),
+  );
+  await copyFile(
+    join(captureDir, input.capture.artifacts.events),
+    join(input.projectDir, PROJECT_EVENTS_PATH),
+  );
+}
+
+async function writeJsonFileAtomically(path: string, value: unknown): Promise<void> {
+  const tempPath = `${path}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`);
+  await rename(tempPath, path);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
 
 function validateSchemaVersion(value: unknown, errors: ProjectValidationError[]): void {
