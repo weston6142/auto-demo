@@ -41,7 +41,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-149.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-150.
 
 ## Issues By Milestone
 
@@ -70,22 +70,42 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 ### 4. Auto Polish Engine
 
 - WES-133: Milestone 4: Auto polish engine - Backlog - https://linear.app/weston-bushyeager/issue/WES-133/milestone-4-auto-polish-engine
+- WES-151: Polish decision schema and variant data model - Backlog - https://linear.app/weston-bushyeager/issue/WES-151/polish-decision-schema-and-variant-data-model
+- WES-152: Generate baseline polish decisions from capture events - Backlog - https://linear.app/weston-bushyeager/issue/WES-152/generate-baseline-polish-decisions-from-capture-events
+- WES-153: Persist generated polish variant into project files - Backlog - https://linear.app/weston-bushyeager/issue/WES-153/persist-generated-polish-variant-into-project-files
 
 ### 5. Headless Variant Generation
 
 - WES-137: Milestone 5: Headless variant generation - Backlog - https://linear.app/weston-bushyeager/issue/WES-137/milestone-5-headless-variant-generation
+- WES-154: Headless variant generation CLI and API contract - Backlog - https://linear.app/weston-bushyeager/issue/WES-154/headless-variant-generation-cli-and-api-contract
+- WES-155: Generate deterministic named variant batches - Backlog - https://linear.app/weston-bushyeager/issue/WES-155/generate-deterministic-named-variant-batches
+- WES-156: Save selected or all headless variants with run summary - Backlog - https://linear.app/weston-bushyeager/issue/WES-156/save-selected-or-all-headless-variants-with-run-summary
+- WES-166: Open question: define MVP named style presets - Backlog - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
 
 ### 6. Browser Editor
 
 - WES-140: Milestone 6: Browser editor - Backlog - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
+- WES-157: Serve local browser editor and load demo projects - Backlog - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
+- WES-158: Timeline preview and finishing controls for MVP variants - Backlog - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
+- WES-159: Save browser edits as project variants for export handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
+- WES-170: Open question: decide browser preview fidelity and MVP finishing controls - Backlog - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
 
 ### 7. Agent Integrations
 
 - WES-138: Milestone 7: Agent integrations - Backlog - https://linear.app/weston-bushyeager/issue/WES-138/milestone-7-agent-integrations
+- WES-160: Agent-facing workflow CLI and handoff contract - Backlog - https://linear.app/weston-bushyeager/issue/WES-160/agent-facing-workflow-cli-and-handoff-contract
+- WES-161: Codex and Claude skill wrappers for the demo workflow - Backlog - https://linear.app/weston-bushyeager/issue/WES-161/codex-and-claude-skill-wrappers-for-the-demo-workflow
+- WES-162: Open question: decide whether MCP is required for MVP - Backlog - https://linear.app/weston-bushyeager/issue/WES-162/open-question-decide-whether-mcp-is-required-for-mvp
+- WES-169: Open question: choose MVP agent host wrapper scope - Backlog - https://linear.app/weston-bushyeager/issue/WES-169/open-question-choose-mvp-agent-host-wrapper-scope
 
 ### 8. Export And Packaging
 
 - WES-139: Milestone 8: Export and packaging - Backlog - https://linear.app/weston-bushyeager/issue/WES-139/milestone-8-export-and-packaging
+- WES-163: Render saved variants to MP4 artifacts - Backlog - https://linear.app/weston-bushyeager/issue/WES-163/render-saved-variants-to-mp4-artifacts
+- WES-164: Package CLI and browser editor entrypoints for local installation - Backlog - https://linear.app/weston-bushyeager/issue/WES-164/package-cli-and-browser-editor-entrypoints-for-local-installation
+- WES-165: Validate demo-ready export bundle and operator instructions - Backlog - https://linear.app/weston-bushyeager/issue/WES-165/validate-demo-ready-export-bundle-and-operator-instructions
+- WES-167: Open question: choose MVP export preset and validation fixture - Backlog - https://linear.app/weston-bushyeager/issue/WES-167/open-question-choose-mvp-export-preset-and-validation-fixture
+- WES-168: Open question: decide MVP packaging and distribution target - Backlog - https://linear.app/weston-bushyeager/issue/WES-168/open-question-decide-mvp-packaging-and-distribution-target
 
 ## Investigation Notes
 
@@ -127,6 +147,9 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-01 pre-task sync: Linear has decomposed Demo Project Format into tracker WES-134 and child issues WES-148, WES-149, and WES-150. Local evidence on `develop` shows WES-134 design and implementation plan docs are merged, but `packages/project/src/index.ts` still only exposes a minimal manifest validator and does not satisfy the child acceptance criteria for full schema v1, capture import, or project load/save validation. WES-134 should remain open as the milestone tracker.
 - 2026-07-01 next-task investigation: WES-148 is the selected next product task because it is the first incomplete Demo Project Format child and unblocks WES-149, WES-150, and the first Auto Polish Engine schema work. WES-148 is ready for brainstorming or direct plan execution from the existing WES-134 spec/plan if implementation is explicitly approved.
 - 2026-07-01 WES-148 implementation: schema version 1 manifest validation is complete in `@auto-demo/project`. WES-149 is now the next Demo Project Format child because it imports WES-147 capture bundles into the project layout using the WES-148 manifest contract.
+- 2026-07-01 pre-task sync: Linear still showed WES-148 in Backlog even though PR #8 was merged on `develop` and local completion evidence was already recorded. A completion evidence comment was added to WES-148 and the issue was moved to Done. The active Demo Project Format children are now WES-149 and WES-150, with WES-149 selected by dependency order.
+- 2026-07-01 WES-149 readiness: ready for brainstorming. The expected outcome is concrete: validate a WES-147 capture bundle, copy supported artifacts into normalized project-owned paths, create empty downstream directories, write schema v1 `autodemo.project.json`, and return structured validation results for expected invalid input. WES-148 and WES-147 dependencies are satisfied. Open design details for brainstorming include capture URL sanitization behavior, target directory collision handling, project-owned capture summary shape, file copy atomicity, and fixture strategy that stays behavior-oriented.
+- 2026-07-01 WES-149 implementation: `@auto-demo/project` imports validated WES-147 capture bundles into the schema v1 project layout through `createProjectFromCaptureBundle()`. The importer copies viewport media and event metadata into normalized project-owned paths, rewrites `metadata/capture.manifest.json` as sanitized project summary metadata, writes `autodemo.project.json`, rejects invalid capture/project input with structured non-secret errors, and leaves WES-150 responsible for project load/save/file validation.
 
 ## Temporary Capture Bundle
 
@@ -173,6 +196,8 @@ capture-dir/
 - Linear: evidence comment added and WES-135 moved to Done on 2026-06-29.
 - WES-148: `@auto-demo/project` now exports schema version 1 project manifest types and validates full `autodemo.project.json` objects with accumulated structured errors. Validation covers required sections, literal values, timestamps, source capture URL safety, fixed artifact paths, empty forward-compatible arrays, and unknown fields without echoing secret-bearing input.
 - WES-148 verification: `npm --workspace @auto-demo/project test -- src/index.test.ts`, `npm --workspace @auto-demo/project run typecheck`, `npm --workspace @auto-demo/project run build`, and `npm run validate` passed locally on 2026-07-01.
+- Linear: completion evidence comment added and WES-148 moved to Done on 2026-07-01.
+- WES-149: Capture bundle import implemented in `@auto-demo/project` with normalized `raw/capture.webm`, `metadata/events.jsonl`, sanitized `metadata/capture.manifest.json`, schema v1 `autodemo.project.json`, direct manifest-path input, source URL sanitization, non-empty destination rejection, and behavior-oriented import tests.
 
 ## Update Rules
 

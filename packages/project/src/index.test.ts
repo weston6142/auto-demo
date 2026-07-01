@@ -1,7 +1,11 @@
+import { mkdtemp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   PROJECT_MANIFEST_FILENAME,
   SUPPORTED_PROJECT_SCHEMA_VERSION,
+  createProjectFromCaptureBundle,
   validateProjectManifest,
   type ProjectManifest,
 } from "./index.js";
@@ -43,10 +47,300 @@ const validManifest: ProjectManifest = {
   exports: [],
 };
 
+async function makeTempDir(prefix: string): Promise<string> {
+  return mkdtemp(join(tmpdir(), prefix));
+}
+
+async function writeCaptureBundle(
+  captureDir: string,
+  overrides: {
+    url?: string;
+    childCommand?: unknown;
+    error?: unknown;
+  } = {},
+): Promise<void> {
+  await mkdir(join(captureDir, "media"), { recursive: true });
+  await mkdir(join(captureDir, "metadata"), { recursive: true });
+  await writeFile(join(captureDir, "media", "viewport.webm"), "video-bytes");
+  await writeFile(join(captureDir, "metadata", "events.jsonl"), '{"type":"navigation"}\n');
+
+  const manifest = {
+    schemaVersion: 1,
+    status: "completed",
+    source: {
+      kind: "browser",
+      url: overrides.url ?? "https://example.com/checkout",
+    },
+    adapter: {
+      kind: "browser",
+      backend: "playwright",
+    },
+    tools: {
+      capturePackage: "0.0.0",
+      playwright: "1.61.1",
+    },
+    viewport: {
+      width: 1280,
+      height: 720,
+    },
+    startedAt: "2026-06-29T12:00:00.000Z",
+    endedAt: "2026-06-29T12:00:02.500Z",
+    durationMs: 2500,
+    artifacts: {
+      media: "media/viewport.webm",
+      events: "metadata/events.jsonl",
+    },
+    childCommand:
+      overrides.childCommand === undefined
+        ? {
+            command: "demo",
+            argCount: 2,
+            argsRedacted: true,
+            exitCode: 0,
+          }
+        : overrides.childCommand,
+    error:
+      overrides.error === undefined
+        ? {
+            code: "capture_failed",
+            message: "Failed at https://example.com/checkout?token=secret",
+          }
+        : overrides.error,
+  };
+
+  await writeFile(
+    join(captureDir, "capture.manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+}
+
 describe("project manifest constants", () => {
   it("exports the schema v1 manifest filename and supported version", () => {
     expect(PROJECT_MANIFEST_FILENAME).toBe("autodemo.project.json");
     expect(SUPPORTED_PROJECT_SCHEMA_VERSION).toBe(1);
+  });
+});
+
+describe("createProjectFromCaptureBundle", () => {
+  it("imports a valid capture bundle into the normalized project layout", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-import-");
+    const captureDir = join(rootDir, "capture");
+    const projectDir = join(rootDir, "project");
+    await writeCaptureBundle(captureDir);
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: " Checkout flow demo ",
+      now: () => new Date("2026-07-01T10:00:00.000Z"),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected import to succeed");
+    }
+
+    expect(result.project.projectDir).toBe(projectDir);
+    expect(result.project.manifestPath).toBe(join(projectDir, PROJECT_MANIFEST_FILENAME));
+    expect(result.project.manifest).toEqual({
+      schemaVersion: 1,
+      name: "Checkout flow demo",
+      createdAt: "2026-07-01T10:00:00.000Z",
+      updatedAt: "2026-07-01T10:00:00.000Z",
+      sourceCapture: {
+        kind: "browser",
+        status: "completed",
+        source: { kind: "browser", url: "https://example.com/checkout" },
+        viewport: { width: 1280, height: 720 },
+        timing: {
+          startedAt: "2026-06-29T12:00:00.000Z",
+          endedAt: "2026-06-29T12:00:02.500Z",
+          durationMs: 2500,
+        },
+        adapter: { kind: "browser", backend: "playwright" },
+        tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+        manifestPath: "metadata/capture.manifest.json",
+      },
+      media: {
+        primary: {
+          kind: "viewport",
+          path: "raw/capture.webm",
+          contentType: "video/webm",
+        },
+      },
+      metadata: {
+        events: {
+          path: "metadata/events.jsonl",
+          contentType: "application/x-ndjson",
+        },
+      },
+      variants: [],
+      previews: [],
+      exports: [],
+    });
+
+    expect(await readFile(join(projectDir, "raw", "capture.webm"), "utf8")).toBe("video-bytes");
+    expect(await readFile(join(projectDir, "metadata", "events.jsonl"), "utf8")).toBe(
+      '{"type":"navigation"}\n',
+    );
+
+    const manifestJson = JSON.parse(
+      await readFile(join(projectDir, PROJECT_MANIFEST_FILENAME), "utf8"),
+    ) as unknown;
+    expect(validateProjectManifest(manifestJson)).toEqual({
+      ok: true,
+      manifest: result.project.manifest,
+    });
+
+    await expect(stat(join(projectDir, "variants"))).resolves.toMatchObject({});
+    await expect(stat(join(projectDir, "previews"))).resolves.toMatchObject({});
+    await expect(stat(join(projectDir, "exports"))).resolves.toMatchObject({});
+  });
+
+  it("rewrites capture summary metadata with project-owned artifact paths", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-summary-");
+    const captureDir = join(rootDir, "capture");
+    const projectDir = join(rootDir, "project");
+    await writeCaptureBundle(captureDir);
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: join(captureDir, "capture.manifest.json"),
+      projectDir,
+      name: "Checkout flow demo",
+      now: () => new Date("2026-07-01T10:00:00.000Z"),
+    });
+
+    expect(result.ok).toBe(true);
+    const summary = JSON.parse(
+      await readFile(join(projectDir, "metadata", "capture.manifest.json"), "utf8"),
+    ) as Record<string, unknown>;
+
+    expect(summary).toEqual({
+      schemaVersion: 1,
+      status: "completed",
+      source: { kind: "browser", url: "https://example.com/checkout" },
+      adapter: { kind: "browser", backend: "playwright" },
+      tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+      viewport: { width: 1280, height: 720 },
+      startedAt: "2026-06-29T12:00:00.000Z",
+      endedAt: "2026-06-29T12:00:02.500Z",
+      durationMs: 2500,
+      artifacts: {
+        media: "raw/capture.webm",
+        events: "metadata/events.jsonl",
+      },
+    });
+  });
+
+  it("sanitizes secret-bearing source URLs without mutating the capture bundle", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-url-");
+    const captureDir = join(rootDir, "capture");
+    const projectDir = join(rootDir, "project");
+    await writeCaptureBundle(captureDir, {
+      url: "https://user:pass@example.com/checkout?token=secret#payment",
+    });
+    const originalCaptureManifest = await readFile(
+      join(captureDir, "capture.manifest.json"),
+      "utf8",
+    );
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Checkout flow demo",
+      now: () => new Date("2026-07-01T10:00:00.000Z"),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("Expected import to succeed");
+    }
+
+    expect(result.project.manifest.sourceCapture.source.url).toBe("https://example.com/checkout");
+    expect(await readFile(join(captureDir, "capture.manifest.json"), "utf8")).toBe(
+      originalCaptureManifest,
+    );
+  });
+
+  it("returns a structured error for invalid capture bundles without creating a project", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-invalid-capture-");
+    const captureDir = join(rootDir, "capture");
+    const projectDir = join(rootDir, "project");
+    await mkdir(captureDir, { recursive: true });
+    await writeFile(join(captureDir, "capture.manifest.json"), "{not json");
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Checkout flow demo",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "invalid_capture_bundle",
+          message: "Capture bundle cannot be imported.",
+        },
+      ],
+    });
+    await expect(readdir(projectDir)).rejects.toThrow();
+  });
+
+  it("rejects empty project names before creating files", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-empty-name-");
+    const captureDir = join(rootDir, "capture");
+    const projectDir = join(rootDir, "project");
+    await writeCaptureBundle(captureDir);
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "   ",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "invalid_project_input",
+          message: "Project name must be a non-empty string.",
+        },
+      ],
+    });
+    await expect(readdir(projectDir)).rejects.toThrow();
+  });
+
+  it("rejects non-empty destination directories", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-non-empty-");
+    const captureDir = join(rootDir, "capture");
+    const projectDir = join(rootDir, "project");
+    await writeCaptureBundle(captureDir);
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(join(projectDir, "existing.txt"), "keep me");
+
+    const result = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Checkout flow demo",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "project_directory_not_empty",
+          message: "Project directory must be empty before import.",
+        },
+      ],
+    });
+    expect(await readFile(join(projectDir, "existing.txt"), "utf8")).toBe("keep me");
   });
 });
 
