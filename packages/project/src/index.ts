@@ -56,6 +56,7 @@ export type ProjectSourceCapture = {
   manifestPath: "metadata/capture.manifest.json";
 };
 
+/** MVP polish decisions stored directly in a schema v1 project manifest. */
 export type ProjectVariant = {
   id: string;
   displayName: string;
@@ -70,16 +71,19 @@ export type ProjectVariant = {
   exportIntent: ProjectVariantExportIntent;
 };
 
+/** Project-owned source artifacts a variant is derived from. */
 export type ProjectVariantSource = {
   mediaPath: string;
   eventsPath: string;
 };
 
+/** Millisecond range within the source capture duration. */
 export type ProjectVariantTimeline = {
   startMs: number;
   endMs: number;
 };
 
+/** Viewport framing choice for a polished variant. */
 export type ProjectVariantViewportDecision = {
   mode: "contain" | "cover";
   focus: {
@@ -89,15 +93,18 @@ export type ProjectVariantViewportDecision = {
   zoom: number;
 };
 
+/** Cursor visibility and emphasis choice for a polished variant. */
 export type ProjectVariantCursorDecision = {
   visible: boolean;
   emphasis: "none" | "spotlight" | "hide-idle";
 };
 
+/** Click visualization choice for a polished variant. */
 export type ProjectVariantClickDecision = {
   emphasis: "none" | "ring" | "pulse";
 };
 
+/** Timed text overlay within a variant timeline. */
 export type ProjectVariantCaption = {
   id: string;
   text: string;
@@ -105,6 +112,7 @@ export type ProjectVariantCaption = {
   endMs: number;
 };
 
+/** Timed text overlay anchored to normalized viewport coordinates. */
 export type ProjectVariantCallout = ProjectVariantCaption & {
   anchor: {
     x: number;
@@ -112,6 +120,7 @@ export type ProjectVariantCallout = ProjectVariantCaption & {
   };
 };
 
+/** Background and frame presentation choices for a polished variant. */
 export type ProjectVariantStyle = {
   background: "solid" | "transparent";
   backgroundColor: string;
@@ -120,6 +129,7 @@ export type ProjectVariantStyle = {
   cornerRadius: number;
 };
 
+/** Downstream export target requested by a polished variant. */
 export type ProjectVariantExportIntent = {
   format: "mp4";
   quality: "demo" | "high";

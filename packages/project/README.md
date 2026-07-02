@@ -36,9 +36,13 @@ Each variant must include a unique lowercase slug `id`, non-empty
 `displayName`, source paths that match the manifest's primary media and events
 paths, a timeline within `sourceCapture.timing.durationMs`, viewport
 `contain`/`cover` decisions with normalized focus and `1` through `4` zoom,
-cursor and click emphasis decisions, caption and callout ranges within the
-variant timeline, style decisions, and MP4 export intent. `previews` and
-`exports` remain empty arrays in schema v1.
+cursor emphasis (`none`, `spotlight`, or `hide-idle`), click emphasis (`none`,
+`ring`, or `pulse`), caption and callout ranges within the variant timeline,
+style decisions (`solid` or `transparent` background, six-digit hex color,
+`browser` or `none` frame, `0` through `256` padding, and `0` through `64`
+corner radius), and MP4 export intent (`demo` or `high` quality with `16:9`,
+`4:3`, or `9:16` aspect ratio). `previews` and `exports` remain empty arrays
+in schema v1.
 
 ## API
 
