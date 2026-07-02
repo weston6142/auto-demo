@@ -11,6 +11,7 @@ import {
   validateProject,
   validateProjectManifest,
   type ProjectManifest,
+  type ProjectVariant,
 } from "./index.js";
 
 const validManifest: ProjectManifest = {
@@ -48,6 +49,60 @@ const validManifest: ProjectManifest = {
   variants: [],
   previews: [],
   exports: [],
+};
+
+const validVariant: ProjectVariant = {
+  id: "checkout-focused",
+  displayName: "Checkout Focused",
+  source: {
+    mediaPath: "raw/capture.webm",
+    eventsPath: "metadata/events.jsonl",
+  },
+  timeline: {
+    startMs: 0,
+    endMs: 2500,
+  },
+  viewport: {
+    mode: "contain",
+    focus: { x: 0.5, y: 0.5 },
+    zoom: 1.25,
+  },
+  cursor: {
+    visible: true,
+    emphasis: "spotlight",
+  },
+  clicks: {
+    emphasis: "ring",
+  },
+  captions: [
+    {
+      id: "intro",
+      text: "Open the checkout flow",
+      startMs: 250,
+      endMs: 1200,
+    },
+  ],
+  callouts: [
+    {
+      id: "pay-button",
+      text: "Complete payment",
+      startMs: 1400,
+      endMs: 2200,
+      anchor: { x: 0.72, y: 0.64 },
+    },
+  ],
+  style: {
+    background: "solid",
+    backgroundColor: "#0f172a",
+    frame: "browser",
+    padding: 48,
+    cornerRadius: 16,
+  },
+  exportIntent: {
+    format: "mp4",
+    quality: "demo",
+    aspectRatio: "16:9",
+  },
 };
 
 async function makeTempDir(prefix: string): Promise<string> {
@@ -553,6 +608,29 @@ describe("project filesystem APIs", () => {
     );
   });
 
+  it("saves and reloads a project manifest with variants without requiring preview or export files", async () => {
+    const project = await importValidProject("auto-demo-project-variant-save-");
+    const manifestWithVariant: ProjectManifest = {
+      ...project.manifest,
+      variants: [validVariant],
+      updatedAt: "2026-07-01T11:00:00.000Z",
+    };
+
+    const saved = await saveProject({
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: manifestWithVariant,
+    });
+
+    expect(saved).toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: manifestWithVariant,
+    });
+    await expect(loadProject(project.projectDir)).resolves.toEqual(saved);
+  });
+
   it("does not overwrite the project manifest when save input is invalid", async () => {
     const project = await importValidProject("auto-demo-project-invalid-save-");
     const before = await readFile(project.manifestPath, "utf8");
@@ -596,6 +674,15 @@ describe("validateProjectManifest", () => {
     expect(result).toEqual({ ok: true, manifest: validManifest });
   });
 
+  it("accepts a manifest with a valid MVP polish variant", () => {
+    const manifest: ProjectManifest = {
+      ...validManifest,
+      variants: [validVariant],
+    };
+
+    expect(validateProjectManifest(manifest)).toEqual({ ok: true, manifest });
+  });
+
   it("rejects unsupported schema versions with a structured error", () => {
     const result = validateProjectManifest({ ...validManifest, schemaVersion: 99 });
 
@@ -628,7 +715,7 @@ describe("validateProjectManifest", () => {
     });
   });
 
-  it("rejects non-empty forward-compatible sections in schema v1", () => {
+  it("rejects non-empty preview and export sections in schema v1", () => {
     const result = validateProjectManifest({
       ...validManifest,
       exports: [{ id: "future-export" }],
@@ -639,8 +726,151 @@ describe("validateProjectManifest", () => {
       errors: [
         {
           code: "invalid_project_manifest",
+          message: "Auto Demo project manifest must include empty previews and exports arrays.",
+        },
+      ],
+    });
+  });
+
+  it("rejects duplicate and invalid variant ids", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      variants: [
+        validVariant,
+        { ...validVariant, id: "checkout-focused" },
+        { ...validVariant, id: "Checkout Focused" },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant ids must be unique lowercase slugs.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant ids must be unique lowercase slugs.",
+        },
+      ],
+    });
+  });
+
+  it("rejects unsafe or mismatched variant source paths", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      variants: [
+        {
+          ...validVariant,
+          source: {
+            mediaPath: "../capture.webm",
+            eventsPath: "metadata/other.jsonl",
+          },
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "unsafe_project_path",
+          message: "Project variant source paths must be relative paths inside the project.",
+        },
+        {
+          code: "invalid_project_manifest",
           message:
-            "Auto Demo project manifest must include empty variants, previews, and exports arrays.",
+            "Auto Demo project variant source paths must reference the primary media and events.",
+        },
+      ],
+    });
+  });
+
+  it("rejects impossible variant timeline and decision ranges", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      variants: [
+        {
+          ...validVariant,
+          timeline: { startMs: 500, endMs: 3000 },
+          captions: [{ id: "late", text: "Too late", startMs: 100, endMs: 700 }],
+          callouts: [
+            {
+              id: "after",
+              text: "After",
+              startMs: 2400,
+              endMs: 2600,
+              anchor: { x: 0.5, y: 0.5 },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message:
+            "Auto Demo project variant timeline must fit inside the source capture duration.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant caption ranges must fit inside the variant timeline.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant callout ranges must fit inside the variant timeline.",
+        },
+      ],
+    });
+  });
+
+  it("rejects invalid variant style and export decisions", () => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      variants: [
+        {
+          ...validVariant,
+          viewport: { mode: "freeform", focus: { x: 1.2, y: 0.5 }, zoom: 0.5 },
+          cursor: { visible: true, emphasis: "sparkle" },
+          clicks: { emphasis: "flash" },
+          style: {
+            background: "image",
+            backgroundColor: "blue",
+            frame: "phone",
+            padding: -1,
+            cornerRadius: 2.5,
+          },
+          exportIntent: { format: "gif", quality: "draft", aspectRatio: "1:1" },
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant viewport decision is invalid.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant cursor decision is invalid.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant click decision is invalid.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant style decision is invalid.",
+        },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant export intent is invalid.",
         },
       ],
     });

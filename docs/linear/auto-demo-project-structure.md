@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-01
+Last updated: 2026-07-02
 
 ## Project
 
@@ -25,6 +25,8 @@ Last updated: 2026-07-01
 - WES-134 demo project format implementation plan: `docs/superpowers/plans/2026-06-29-wes-134-demo-project-format-plan.md`
 - WES-150 project load/save design spec: `docs/superpowers/specs/2026-07-01-wes-150-project-load-save-design.md`
 - WES-150 project load/save implementation plan: `docs/superpowers/plans/2026-07-01-wes-150-project-load-save.md`
+- WES-151 polish decision schema design spec: `docs/superpowers/specs/2026-07-02-wes-151-polish-decision-schema-design.md`
+- WES-151 polish decision schema implementation plan: `docs/superpowers/plans/2026-07-02-wes-151-polish-decision-schema.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -43,7 +45,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after Demo Project Format completion: WES-151.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-151.
 
 ## Issues By Milestone
 
@@ -72,7 +74,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 ### 4. Auto Polish Engine
 
 - WES-133: Milestone 4: Auto polish engine - Backlog - https://linear.app/weston-bushyeager/issue/WES-133/milestone-4-auto-polish-engine
-- WES-151: Polish decision schema and variant data model - Backlog - https://linear.app/weston-bushyeager/issue/WES-151/polish-decision-schema-and-variant-data-model
+- WES-151: Polish decision schema and variant data model - In Progress - https://linear.app/weston-bushyeager/issue/WES-151/polish-decision-schema-and-variant-data-model
 - WES-152: Generate baseline polish decisions from capture events - Backlog - https://linear.app/weston-bushyeager/issue/WES-152/generate-baseline-polish-decisions-from-capture-events
 - WES-153: Persist generated polish variant into project files - Backlog - https://linear.app/weston-bushyeager/issue/WES-153/persist-generated-polish-variant-into-project-files
 
@@ -155,6 +157,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-01 pre-task sync: Linear shows WES-148 and WES-149 as Done, WES-150 as the only incomplete Demo Project Format child, and WES-134 as the open milestone tracker. Local `develop` contains PR #9 for WES-149, so WES-150 is selected and moved to In Progress.
 - 2026-07-01 WES-150 implementation: `@auto-demo/project` now validates and loads project directories or direct `autodemo.project.json` paths through `validateProject()` and `loadProject()`, surfaces missing manifest and invalid JSON as structured errors, preserves WES-148 manifest validation codes, verifies required media/events/capture-summary files, and saves manifests atomically through `saveProject()` before revalidating the saved project.
 - 2026-07-01 completion-gate sync: no-mistakes PR #10 passed review, test, document, lint, push, PR, and GitHub CI `validate`. no-mistakes added ENOTDIR malformed-layout coverage and documentation updates. WES-150 completes the last Demo Project Format child, so WES-134 is ready to close and WES-151 is the next product task by milestone order.
+- 2026-07-02 pre-task sync: Linear shows WES-134 and all Demo Project Format children as Done. WES-151 is the first incomplete product issue in the earliest incomplete milestone, Auto Polish Engine, and was moved to In Progress for this implementation.
+- 2026-07-02 WES-151 design: schema version 1 remains owned by `@auto-demo/project`; WES-151 populates validated `variants` entries for MVP polish decisions while leaving generation, persistence workflows, previews, exports, rendering, and editor UI to downstream issues.
 
 ## Temporary Capture Bundle
 

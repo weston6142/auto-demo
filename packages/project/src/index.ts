@@ -24,7 +24,7 @@ export type ProjectManifest = {
       contentType: "application/x-ndjson";
     };
   };
-  variants: [];
+  variants: ProjectVariant[];
   previews: [];
   exports: [];
 };
@@ -54,6 +54,76 @@ export type ProjectSourceCapture = {
     playwright: string;
   };
   manifestPath: "metadata/capture.manifest.json";
+};
+
+export type ProjectVariant = {
+  id: string;
+  displayName: string;
+  source: ProjectVariantSource;
+  timeline: ProjectVariantTimeline;
+  viewport: ProjectVariantViewportDecision;
+  cursor: ProjectVariantCursorDecision;
+  clicks: ProjectVariantClickDecision;
+  captions: ProjectVariantCaption[];
+  callouts: ProjectVariantCallout[];
+  style: ProjectVariantStyle;
+  exportIntent: ProjectVariantExportIntent;
+};
+
+export type ProjectVariantSource = {
+  mediaPath: string;
+  eventsPath: string;
+};
+
+export type ProjectVariantTimeline = {
+  startMs: number;
+  endMs: number;
+};
+
+export type ProjectVariantViewportDecision = {
+  mode: "contain" | "cover";
+  focus: {
+    x: number;
+    y: number;
+  };
+  zoom: number;
+};
+
+export type ProjectVariantCursorDecision = {
+  visible: boolean;
+  emphasis: "none" | "spotlight" | "hide-idle";
+};
+
+export type ProjectVariantClickDecision = {
+  emphasis: "none" | "ring" | "pulse";
+};
+
+export type ProjectVariantCaption = {
+  id: string;
+  text: string;
+  startMs: number;
+  endMs: number;
+};
+
+export type ProjectVariantCallout = ProjectVariantCaption & {
+  anchor: {
+    x: number;
+    y: number;
+  };
+};
+
+export type ProjectVariantStyle = {
+  background: "solid" | "transparent";
+  backgroundColor: string;
+  frame: "browser" | "none";
+  padding: number;
+  cornerRadius: number;
+};
+
+export type ProjectVariantExportIntent = {
+  format: "mp4";
+  quality: "demo" | "high";
+  aspectRatio: "16:9" | "4:3" | "9:16";
 };
 
 export type ProjectValidationErrorCode =
@@ -173,6 +243,35 @@ const MEDIA_KEYS = ["primary"] as const;
 const MEDIA_PRIMARY_KEYS = ["kind", "path", "contentType"] as const;
 const METADATA_KEYS = ["events"] as const;
 const METADATA_EVENTS_KEYS = ["path", "contentType"] as const;
+const VARIANT_KEYS = [
+  "id",
+  "displayName",
+  "source",
+  "timeline",
+  "viewport",
+  "cursor",
+  "clicks",
+  "captions",
+  "callouts",
+  "style",
+  "exportIntent",
+] as const;
+const VARIANT_SOURCE_KEYS = ["mediaPath", "eventsPath"] as const;
+const VARIANT_TIMELINE_KEYS = ["startMs", "endMs"] as const;
+const VARIANT_VIEWPORT_KEYS = ["mode", "focus", "zoom"] as const;
+const VARIANT_FOCUS_KEYS = ["x", "y"] as const;
+const VARIANT_CURSOR_KEYS = ["visible", "emphasis"] as const;
+const VARIANT_CLICKS_KEYS = ["emphasis"] as const;
+const VARIANT_TEXT_KEYS = ["id", "text", "startMs", "endMs"] as const;
+const VARIANT_CALLOUT_KEYS = ["id", "text", "startMs", "endMs", "anchor"] as const;
+const VARIANT_STYLE_KEYS = [
+  "background",
+  "backgroundColor",
+  "frame",
+  "padding",
+  "cornerRadius",
+] as const;
+const VARIANT_EXPORT_INTENT_KEYS = ["format", "quality", "aspectRatio"] as const;
 
 export function validateProjectManifest(input: unknown): ProjectManifestValidationResult {
   const errors: ProjectValidationError[] = [];
@@ -197,10 +296,11 @@ export function validateProjectManifest(input: unknown): ProjectManifestValidati
     errors,
   );
   validateManifestTimestamps(input, errors);
-  validateForwardCompatibleArrays(input, errors);
   validateSourceCapture(input.sourceCapture, errors);
   validateMedia(input.media, errors);
   validateMetadata(input.metadata, errors);
+  validateVariants(input, errors);
+  validatePreviewAndExportPlaceholders(input, errors);
 
   if (errors.length > 0) {
     return { ok: false, errors };
@@ -634,19 +734,14 @@ function validateManifestTimestamps(input: JsonRecord, errors: ProjectValidation
   }
 }
 
-function validateForwardCompatibleArrays(
+function validatePreviewAndExportPlaceholders(
   input: JsonRecord,
   errors: ProjectValidationError[],
 ): void {
-  if (
-    !isEmptyArray(input.variants) ||
-    !isEmptyArray(input.previews) ||
-    !isEmptyArray(input.exports)
-  ) {
+  if (!isEmptyArray(input.previews) || !isEmptyArray(input.exports)) {
     errors.push({
       code: "invalid_project_manifest",
-      message:
-        "Auto Demo project manifest must include empty variants, previews, and exports arrays.",
+      message: "Auto Demo project manifest must include empty previews and exports arrays.",
     });
   }
 }
@@ -868,6 +963,304 @@ function validateMetadata(value: unknown, errors: ProjectValidationError[]): voi
   }
 }
 
+function validateVariants(input: JsonRecord, errors: ProjectValidationError[]): void {
+  if (!Array.isArray(input.variants)) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message:
+        "Auto Demo project manifest must include empty variants, previews, and exports arrays.",
+    });
+    return;
+  }
+
+  const seenIds = new Set<string>();
+  for (const variant of input.variants) {
+    validateVariant(variant, input, seenIds, errors);
+  }
+}
+
+function validateVariant(
+  value: unknown,
+  input: JsonRecord,
+  seenIds: Set<string>,
+  errors: ProjectValidationError[],
+): void {
+  if (!isRecord(value)) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message: "Auto Demo project variant is invalid.",
+    });
+    return;
+  }
+
+  reportUnknownFields(value, VARIANT_KEYS, errors);
+  validateVariantId(value.id, seenIds, errors);
+  validateNonEmptyString(
+    value.displayName,
+    "Auto Demo project variant display name is invalid.",
+    errors,
+  );
+  validateVariantSource(value.source, input, errors);
+  const timeline = validateVariantTimeline(
+    value.timeline,
+    getCaptureDurationMs(input.sourceCapture),
+    errors,
+  );
+  validateVariantViewport(value.viewport, errors);
+  validateVariantCursor(value.cursor, errors);
+  validateVariantClicks(value.clicks, errors);
+  validateVariantTimedTextArray(value.captions, "caption", timeline, errors);
+  validateVariantTimedTextArray(value.callouts, "callout", timeline, errors);
+  validateVariantStyle(value.style, errors);
+  validateVariantExportIntent(value.exportIntent, errors);
+}
+
+function validateVariantId(
+  value: unknown,
+  seenIds: Set<string>,
+  errors: ProjectValidationError[],
+): void {
+  if (typeof value !== "string" || !isSlug(value) || seenIds.has(value)) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message: "Auto Demo project variant ids must be unique lowercase slugs.",
+    });
+    return;
+  }
+
+  seenIds.add(value);
+}
+
+function validateVariantSource(
+  value: unknown,
+  input: JsonRecord,
+  errors: ProjectValidationError[],
+): void {
+  if (!isRecord(value)) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message:
+        "Auto Demo project variant source paths must reference the primary media and events.",
+    });
+    return;
+  }
+
+  reportUnknownFields(value, VARIANT_SOURCE_KEYS, errors);
+  const mediaPathIsSafe = isSafeProjectPath(value.mediaPath);
+  const eventsPathIsSafe = isSafeProjectPath(value.eventsPath);
+
+  if (!mediaPathIsSafe || !eventsPathIsSafe) {
+    errors.push({
+      code: "unsafe_project_path",
+      message: "Project variant source paths must be relative paths inside the project.",
+    });
+  }
+
+  const mediaPath = getNestedString(input.media, ["primary", "path"]);
+  const eventsPath = getNestedString(input.metadata, ["events", "path"]);
+  if (
+    (mediaPathIsSafe && value.mediaPath !== mediaPath) ||
+    (eventsPathIsSafe && value.eventsPath !== eventsPath)
+  ) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message:
+        "Auto Demo project variant source paths must reference the primary media and events.",
+    });
+  }
+}
+
+function validateVariantTimeline(
+  value: unknown,
+  captureDurationMs: number | null,
+  errors: ProjectValidationError[],
+): ProjectVariantTimeline | null {
+  if (!isRecord(value)) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message: "Auto Demo project variant timeline must fit inside the source capture duration.",
+    });
+    return null;
+  }
+
+  reportUnknownFields(value, VARIANT_TIMELINE_KEYS, errors);
+  const startMs = value.startMs;
+  const endMs = value.endMs;
+  const validRange =
+    captureDurationMs !== null &&
+    isIntegerInRange(startMs, 0, captureDurationMs) &&
+    isIntegerInRange(endMs, 0, captureDurationMs) &&
+    startMs < endMs;
+
+  if (!validRange) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message: "Auto Demo project variant timeline must fit inside the source capture duration.",
+    });
+    return null;
+  }
+
+  return { startMs, endMs };
+}
+
+function validateVariantViewport(value: unknown, errors: ProjectValidationError[]): void {
+  if (!isRecord(value)) {
+    pushVariantViewportError(errors);
+    return;
+  }
+
+  reportUnknownFields(value, VARIANT_VIEWPORT_KEYS, errors);
+  const focusIsValid = isRecord(value.focus) && isNormalizedPoint(value.focus);
+  if (isRecord(value.focus)) {
+    reportUnknownFields(value.focus, VARIANT_FOCUS_KEYS, errors);
+  }
+
+  if (
+    (value.mode !== "contain" && value.mode !== "cover") ||
+    !focusIsValid ||
+    typeof value.zoom !== "number" ||
+    !Number.isFinite(value.zoom) ||
+    value.zoom < 1 ||
+    value.zoom > 4
+  ) {
+    pushVariantViewportError(errors);
+  }
+}
+
+function validateVariantCursor(value: unknown, errors: ProjectValidationError[]): void {
+  if (!isRecord(value)) {
+    pushVariantCursorError(errors);
+    return;
+  }
+
+  reportUnknownFields(value, VARIANT_CURSOR_KEYS, errors);
+  if (
+    typeof value.visible !== "boolean" ||
+    (value.emphasis !== "none" && value.emphasis !== "spotlight" && value.emphasis !== "hide-idle")
+  ) {
+    pushVariantCursorError(errors);
+  }
+}
+
+function validateVariantClicks(value: unknown, errors: ProjectValidationError[]): void {
+  if (!isRecord(value)) {
+    pushVariantClickError(errors);
+    return;
+  }
+
+  reportUnknownFields(value, VARIANT_CLICKS_KEYS, errors);
+  if (value.emphasis !== "none" && value.emphasis !== "ring" && value.emphasis !== "pulse") {
+    pushVariantClickError(errors);
+  }
+}
+
+function validateVariantTimedTextArray(
+  value: unknown,
+  kind: "caption" | "callout",
+  timeline: ProjectVariantTimeline | null,
+  errors: ProjectValidationError[],
+): void {
+  const rangeMessage = `Auto Demo project variant ${kind} ranges must fit inside the variant timeline.`;
+  if (!Array.isArray(value)) {
+    errors.push({
+      code: "invalid_project_manifest",
+      message: rangeMessage,
+    });
+    return;
+  }
+
+  const seenIds = new Set<string>();
+  let hasRangeError = false;
+
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      if (!hasRangeError) {
+        errors.push({ code: "invalid_project_manifest", message: rangeMessage });
+        hasRangeError = true;
+      }
+      continue;
+    }
+
+    reportUnknownFields(
+      entry,
+      kind === "caption" ? VARIANT_TEXT_KEYS : VARIANT_CALLOUT_KEYS,
+      errors,
+    );
+    const entryIdIsValid =
+      typeof entry.id === "string" && isSlug(entry.id) && !seenIds.has(entry.id);
+    if (entryIdIsValid) {
+      seenIds.add(entry.id as string);
+    }
+
+    if (!entryIdIsValid || !isNonEmptyString(entry.text)) {
+      errors.push({
+        code: "invalid_project_manifest",
+        message: `Auto Demo project variant ${kind}s are invalid.`,
+      });
+    }
+
+    if (kind === "callout") {
+      if (isRecord(entry.anchor)) {
+        reportUnknownFields(entry.anchor, VARIANT_FOCUS_KEYS, errors);
+      }
+
+      if (!isNormalizedPoint(entry.anchor)) {
+        errors.push({
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant callouts are invalid.",
+        });
+      }
+    }
+
+    if (
+      timeline === null ||
+      !isIntegerInRange(entry.startMs, timeline.startMs, timeline.endMs) ||
+      !isIntegerInRange(entry.endMs, timeline.startMs, timeline.endMs) ||
+      entry.startMs >= entry.endMs
+    ) {
+      if (!hasRangeError) {
+        errors.push({ code: "invalid_project_manifest", message: rangeMessage });
+        hasRangeError = true;
+      }
+    }
+  }
+}
+
+function validateVariantStyle(value: unknown, errors: ProjectValidationError[]): void {
+  if (!isRecord(value)) {
+    pushVariantStyleError(errors);
+    return;
+  }
+
+  reportUnknownFields(value, VARIANT_STYLE_KEYS, errors);
+  if (
+    (value.background !== "solid" && value.background !== "transparent") ||
+    typeof value.backgroundColor !== "string" ||
+    !isHexColor(value.backgroundColor) ||
+    (value.frame !== "browser" && value.frame !== "none") ||
+    !isIntegerInRange(value.padding, 0, 256) ||
+    !isIntegerInRange(value.cornerRadius, 0, 64)
+  ) {
+    pushVariantStyleError(errors);
+  }
+}
+
+function validateVariantExportIntent(value: unknown, errors: ProjectValidationError[]): void {
+  if (!isRecord(value)) {
+    pushVariantExportIntentError(errors);
+    return;
+  }
+
+  reportUnknownFields(value, VARIANT_EXPORT_INTENT_KEYS, errors);
+  if (
+    value.format !== "mp4" ||
+    (value.quality !== "demo" && value.quality !== "high") ||
+    (value.aspectRatio !== "16:9" && value.aspectRatio !== "4:3" && value.aspectRatio !== "9:16")
+  ) {
+    pushVariantExportIntentError(errors);
+  }
+}
+
 function reportUnknownFields(
   value: JsonRecord,
   allowedKeys: readonly string[],
@@ -879,6 +1272,41 @@ function reportUnknownFields(
       message: "Auto Demo project manifest contains unknown fields.",
     });
   }
+}
+
+function pushVariantViewportError(errors: ProjectValidationError[]): void {
+  errors.push({
+    code: "invalid_project_manifest",
+    message: "Auto Demo project variant viewport decision is invalid.",
+  });
+}
+
+function pushVariantCursorError(errors: ProjectValidationError[]): void {
+  errors.push({
+    code: "invalid_project_manifest",
+    message: "Auto Demo project variant cursor decision is invalid.",
+  });
+}
+
+function pushVariantClickError(errors: ProjectValidationError[]): void {
+  errors.push({
+    code: "invalid_project_manifest",
+    message: "Auto Demo project variant click decision is invalid.",
+  });
+}
+
+function pushVariantStyleError(errors: ProjectValidationError[]): void {
+  errors.push({
+    code: "invalid_project_manifest",
+    message: "Auto Demo project variant style decision is invalid.",
+  });
+}
+
+function pushVariantExportIntentError(errors: ProjectValidationError[]): void {
+  errors.push({
+    code: "invalid_project_manifest",
+    message: "Auto Demo project variant export intent is invalid.",
+  });
 }
 
 function validateNonEmptyString(
@@ -921,6 +1349,53 @@ function isCaptureStatus(value: unknown): value is ProjectSourceCapture["status"
 
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function isNormalizedNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+function isNormalizedPoint(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isNormalizedNumber(value.x) && isNormalizedNumber(value.y);
+}
+
+function isSlug(value: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+
+function isHexColor(value: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+function getCaptureDurationMs(value: unknown): number | null {
+  if (!isRecord(value) || !isRecord(value.timing) || typeof value.timing.durationMs !== "number") {
+    return null;
+  }
+
+  return Number.isInteger(value.timing.durationMs) && value.timing.durationMs >= 0
+    ? value.timing.durationMs
+    : null;
+}
+
+function getNestedString(value: unknown, path: string[]): string | null {
+  let current: unknown = value;
+
+  for (const key of path) {
+    if (!isRecord(current)) {
+      return null;
+    }
+    current = current[key];
+  }
+
+  return typeof current === "string" ? current : null;
 }
 
 function isSafeSourceUrl(value: string): boolean {
