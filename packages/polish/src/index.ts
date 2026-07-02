@@ -6,11 +6,15 @@ export type PolishPackageRole = "edit-decision-generation";
 
 export const polishPackageRole: PolishPackageRole = "edit-decision-generation";
 
+/** Optional stable labels for the generated baseline variant. */
 export type GenerateBaselinePolishOptions = {
+  /** Lowercase slug used for the returned variant id. */
   id?: string;
+  /** Human-readable variant label; blank values fall back to `Baseline Polish`. */
   displayName?: string;
 };
 
+/** Non-secret warning categories returned with a generated baseline variant. */
 export type PolishWarningCode =
   | "events_file_unreadable"
   | "events_file_empty"
@@ -19,11 +23,13 @@ export type PolishWarningCode =
   | "missing_click_coordinates"
   | "incomplete_capture_status";
 
+/** Structured warning that never echoes raw event payloads, URLs, typed values, or local paths. */
 export type PolishWarning = {
   code: PolishWarningCode;
   message: string;
 };
 
+/** Baseline polish output and recoverable metadata warnings. */
 export type BaselinePolishResult = {
   variant: ProjectVariant;
   warnings: PolishWarning[];
@@ -41,6 +47,10 @@ type CaptureEventRecord = {
 
 const ACTION_EVENT_TYPES = new Set(["click", "fill", "press", "navigation", "agent_step"]);
 
+/**
+ * Reads a validated Auto Demo project's event metadata and returns one deterministic,
+ * schema-valid baseline variant without saving it to the project manifest.
+ */
 export async function generateBaselinePolishVariant(
   project: LoadedProject,
   options: GenerateBaselinePolishOptions = {},
