@@ -580,7 +580,7 @@ async function isExistingFile(path: string): Promise<boolean> {
     const file = await stat(path);
     return file.isFile();
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (isNodeError(error) && (error.code === "ENOENT" || error.code === "ENOTDIR")) {
       return false;
     }
     throw error;

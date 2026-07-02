@@ -485,6 +485,28 @@ describe("project filesystem APIs", () => {
     });
   });
 
+  it("reports a missing required project file when a parent path is a file", async () => {
+    const project = await importValidProject("auto-demo-project-missing-file-parent-");
+    await rm(join(project.projectDir, "metadata"), { recursive: true });
+    await writeFile(join(project.projectDir, "metadata"), "not a directory");
+
+    await expect(validateProject(project.projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "missing_project_file",
+          message: "Auto Demo project file referenced by metadata.events.path is missing.",
+        },
+        {
+          code: "missing_project_file",
+          message: "Auto Demo project file referenced by sourceCapture.manifestPath is missing.",
+        },
+      ],
+    });
+  });
+
   it("saves formatted project JSON, revalidates, and preserves referenced files", async () => {
     const project = await importValidProject("auto-demo-project-save-");
     const updatedManifest: ProjectManifest = {
