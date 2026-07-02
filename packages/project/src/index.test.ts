@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -6,6 +6,9 @@ import {
   PROJECT_MANIFEST_FILENAME,
   SUPPORTED_PROJECT_SCHEMA_VERSION,
   createProjectFromCaptureBundle,
+  loadProject,
+  saveProject,
+  validateProject,
   validateProjectManifest,
   type ProjectManifest,
 } from "./index.js";
@@ -341,6 +344,208 @@ describe("createProjectFromCaptureBundle", () => {
       ],
     });
     expect(await readFile(join(projectDir, "existing.txt"), "utf8")).toBe("keep me");
+  });
+});
+
+describe("project filesystem APIs", () => {
+  async function importValidProject(prefix: string): Promise<{
+    rootDir: string;
+    projectDir: string;
+    manifestPath: string;
+    manifest: ProjectManifest;
+  }> {
+    const rootDir = await makeTempDir(prefix);
+    const captureDir = join(rootDir, "capture");
+    const projectDir = join(rootDir, "project");
+    await writeCaptureBundle(captureDir);
+
+    const imported = await createProjectFromCaptureBundle({
+      captureBundlePath: captureDir,
+      projectDir,
+      name: "Checkout flow demo",
+      now: () => new Date("2026-07-01T10:00:00.000Z"),
+    });
+
+    if (!imported.ok) {
+      throw new Error("Expected fixture import to succeed");
+    }
+
+    return {
+      rootDir,
+      projectDir,
+      manifestPath: imported.project.manifestPath,
+      manifest: imported.project.manifest,
+    };
+  }
+
+  it("validates and loads an imported project from a directory or manifest path", async () => {
+    const project = await importValidProject("auto-demo-project-validate-");
+
+    await expect(validateProject(project.projectDir)).resolves.toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: project.manifest,
+    });
+
+    await expect(validateProject(project.manifestPath)).resolves.toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: project.manifest,
+    });
+
+    await expect(loadProject(project.projectDir)).resolves.toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: project.manifest,
+    });
+  });
+
+  it("returns a structured error when the project manifest is missing", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-missing-manifest-");
+    const projectDir = join(rootDir, "project");
+    await mkdir(projectDir, { recursive: true });
+
+    await expect(validateProject(projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "missing_project_manifest",
+          message: "Auto Demo project manifest is missing.",
+        },
+      ],
+    });
+  });
+
+  it("returns a structured error when project JSON is invalid", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-invalid-json-");
+    const projectDir = join(rootDir, "project");
+    const manifestPath = join(projectDir, PROJECT_MANIFEST_FILENAME);
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(manifestPath, "{not json");
+
+    await expect(validateProject(manifestPath)).resolves.toEqual({
+      ok: false,
+      projectDir,
+      manifestPath,
+      errors: [
+        {
+          code: "invalid_project_json",
+          message: "Auto Demo project manifest JSON is invalid.",
+        },
+      ],
+    });
+  });
+
+  it("surfaces manifest validation errors without losing structured codes", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-schema-error-");
+    const projectDir = join(rootDir, "project");
+    const manifestPath = join(projectDir, PROJECT_MANIFEST_FILENAME);
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({ ...validManifest, schemaVersion: 99 }, null, 2)}\n`,
+    );
+
+    await expect(validateProject(projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir,
+      manifestPath,
+      errors: [
+        {
+          code: "unsupported_project_version",
+          message: "Unsupported Auto Demo project schema version.",
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ["media.primary.path", "raw/capture.webm"],
+    ["metadata.events.path", "metadata/events.jsonl"],
+    ["sourceCapture.manifestPath", "metadata/capture.manifest.json"],
+  ])("reports missing required project file for %s", async (field, relativePath) => {
+    const project = await importValidProject("auto-demo-project-missing-file-");
+    await rm(join(project.projectDir, relativePath));
+
+    await expect(validateProject(project.projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "missing_project_file",
+          message: `Auto Demo project file referenced by ${field} is missing.`,
+        },
+      ],
+    });
+  });
+
+  it("saves formatted project JSON, revalidates, and preserves referenced files", async () => {
+    const project = await importValidProject("auto-demo-project-save-");
+    const updatedManifest: ProjectManifest = {
+      ...project.manifest,
+      name: "Renamed checkout demo",
+      updatedAt: "2026-07-01T11:00:00.000Z",
+    };
+
+    const result = await saveProject({
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: updatedManifest,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: updatedManifest,
+    });
+    expect(await readFile(project.manifestPath, "utf8")).toBe(
+      `${JSON.stringify(updatedManifest, null, 2)}\n`,
+    );
+    expect(await readFile(join(project.projectDir, "raw", "capture.webm"), "utf8")).toBe(
+      "video-bytes",
+    );
+  });
+
+  it("does not overwrite the project manifest when save input is invalid", async () => {
+    const project = await importValidProject("auto-demo-project-invalid-save-");
+    const before = await readFile(project.manifestPath, "utf8");
+    const invalidManifest = {
+      ...project.manifest,
+      media: {
+        primary: {
+          kind: "viewport",
+          path: "../capture.webm",
+          contentType: "video/webm",
+        },
+      },
+    } as unknown as ProjectManifest;
+
+    await expect(
+      saveProject({
+        projectDir: project.projectDir,
+        manifestPath: project.manifestPath,
+        manifest: invalidManifest,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "unsafe_project_path",
+          message: "Project media.primary.path must be a relative path inside the project.",
+        },
+      ],
+    });
+
+    expect(await readFile(project.manifestPath, "utf8")).toBe(before);
   });
 });
 

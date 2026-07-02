@@ -23,6 +23,8 @@ Last updated: 2026-07-01
 - WES-147 capture bundle writer design spec: `docs/superpowers/specs/2026-06-29-wes-147-capture-bundle-writer-design.md`
 - WES-134 demo project format design spec: `docs/superpowers/specs/2026-06-29-wes-134-demo-project-format-design.md`
 - WES-134 demo project format implementation plan: `docs/superpowers/plans/2026-06-29-wes-134-demo-project-format-plan.md`
+- WES-150 project load/save design spec: `docs/superpowers/specs/2026-07-01-wes-150-project-load-save-design.md`
+- WES-150 project load/save implementation plan: `docs/superpowers/plans/2026-07-01-wes-150-project-load-save.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -64,8 +66,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 - WES-134: Milestone 3: Demo Project Format tracker - Backlog - https://linear.app/weston-bushyeager/issue/WES-134/milestone-3-demo-project-format-tracker
 - WES-148: Project schema validation and public API - Done - https://linear.app/weston-bushyeager/issue/WES-148/project-schema-validation-and-public-api
-- WES-149: Import capture bundles into project layout - Backlog - https://linear.app/weston-bushyeager/issue/WES-149/import-capture-bundles-into-project-layout
-- WES-150: Project load/save and file validation behavior - Backlog - https://linear.app/weston-bushyeager/issue/WES-150/project-loadsave-and-file-validation-behavior
+- WES-149: Import capture bundles into project layout - Done - https://linear.app/weston-bushyeager/issue/WES-149/import-capture-bundles-into-project-layout
+- WES-150: Project load/save and file validation behavior - In Progress - https://linear.app/weston-bushyeager/issue/WES-150/project-loadsave-and-file-validation-behavior
 
 ### 4. Auto Polish Engine
 
@@ -150,6 +152,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-01 pre-task sync: Linear still showed WES-148 in Backlog even though PR #8 was merged on `develop` and local completion evidence was already recorded. A completion evidence comment was added to WES-148 and the issue was moved to Done. The active Demo Project Format children are now WES-149 and WES-150, with WES-149 selected by dependency order.
 - 2026-07-01 WES-149 readiness: ready for brainstorming. The expected outcome is concrete: validate a WES-147 capture bundle, copy supported artifacts into normalized project-owned paths, create empty downstream directories, write schema v1 `autodemo.project.json`, and return structured validation results for expected invalid input. WES-148 and WES-147 dependencies are satisfied. Open design details for brainstorming include capture URL sanitization behavior, target directory collision handling, project-owned capture summary shape, file copy atomicity, and fixture strategy that stays behavior-oriented.
 - 2026-07-01 WES-149 implementation: `@auto-demo/project` imports validated WES-147 capture bundles into the schema v1 project layout through `createProjectFromCaptureBundle()`. The importer copies viewport media and event metadata into normalized project-owned paths, rewrites `metadata/capture.manifest.json` as sanitized project summary metadata, writes `autodemo.project.json`, rejects invalid capture/project input with structured non-secret errors, and leaves WES-150 responsible for project load/save/file validation.
+- 2026-07-01 pre-task sync: Linear shows WES-148 and WES-149 as Done, WES-150 as the only incomplete Demo Project Format child, and WES-134 as the open milestone tracker. Local `develop` contains PR #9 for WES-149, so WES-150 is selected and moved to In Progress.
+- 2026-07-01 WES-150 implementation: `@auto-demo/project` now validates and loads project directories or direct `autodemo.project.json` paths through `validateProject()` and `loadProject()`, surfaces missing manifest and invalid JSON as structured errors, preserves WES-148 manifest validation codes, verifies required media/events/capture-summary files, and saves manifests atomically through `saveProject()` before revalidating the saved project.
 
 ## Temporary Capture Bundle
 
@@ -198,6 +202,8 @@ capture-dir/
 - WES-148 verification: `npm --workspace @auto-demo/project test -- src/index.test.ts`, `npm --workspace @auto-demo/project run typecheck`, `npm --workspace @auto-demo/project run build`, and `npm run validate` passed locally on 2026-07-01.
 - Linear: completion evidence comment added and WES-148 moved to Done on 2026-07-01.
 - WES-149: Capture bundle import implemented in `@auto-demo/project` with normalized `raw/capture.webm`, `metadata/events.jsonl`, sanitized `metadata/capture.manifest.json`, schema v1 `autodemo.project.json`, direct manifest-path input, source URL sanitization, non-empty destination rejection, and behavior-oriented import tests.
+- WES-150: Project load/save and file validation implemented in `@auto-demo/project` with `validateProject()`, `loadProject()`, `saveProject()`, structured `missing_project_manifest`, `invalid_project_json`, and `missing_project_file` errors, manifest-code preservation, required referenced file checks, atomic formatted saves, and behavior-oriented filesystem fixture tests.
+- WES-150 local verification: TDD red check failed on missing `validateProject`, `loadProject`, and `saveProject` exports; after implementation `npm --workspace @auto-demo/project test -- src/index.test.ts` passed with 39 tests, `npm --workspace @auto-demo/project run typecheck` passed, `npm --workspace @auto-demo/project run build` passed, and `npm run validate` passed on 2026-07-01.
 
 ## Update Rules
 

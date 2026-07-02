@@ -1,5 +1,5 @@
-import { copyFile, mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { copyFile, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { validateCaptureBundle, type CaptureManifest } from "@auto-demo/capture";
 
 export const PROJECT_MANIFEST_FILENAME = "autodemo.project.json";
@@ -57,7 +57,12 @@ export type ProjectSourceCapture = {
 };
 
 export type ProjectValidationErrorCode =
-  "unsupported_project_version" | "invalid_project_manifest" | "unsafe_project_path";
+  | "unsupported_project_version"
+  | "invalid_project_manifest"
+  | "unsafe_project_path"
+  | "missing_project_manifest"
+  | "invalid_project_json"
+  | "missing_project_file";
 
 export type ProjectValidationError = {
   code: ProjectValidationErrorCode;
@@ -67,7 +72,22 @@ export type ProjectValidationError = {
 export type ProjectManifestValidationResult =
   { ok: true; manifest: ProjectManifest } | { ok: false; errors: ProjectValidationError[] };
 
-export type ProjectValidationResult = ProjectManifestValidationResult;
+export type LoadedProject = {
+  projectDir: string;
+  manifestPath: string;
+  manifest: ProjectManifest;
+};
+
+export type ProjectValidationResult =
+  | ({ ok: true } & LoadedProject)
+  | {
+      ok: false;
+      projectDir: string;
+      manifestPath: string;
+      errors: ProjectValidationError[];
+    };
+
+export type SaveProjectInput = LoadedProject;
 
 export type ProjectImportErrorCode =
   | ProjectValidationErrorCode
@@ -251,6 +271,73 @@ export async function createProjectFromCaptureBundle(
   };
 }
 
+export async function validateProject(
+  projectDirOrManifest: string,
+): Promise<ProjectValidationResult> {
+  const projectPaths = resolveProjectPaths(projectDirOrManifest);
+  let rawManifest: string;
+
+  try {
+    rawManifest = await readFile(projectPaths.manifestPath, "utf8");
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return projectFailure(projectPaths, [
+        {
+          code: "missing_project_manifest",
+          message: "Auto Demo project manifest is missing.",
+        },
+      ]);
+    }
+    throw error;
+  }
+
+  let parsedManifest: unknown;
+  try {
+    parsedManifest = JSON.parse(rawManifest);
+  } catch {
+    return projectFailure(projectPaths, [
+      {
+        code: "invalid_project_json",
+        message: "Auto Demo project manifest JSON is invalid.",
+      },
+    ]);
+  }
+
+  const manifestValidation = validateProjectManifest(parsedManifest);
+  if (!manifestValidation.ok) {
+    return projectFailure(projectPaths, manifestValidation.errors);
+  }
+
+  const fileErrors = await validateReferencedProjectFiles(
+    projectPaths.projectDir,
+    manifestValidation.manifest,
+  );
+  if (fileErrors.length > 0) {
+    return projectFailure(projectPaths, fileErrors);
+  }
+
+  return {
+    ok: true,
+    projectDir: projectPaths.projectDir,
+    manifestPath: projectPaths.manifestPath,
+    manifest: manifestValidation.manifest,
+  };
+}
+
+export async function loadProject(projectDirOrManifest: string): Promise<ProjectValidationResult> {
+  return validateProject(projectDirOrManifest);
+}
+
+export async function saveProject(project: SaveProjectInput): Promise<ProjectValidationResult> {
+  const manifestValidation = validateProjectManifest(project.manifest);
+  if (!manifestValidation.ok) {
+    return projectFailure(project, manifestValidation.errors);
+  }
+
+  await writeJsonFileAtomically(project.manifestPath, manifestValidation.manifest);
+  return validateProject(project.manifestPath);
+}
+
 async function validateProjectImportTarget(
   input: CreateProjectFromCaptureBundleInput,
 ): Promise<ProjectImportError[]> {
@@ -313,6 +400,35 @@ function importFailure(
     ok: false,
     projectDir,
     manifestPath,
+    errors,
+  };
+}
+
+function resolveProjectPaths(projectDirOrManifest: string): {
+  projectDir: string;
+  manifestPath: string;
+} {
+  if (basename(projectDirOrManifest) === PROJECT_MANIFEST_FILENAME) {
+    return {
+      projectDir: dirname(projectDirOrManifest),
+      manifestPath: projectDirOrManifest,
+    };
+  }
+
+  return {
+    projectDir: projectDirOrManifest,
+    manifestPath: join(projectDirOrManifest, PROJECT_MANIFEST_FILENAME),
+  };
+}
+
+function projectFailure(
+  project: { projectDir: string; manifestPath: string },
+  errors: ProjectValidationError[],
+): ProjectValidationResult {
+  return {
+    ok: false,
+    projectDir: project.projectDir,
+    manifestPath: project.manifestPath,
     errors,
   };
 }
@@ -434,6 +550,41 @@ async function copyCaptureArtifacts(input: {
     join(captureDir, input.capture.artifacts.events),
     join(input.projectDir, PROJECT_EVENTS_PATH),
   );
+}
+
+async function validateReferencedProjectFiles(
+  projectDir: string,
+  manifest: ProjectManifest,
+): Promise<ProjectValidationError[]> {
+  const references: Array<{ field: string; path: string }> = [
+    { field: "media.primary.path", path: manifest.media.primary.path },
+    { field: "metadata.events.path", path: manifest.metadata.events.path },
+    { field: "sourceCapture.manifestPath", path: manifest.sourceCapture.manifestPath },
+  ];
+  const errors: ProjectValidationError[] = [];
+
+  for (const reference of references) {
+    if (!(await isExistingFile(join(projectDir, reference.path)))) {
+      errors.push({
+        code: "missing_project_file",
+        message: `Auto Demo project file referenced by ${reference.field} is missing.`,
+      });
+    }
+  }
+
+  return errors;
+}
+
+async function isExistingFile(path: string): Promise<boolean> {
+  try {
+    const file = await stat(path);
+    return file.isFile();
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function writeJsonFileAtomically(path: string, value: unknown): Promise<void> {
