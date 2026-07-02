@@ -137,7 +137,8 @@ Schema version 1 requires these fields:
 - `sourceCapture`: browser capture summary
 - `media.primary`: primary viewport video artifact reference
 - `metadata.events`: browser interaction metadata artifact reference
-- `variants`: empty array
+- `variants`: empty array for WES-148; WES-151 later allows validated MVP
+  polish variant entries in schema v1
 - `previews`: empty array
 - `exports`: empty array
 
@@ -164,8 +165,9 @@ Artifact references are fixed for schema v1:
 - `metadata.events.path: "metadata/events.jsonl"`
 - `metadata.events.contentType: "application/x-ndjson"`
 
-Later milestones may populate `variants`, `previews`, and `exports`, but schema v1 requires
-them to be present and empty.
+Later milestones may populate `variants`, `previews`, and `exports`. WES-151
+later populated `variants` with validated MVP polish decision entries while
+`previews` and `exports` remain present and empty in schema v1.
 
 ## Validation Rules
 
@@ -178,7 +180,8 @@ Validation should reject:
 - invalid or empty strings where non-empty strings are required;
 - invalid timestamps;
 - negative, non-finite, or non-integer numeric fields;
-- missing or non-empty `variants`, `previews`, or `exports`;
+- missing `variants`, `previews`, or `exports`, or non-empty `previews` or
+  `exports`; WES-151 later owns non-empty `variants` validation;
 - unknown fields at any manifest object level;
 - unsafe project artifact paths;
 - source URLs with protocols other than `http` or `https`;
@@ -231,7 +234,8 @@ Required test coverage:
 - accepts a representative valid schema v1 manifest and returns it as the parsed manifest;
 - rejects unsupported schema versions with `unsupported_project_version`;
 - rejects missing future arrays;
-- rejects non-empty `variants`, `previews`, and `exports`;
+- rejects non-empty `previews` and `exports`; WES-151 later covers non-empty
+  `variants` validation;
 - rejects unsafe media and metadata artifact paths;
 - rejects unknown fields in top-level and nested objects;
 - rejects source URLs with query strings, fragments, userinfo, or non-http protocols;

@@ -1,3 +1,3 @@
 # @auto-demo/render
 
-Orchestrates rendering and export. Real rendering is implemented after variant and export definitions are stable.
+Orchestrates rendering and export. Real rendering is implemented after saved variants and export artifact definitions are stable.

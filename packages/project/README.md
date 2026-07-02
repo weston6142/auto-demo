@@ -1,7 +1,8 @@
 # @auto-demo/project
 
 Owns the first Auto Demo project manifest contract, project layout helpers, and
-project load/save validation behavior.
+project load/save validation behavior, including schema v1 MVP polish variant
+definitions.
 
 ## Project Layout
 
@@ -24,6 +25,25 @@ The importer accepts either a capture bundle directory or a direct `capture.mani
 
 The project-owned capture summary is not a verbatim WES-147 capture manifest. It removes temporary or diagnostic fields, rewrites artifact paths to final project-relative paths, and strips source URL username, password, query string, and fragment values.
 
+## Variant Definitions
+
+Schema v1 project manifests may include MVP polish variant entries in
+`variants`. The project package validates the variant data model but does not
+generate polish decisions, render previews or exports, or add editor behavior.
+New imports still start with `variants: []`.
+
+Each variant must include a unique lowercase slug `id`, non-empty
+`displayName`, source paths that match the manifest's primary media and events
+paths, a timeline within `sourceCapture.timing.durationMs`, viewport
+`contain`/`cover` decisions with normalized focus and `1` through `4` zoom,
+cursor emphasis (`none`, `spotlight`, or `hide-idle`), click emphasis (`none`,
+`ring`, or `pulse`), caption and callout ranges within the variant timeline,
+style decisions (`solid` or `transparent` background, six-digit hex color,
+`browser` or `none` frame, `0` through `256` padding, and `0` through `64`
+corner radius), and MP4 export intent (`demo` or `high` quality with `16:9`,
+`4:3`, or `9:16` aspect ratio). `previews` and `exports` remain empty arrays
+in schema v1.
+
 ## API
 
 ```ts
@@ -43,6 +63,13 @@ const result = await createProjectFromCaptureBundle({
 ```
 
 Expected invalid capture or project input returns `{ ok: false, errors }` with stable non-secret error messages. Operational filesystem failures may still throw. `validateProjectManifest(input)` validates schema v1 manifest objects without reading project files.
+
+The package also exports `ProjectVariant` and its nested decision types for
+callers that construct or inspect manifest variants.
+
+Variant validation errors are reported as `invalid_project_manifest` or
+`unsafe_project_path` without echoing user text, raw URLs, typed values, or
+arbitrary field names.
 
 `validateProject(projectDirOrManifest)` and `loadProject(projectDirOrManifest)`
 accept either a project directory or direct `autodemo.project.json` path. They

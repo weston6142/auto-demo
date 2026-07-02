@@ -1,3 +1,3 @@
 # @auto-demo/polish
 
-Creates edit decisions from project metadata. Real polish behavior is implemented after project load behavior and polish decision contracts are stable.
+Creates edit decisions from project metadata. Real polish generation is planned on top of the schema v1 project package variant contract.

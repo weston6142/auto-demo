@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-01
+Last updated: 2026-07-02
 
 ## Project
 
@@ -25,6 +25,8 @@ Last updated: 2026-07-01
 - WES-134 demo project format implementation plan: `docs/superpowers/plans/2026-06-29-wes-134-demo-project-format-plan.md`
 - WES-150 project load/save design spec: `docs/superpowers/specs/2026-07-01-wes-150-project-load-save-design.md`
 - WES-150 project load/save implementation plan: `docs/superpowers/plans/2026-07-01-wes-150-project-load-save.md`
+- WES-151 polish decision schema design spec: `docs/superpowers/specs/2026-07-02-wes-151-polish-decision-schema-design.md`
+- WES-151 polish decision schema implementation plan: `docs/superpowers/plans/2026-07-02-wes-151-polish-decision-schema.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -43,7 +45,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after Demo Project Format completion: WES-151.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-151 completion: WES-152.
 
 ## Issues By Milestone
 
@@ -72,7 +74,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 ### 4. Auto Polish Engine
 
 - WES-133: Milestone 4: Auto polish engine - Backlog - https://linear.app/weston-bushyeager/issue/WES-133/milestone-4-auto-polish-engine
-- WES-151: Polish decision schema and variant data model - Backlog - https://linear.app/weston-bushyeager/issue/WES-151/polish-decision-schema-and-variant-data-model
+- WES-151: Polish decision schema and variant data model - Done - https://linear.app/weston-bushyeager/issue/WES-151/polish-decision-schema-and-variant-data-model
 - WES-152: Generate baseline polish decisions from capture events - Backlog - https://linear.app/weston-bushyeager/issue/WES-152/generate-baseline-polish-decisions-from-capture-events
 - WES-153: Persist generated polish variant into project files - Backlog - https://linear.app/weston-bushyeager/issue/WES-153/persist-generated-polish-variant-into-project-files
 
@@ -145,7 +147,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-06-29 WES-134 brainstorming/design: approved scope is a small first project-format slice in `@auto-demo/project`, not broad milestone implementation. The package owns final project schema version 1, validates/loads/saves `autodemo.project.json`, and imports WES-147 capture bundles as input only.
 - WES-134 approved project layout: `autodemo.project.json`, `raw/capture.webm`, `metadata/events.jsonl`, `metadata/capture.manifest.json`, and empty `variants/`, `previews/`, and `exports/` directories. Manifest paths are relative to the project root and constrained inside it.
 - WES-134 approved API surface: `createProjectFromCaptureBundle()`, `validateProject()`, `loadProject()`, and `saveProject()`, with structured validation results for expected invalid input and throws reserved for unexpected file-system or programming failures.
-- WES-134 decomposition note: variants, previews, exports, polish decisions, render outputs, editor behavior, and new CLI import/validation commands are intentionally deferred to later milestone issues. The next likely product task after WES-134 implementation is WES-133, Auto Polish Engine.
+- WES-134 decomposition note: variants, previews, exports, polish decisions, render outputs, editor behavior, and new CLI import/validation commands were intentionally deferred from Demo Project Format. WES-151 later extended schema v1 to validate manifest-owned MVP variant definitions while leaving generation, previews, exports, rendering, and editor UI deferred.
 - 2026-07-01 pre-task sync: Linear has decomposed Demo Project Format into tracker WES-134 and child issues WES-148, WES-149, and WES-150. Local evidence on `develop` shows WES-134 design and implementation plan docs are merged, but `packages/project/src/index.ts` still only exposes a minimal manifest validator and does not satisfy the child acceptance criteria for full schema v1, capture import, or project load/save validation. WES-134 should remain open as the milestone tracker.
 - 2026-07-01 next-task investigation: WES-148 is the selected next product task because it is the first incomplete Demo Project Format child and unblocks WES-149, WES-150, and the first Auto Polish Engine schema work. WES-148 is ready for brainstorming or direct plan execution from the existing WES-134 spec/plan if implementation is explicitly approved.
 - 2026-07-01 WES-148 implementation: schema version 1 manifest validation is complete in `@auto-demo/project`. WES-149 is now the next Demo Project Format child because it imports WES-147 capture bundles into the project layout using the WES-148 manifest contract.
@@ -155,6 +157,9 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-01 pre-task sync: Linear shows WES-148 and WES-149 as Done, WES-150 as the only incomplete Demo Project Format child, and WES-134 as the open milestone tracker. Local `develop` contains PR #9 for WES-149, so WES-150 is selected and moved to In Progress.
 - 2026-07-01 WES-150 implementation: `@auto-demo/project` now validates and loads project directories or direct `autodemo.project.json` paths through `validateProject()` and `loadProject()`, surfaces missing manifest and invalid JSON as structured errors, preserves WES-148 manifest validation codes, verifies required media/events/capture-summary files, and saves manifests atomically through `saveProject()` before revalidating the saved project.
 - 2026-07-01 completion-gate sync: no-mistakes PR #10 passed review, test, document, lint, push, PR, and GitHub CI `validate`. no-mistakes added ENOTDIR malformed-layout coverage and documentation updates. WES-150 completes the last Demo Project Format child, so WES-134 is ready to close and WES-151 is the next product task by milestone order.
+- 2026-07-02 pre-task sync: Linear shows WES-134 and all Demo Project Format children as Done. WES-151 is the first incomplete product issue in the earliest incomplete milestone, Auto Polish Engine, and was moved to In Progress for this implementation.
+- 2026-07-02 WES-151 design: schema version 1 remains owned by `@auto-demo/project`; WES-151 populates validated `variants` entries for MVP polish decisions while leaving generation, persistence workflows, previews, exports, rendering, and editor UI to downstream issues.
+- 2026-07-02 completion-gate sync: PR #11 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `d306e6f`. Completion evidence was added to WES-151, WES-151 was moved to Done, and WES-152 received a readiness note for baseline polish generation against the `ProjectVariant` contract.
 
 ## Temporary Capture Bundle
 
@@ -199,12 +204,14 @@ capture-dir/
 - WES-146 verification: local `npm --workspace @auto-demo/capture test`, `npm --workspace @auto-demo/cli test`, and `npm run validate` passed on 2026-06-29.
 - WES-135: Capture Runtime tracker completed after all child issues WES-142, WES-143, WES-144, WES-145, WES-146, and WES-147 moved to Done.
 - Linear: evidence comment added and WES-135 moved to Done on 2026-06-29.
-- WES-148: `@auto-demo/project` now exports schema version 1 project manifest types and validates full `autodemo.project.json` objects with accumulated structured errors. Validation covers required sections, literal values, timestamps, source capture URL safety, fixed artifact paths, empty forward-compatible arrays, and unknown fields without echoing secret-bearing input.
+- WES-148: `@auto-demo/project` exports schema version 1 project manifest types and validates full `autodemo.project.json` objects with accumulated structured errors. Initial validation covered required sections, literal values, timestamps, source capture URL safety, fixed artifact paths, then-empty forward-compatible arrays, and unknown fields without echoing secret-bearing input; WES-151 later allowed validated variant entries while keeping previews and exports empty.
 - WES-148 verification: `npm --workspace @auto-demo/project test -- src/index.test.ts`, `npm --workspace @auto-demo/project run typecheck`, `npm --workspace @auto-demo/project run build`, and `npm run validate` passed locally on 2026-07-01.
 - Linear: completion evidence comment added and WES-148 moved to Done on 2026-07-01.
 - WES-149: Capture bundle import implemented in `@auto-demo/project` with normalized `raw/capture.webm`, `metadata/events.jsonl`, sanitized `metadata/capture.manifest.json`, schema v1 `autodemo.project.json`, direct manifest-path input, source URL sanitization, non-empty destination rejection, and behavior-oriented import tests.
 - WES-150: Project load/save and file validation implemented in `@auto-demo/project` with `validateProject()`, `loadProject()`, `saveProject()`, structured `missing_project_manifest`, `invalid_project_json`, and `missing_project_file` errors, manifest-code preservation, required referenced file checks, atomic formatted saves, and behavior-oriented filesystem fixture tests.
 - WES-150 local verification: TDD red check failed on missing `validateProject`, `loadProject`, and `saveProject` exports; after implementation `npm --workspace @auto-demo/project test -- src/index.test.ts` passed with 39 tests, `npm --workspace @auto-demo/project run typecheck` passed, `npm --workspace @auto-demo/project run build` passed, and `npm run validate` passed on 2026-07-01.
+- WES-151: `@auto-demo/project` schema v1 now exports `ProjectVariant` decision types and validates MVP variant definitions in `autodemo.project.json`. Validation covers unique lowercase variant ids, source media/events references, timeline bounds inside capture duration, viewport focus/zoom, cursor/click emphasis, captions, callouts, style, export intent, and continued empty preview/export sections.
+- WES-151 verification: TDD red check failed on existing empty-only variants behavior; after implementation `npm --workspace @auto-demo/project test -- src/index.test.ts` passed with 47 tests, `npm --workspace @auto-demo/project run typecheck` passed, `npm --workspace @auto-demo/project run build` passed, `npm run validate` passed locally, and no-mistakes PR #11 passed GitHub CI `validate` on 2026-07-02.
 
 ## Update Rules
 
