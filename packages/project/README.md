@@ -50,7 +50,9 @@ parse the manifest, reuse schema v1 validation, and verify the required
 referenced files exist: viewport media, event metadata, and copied capture
 summary metadata. Expected project file problems return structured
 `missing_project_manifest`, `invalid_project_json`, `missing_project_file`, or
-manifest validation errors without echoing secret-bearing input.
+manifest validation errors without echoing secret-bearing input. A malformed
+layout where a required parent path is a file is reported as the corresponding
+missing manifest or project file error.
 
 `saveProject(project)` validates and atomically writes the manifest, then
 revalidates the saved project. It does not copy, delete, or repair referenced

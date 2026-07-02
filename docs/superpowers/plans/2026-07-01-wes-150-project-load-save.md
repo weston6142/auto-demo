@@ -122,6 +122,24 @@ describe("project filesystem APIs", () => {
     });
   });
 
+  it("returns a structured missing manifest error when a project path parent is a file", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-file-parent-");
+    const projectDir = join(rootDir, "project");
+    await writeFile(projectDir, "not a directory");
+
+    await expect(validateProject(projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "missing_project_manifest",
+          message: "Auto Demo project manifest is missing.",
+        },
+      ],
+    });
+  });
+
   it("returns a structured error when project JSON is invalid", async () => {
     const rootDir = await makeTempDir("auto-demo-project-invalid-json-");
     const projectDir = join(rootDir, "project");
@@ -181,6 +199,28 @@ describe("project filesystem APIs", () => {
         {
           code: "missing_project_file",
           message: `Auto Demo project file referenced by ${field} is missing.`,
+        },
+      ],
+    });
+  });
+
+  it("reports a missing required project file when a parent path is a file", async () => {
+    const project = await importValidProject("auto-demo-project-missing-file-parent-");
+    await rm(join(project.projectDir, "metadata"), { recursive: true });
+    await writeFile(join(project.projectDir, "metadata"), "not a directory");
+
+    await expect(validateProject(project.projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "missing_project_file",
+          message: "Auto Demo project file referenced by metadata.events.path is missing.",
+        },
+        {
+          code: "missing_project_file",
+          message: "Auto Demo project file referenced by sourceCapture.manifestPath is missing.",
         },
       ],
     });
@@ -330,7 +370,7 @@ export async function validateProject(
   try {
     rawManifest = await readFile(projectPaths.manifestPath, "utf8");
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (isMissingPathError(error)) {
       return projectFailure(projectPaths, [
         {
           code: "missing_project_manifest",
@@ -451,11 +491,15 @@ async function isExistingFile(path: string): Promise<boolean> {
     const file = await stat(path);
     return file.isFile();
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (isMissingPathError(error)) {
       return false;
     }
     throw error;
   }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return isNodeError(error) && (error.code === "ENOENT" || error.code === "ENOTDIR");
 }
 ```
 

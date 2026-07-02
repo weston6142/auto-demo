@@ -123,9 +123,10 @@ Input path resolution accepts either:
 - a direct manifest path whose basename is `autodemo.project.json`, resolved to its parent
   directory.
 
-Missing manifests return `missing_project_manifest`. Malformed JSON returns
-`invalid_project_json`. Parsed JSON is passed to `validateProjectManifest()`, and those
-structured errors are surfaced unchanged.
+Missing manifests return `missing_project_manifest`, including malformed layouts where a
+path parent is a file instead of a directory. Malformed JSON returns `invalid_project_json`.
+Parsed JSON is passed to `validateProjectManifest()`, and those structured errors are
+surfaced unchanged.
 
 When manifest validation succeeds, `validateProject()` checks these project-relative paths:
 
@@ -133,9 +134,10 @@ When manifest validation succeeds, `validateProject()` checks these project-rela
 - `manifest.metadata.events.path`, currently `metadata/events.jsonl`;
 - `manifest.sourceCapture.manifestPath`, currently `metadata/capture.manifest.json`.
 
-If any required file is absent or resolves to a directory, validation returns
-`missing_project_file`. Messages identify the manifest field, not secret-bearing input
-values. Unexpected filesystem failures other than missing files may throw.
+If any required file is absent, has a non-directory path parent, or resolves to a
+directory, validation returns `missing_project_file`. Messages identify the manifest
+field, not secret-bearing input values. Unexpected filesystem failures other than missing
+files or malformed path parents may throw.
 
 ## Load Behavior
 
@@ -167,10 +169,12 @@ Tests use temporary filesystem fixtures and public APIs:
 
 - a WES-149 imported project validates and loads successfully from both directory and
   direct manifest path;
-- missing `autodemo.project.json` returns `missing_project_manifest`;
+- missing `autodemo.project.json`, including a file at the project path, returns
+  `missing_project_manifest`;
 - invalid JSON returns `invalid_project_json`;
 - manifest validation errors keep their WES-148 codes;
-- missing media, events, and capture summary files return `missing_project_file`;
+- missing media, events, and capture summary files, including a file at a required parent
+  path, return `missing_project_file`;
 - save writes formatted JSON, revalidates, and preserves referenced artifacts;
 - invalid save input returns structured errors without overwriting the existing manifest.
 
