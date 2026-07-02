@@ -421,6 +421,24 @@ describe("project filesystem APIs", () => {
     });
   });
 
+  it("returns a structured missing manifest error when a project path parent is a file", async () => {
+    const rootDir = await makeTempDir("auto-demo-project-file-parent-");
+    const projectDir = join(rootDir, "project");
+    await writeFile(projectDir, "not a directory");
+
+    await expect(validateProject(projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir,
+      manifestPath: join(projectDir, PROJECT_MANIFEST_FILENAME),
+      errors: [
+        {
+          code: "missing_project_manifest",
+          message: "Auto Demo project manifest is missing.",
+        },
+      ],
+    });
+  });
+
   it("returns a structured error when project JSON is invalid", async () => {
     const rootDir = await makeTempDir("auto-demo-project-invalid-json-");
     const projectDir = join(rootDir, "project");

@@ -289,7 +289,7 @@ export async function validateProject(
   try {
     rawManifest = await readFile(projectPaths.manifestPath, "utf8");
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (isMissingPathError(error)) {
       return projectFailure(projectPaths, [
         {
           code: "missing_project_manifest",
@@ -595,11 +595,15 @@ async function isExistingFile(path: string): Promise<boolean> {
     const file = await stat(path);
     return file.isFile();
   } catch (error) {
-    if (isNodeError(error) && (error.code === "ENOENT" || error.code === "ENOTDIR")) {
+    if (isMissingPathError(error)) {
       return false;
     }
     throw error;
   }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return isNodeError(error) && (error.code === "ENOENT" || error.code === "ENOTDIR");
 }
 
 async function writeJsonFileAtomically(path: string, value: unknown): Promise<void> {
