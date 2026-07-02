@@ -843,7 +843,7 @@ function validateTiming(value: unknown, errors: ProjectValidationError[]): void 
     typeof value.durationMs !== "number" ||
     !Number.isFinite(value.durationMs) ||
     !Number.isInteger(value.durationMs) ||
-    value.durationMs < 0
+    value.durationMs <= 0
   ) {
     errors.push({
       code: "invalid_project_manifest",
@@ -1390,7 +1390,7 @@ function getCaptureDurationMs(value: unknown): number | null {
     return null;
   }
 
-  return Number.isInteger(value.timing.durationMs) && value.timing.durationMs >= 0
+  return Number.isInteger(value.timing.durationMs) && value.timing.durationMs > 0
     ? value.timing.durationMs
     : null;
 }

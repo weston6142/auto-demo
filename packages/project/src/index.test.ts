@@ -1004,7 +1004,7 @@ describe("validateProjectManifest", () => {
         timing: {
           startedAt: "not-a-date",
           endedAt: "2026-06-29T12:00:02.500Z",
-          durationMs: -1,
+          durationMs: 2500,
         },
       },
     });
@@ -1020,6 +1020,29 @@ describe("validateProjectManifest", () => {
           code: "invalid_project_manifest",
           message: "Auto Demo project manifest sourceCapture viewport is invalid.",
         },
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project manifest sourceCapture timing is invalid.",
+        },
+      ],
+    });
+  });
+
+  it.each([-1, 0])("rejects source capture duration %s", (durationMs) => {
+    const result = validateProjectManifest({
+      ...validManifest,
+      sourceCapture: {
+        ...validManifest.sourceCapture,
+        timing: {
+          ...validManifest.sourceCapture.timing,
+          durationMs,
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
         {
           code: "invalid_project_manifest",
           message: "Auto Demo project manifest sourceCapture timing is invalid.",
