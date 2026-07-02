@@ -27,6 +27,8 @@ Last updated: 2026-07-02
 - WES-150 project load/save implementation plan: `docs/superpowers/plans/2026-07-01-wes-150-project-load-save.md`
 - WES-151 polish decision schema design spec: `docs/superpowers/specs/2026-07-02-wes-151-polish-decision-schema-design.md`
 - WES-151 polish decision schema implementation plan: `docs/superpowers/plans/2026-07-02-wes-151-polish-decision-schema.md`
+- WES-152 baseline polish decisions design spec: `docs/superpowers/specs/2026-07-02-wes-152-baseline-polish-decisions-design.md`
+- WES-152 baseline polish decisions implementation plan: `docs/superpowers/plans/2026-07-02-wes-152-baseline-polish-decisions.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -45,7 +47,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-151 completion: WES-152.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-152. Expected next product task after WES-152 completion: WES-153.
 
 ## Issues By Milestone
 
@@ -75,7 +77,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 - WES-133: Milestone 4: Auto polish engine - Backlog - https://linear.app/weston-bushyeager/issue/WES-133/milestone-4-auto-polish-engine
 - WES-151: Polish decision schema and variant data model - Done - https://linear.app/weston-bushyeager/issue/WES-151/polish-decision-schema-and-variant-data-model
-- WES-152: Generate baseline polish decisions from capture events - Backlog - https://linear.app/weston-bushyeager/issue/WES-152/generate-baseline-polish-decisions-from-capture-events
+- WES-152: Generate baseline polish decisions from capture events - In Progress - https://linear.app/weston-bushyeager/issue/WES-152/generate-baseline-polish-decisions-from-capture-events
 - WES-153: Persist generated polish variant into project files - Backlog - https://linear.app/weston-bushyeager/issue/WES-153/persist-generated-polish-variant-into-project-files
 
 ### 5. Headless Variant Generation
@@ -160,6 +162,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-02 pre-task sync: Linear shows WES-134 and all Demo Project Format children as Done. WES-151 is the first incomplete product issue in the earliest incomplete milestone, Auto Polish Engine, and was moved to In Progress for this implementation.
 - 2026-07-02 WES-151 design: schema version 1 remains owned by `@auto-demo/project`; WES-151 populates validated `variants` entries for MVP polish decisions while leaving generation, persistence workflows, previews, exports, rendering, and editor UI to downstream issues.
 - 2026-07-02 completion-gate sync: PR #11 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `d306e6f`. Completion evidence was added to WES-151, WES-151 was moved to Done, and WES-152 received a readiness note for baseline polish generation against the `ProjectVariant` contract.
+- 2026-07-02 pre-task sync: Linear and local map agreed WES-152 is the first incomplete unblocked Auto Polish Engine child after WES-151. WES-152 was moved to In Progress on branch `wes-152-baseline-polish-decisions`.
+- 2026-07-02 WES-152 design: `@auto-demo/polish` owns a deterministic baseline generator that reads loaded project event JSONL and returns one schema-valid `ProjectVariant` plus structured warnings. Persistence, rendering, CLI, browser editor, and multi-variant presets remain deferred.
 
 ## Temporary Capture Bundle
 
