@@ -34,7 +34,7 @@ Prefer behavior-oriented tests. Test what the command, package API, or user-faci
 ## Project Structure
 
 - `packages/cli`: command entrypoint and routing
-- `packages/project`: schema v1 project manifest types and validation contracts
+- `packages/project`: schema v1 project manifest types, validation contracts, capture import, and project load/save helpers
 - `packages/capture`: capture adapter contracts, Playwright viewport recording, and metadata JSONL capture
 - `packages/polish`: edit-decision generation
 - `packages/render`: render/export orchestration

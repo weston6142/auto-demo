@@ -1,6 +1,7 @@
 # @auto-demo/project
 
-Owns the first Auto Demo project manifest contract and project layout helpers.
+Owns the first Auto Demo project manifest contract, project layout helpers, and
+project load/save validation behavior.
 
 ## Project Layout
 
@@ -26,7 +27,13 @@ The project-owned capture summary is not a verbatim WES-147 capture manifest. It
 ## API
 
 ```ts
-import { createProjectFromCaptureBundle, validateProjectManifest } from "@auto-demo/project";
+import {
+  createProjectFromCaptureBundle,
+  loadProject,
+  saveProject,
+  validateProject,
+  validateProjectManifest,
+} from "@auto-demo/project";
 
 const result = await createProjectFromCaptureBundle({
   captureBundlePath: "captures/checkout",
@@ -36,3 +43,17 @@ const result = await createProjectFromCaptureBundle({
 ```
 
 Expected invalid capture or project input returns `{ ok: false, errors }` with stable non-secret error messages. Operational filesystem failures may still throw. `validateProjectManifest(input)` validates schema v1 manifest objects without reading project files.
+
+`validateProject(projectDirOrManifest)` and `loadProject(projectDirOrManifest)`
+accept either a project directory or direct `autodemo.project.json` path. They
+parse the manifest, reuse schema v1 validation, and verify the required
+referenced files exist: viewport media, event metadata, and copied capture
+summary metadata. Expected project file problems return structured
+`missing_project_manifest`, `invalid_project_json`, `missing_project_file`, or
+manifest validation errors without echoing secret-bearing input. A malformed
+layout where a required parent path is a file is reported as the corresponding
+missing manifest or project file error.
+
+`saveProject(project)` validates and atomically writes the manifest, then
+revalidates the saved project. It does not copy, delete, or repair referenced
+artifact files.
