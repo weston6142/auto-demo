@@ -43,7 +43,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active local product task: WES-150.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after Demo Project Format completion: WES-151.
 
 ## Issues By Milestone
 
@@ -64,10 +64,10 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 3. Demo Project Format
 
-- WES-134: Milestone 3: Demo Project Format tracker - Backlog - https://linear.app/weston-bushyeager/issue/WES-134/milestone-3-demo-project-format-tracker
+- WES-134: Milestone 3: Demo Project Format tracker - Done - https://linear.app/weston-bushyeager/issue/WES-134/milestone-3-demo-project-format-tracker
 - WES-148: Project schema validation and public API - Done - https://linear.app/weston-bushyeager/issue/WES-148/project-schema-validation-and-public-api
 - WES-149: Import capture bundles into project layout - Done - https://linear.app/weston-bushyeager/issue/WES-149/import-capture-bundles-into-project-layout
-- WES-150: Project load/save and file validation behavior - In Progress - https://linear.app/weston-bushyeager/issue/WES-150/project-loadsave-and-file-validation-behavior
+- WES-150: Project load/save and file validation behavior - Done - https://linear.app/weston-bushyeager/issue/WES-150/project-loadsave-and-file-validation-behavior
 
 ### 4. Auto Polish Engine
 
@@ -154,6 +154,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-01 WES-149 implementation: `@auto-demo/project` imports validated WES-147 capture bundles into the schema v1 project layout through `createProjectFromCaptureBundle()`. The importer copies viewport media and event metadata into normalized project-owned paths, rewrites `metadata/capture.manifest.json` as sanitized project summary metadata, writes `autodemo.project.json`, rejects invalid capture/project input with structured non-secret errors, and leaves WES-150 responsible for project load/save/file validation.
 - 2026-07-01 pre-task sync: Linear shows WES-148 and WES-149 as Done, WES-150 as the only incomplete Demo Project Format child, and WES-134 as the open milestone tracker. Local `develop` contains PR #9 for WES-149, so WES-150 is selected and moved to In Progress.
 - 2026-07-01 WES-150 implementation: `@auto-demo/project` now validates and loads project directories or direct `autodemo.project.json` paths through `validateProject()` and `loadProject()`, surfaces missing manifest and invalid JSON as structured errors, preserves WES-148 manifest validation codes, verifies required media/events/capture-summary files, and saves manifests atomically through `saveProject()` before revalidating the saved project.
+- 2026-07-01 completion-gate sync: no-mistakes PR #10 passed review, test, document, lint, push, PR, and GitHub CI `validate`. no-mistakes added ENOTDIR malformed-layout coverage and documentation updates. WES-150 completes the last Demo Project Format child, so WES-134 is ready to close and WES-151 is the next product task by milestone order.
 
 ## Temporary Capture Bundle
 
