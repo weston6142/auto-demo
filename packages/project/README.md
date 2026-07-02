@@ -48,7 +48,9 @@ Expected invalid capture or project input returns `{ ok: false, errors }` with s
 accept either a project directory or direct `autodemo.project.json` path. They
 parse the manifest, reuse schema v1 validation, and verify the required
 referenced files exist: viewport media, event metadata, and copied capture
-summary metadata.
+summary metadata. Expected project file problems return structured
+`missing_project_manifest`, `invalid_project_json`, `missing_project_file`, or
+manifest validation errors without echoing secret-bearing input.
 
 `saveProject(project)` validates and atomically writes the manifest, then
 revalidates the saved project. It does not copy, delete, or repair referenced

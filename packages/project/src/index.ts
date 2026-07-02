@@ -72,12 +72,14 @@ export type ProjectValidationError = {
 export type ProjectManifestValidationResult =
   { ok: true; manifest: ProjectManifest } | { ok: false; errors: ProjectValidationError[] };
 
+/** Validated project data loaded from disk. */
 export type LoadedProject = {
   projectDir: string;
   manifestPath: string;
   manifest: ProjectManifest;
 };
 
+/** Result for validating or loading an Auto Demo project directory or manifest file. */
 export type ProjectValidationResult =
   | ({ ok: true } & LoadedProject)
   | {
@@ -87,6 +89,7 @@ export type ProjectValidationResult =
       errors: ProjectValidationError[];
     };
 
+/** Input for saving a project manifest and revalidating the project on disk. */
 export type SaveProjectInput = LoadedProject;
 
 export type ProjectImportErrorCode =
@@ -271,6 +274,12 @@ export async function createProjectFromCaptureBundle(
   };
 }
 
+/**
+ * Validates a project directory or direct `autodemo.project.json` path.
+ *
+ * Expected invalid project state returns structured errors. Unexpected filesystem
+ * failures throw so callers can surface operational problems separately.
+ */
 export async function validateProject(
   projectDirOrManifest: string,
 ): Promise<ProjectValidationResult> {
@@ -324,10 +333,16 @@ export async function validateProject(
   };
 }
 
+/** Loads a project by delegating to `validateProject()` and returning the same result shape. */
 export async function loadProject(projectDirOrManifest: string): Promise<ProjectValidationResult> {
   return validateProject(projectDirOrManifest);
 }
 
+/**
+ * Validates, atomically writes, and revalidates a project manifest.
+ *
+ * Save does not create, delete, copy, or repair referenced artifact files.
+ */
 export async function saveProject(project: SaveProjectInput): Promise<ProjectValidationResult> {
   const manifestValidation = validateProjectManifest(project.manifest);
   if (!manifestValidation.ok) {
