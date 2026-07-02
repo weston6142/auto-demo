@@ -160,6 +160,54 @@ describe("generateBaselinePolishVariant", () => {
     ]);
   });
 
+  it("ignores clicks outside the source capture duration", async () => {
+    const project = await writeLoadedProject([
+      {
+        id: "event-1",
+        sequence: 1,
+        type: "click",
+        timestampMs: 7000,
+        viewport: { width: 1280, height: 720 },
+        data: { x: 960, y: 360 },
+      },
+    ]);
+
+    const result = await generateBaselinePolishVariant(project);
+
+    expect(result.variant.timeline).toEqual({ startMs: 0, endMs: 6000 });
+    expect(result.variant.viewport).toEqual({
+      mode: "contain",
+      focus: { x: 0.5, y: 0.5 },
+      zoom: 1,
+    });
+    expect(result.variant.cursor).toEqual({ visible: true, emphasis: "none" });
+    expect(result.variant.clicks).toEqual({ emphasis: "none" });
+    expect(result.warnings).toEqual([
+      {
+        code: "missing_action_events",
+        message: "No interaction events were available for baseline polish decisions.",
+      },
+    ]);
+  });
+
+  it("falls back to schema-valid variant labels for invalid option overrides", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+
+    const result = await generateBaselinePolishVariant(project, {
+      id: "Not A Slug",
+      displayName: "",
+    });
+
+    expect(result.variant.id).toBe("baseline-polish");
+    expect(result.variant.displayName).toBe("Baseline Polish");
+    expect(validateProjectManifest({ ...project.manifest, variants: [result.variant] })).toEqual({
+      ok: true,
+      manifest: { ...project.manifest, variants: [result.variant] },
+    });
+  });
+
   it("generates from incomplete and malformed metadata with structured warnings", async () => {
     const manifest: ProjectManifest = {
       ...baseManifest,
@@ -186,10 +234,6 @@ describe("generateBaselinePolishVariant", () => {
       {
         code: "malformed_event_line",
         message: "One or more capture event lines could not be parsed.",
-      },
-      {
-        code: "missing_click_coordinates",
-        message: "Click events did not include usable viewport coordinates.",
       },
       {
         code: "incomplete_capture_status",

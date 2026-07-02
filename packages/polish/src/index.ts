@@ -52,7 +52,7 @@ export async function generateBaselinePolishVariant(
     .filter((event) => ACTION_EVENT_TYPES.has(event.type))
     .filter((event) => event.timestampMs >= 0 && event.timestampMs <= durationMs)
     .sort((a, b) => a.timestampMs - b.timestampMs);
-  const clickEvents = events.filter((event) => event.type === "click");
+  const clickEvents = actionEvents.filter((event) => event.type === "click");
   const clickFocus = findClickFocus(clickEvents, project.manifest.sourceCapture.viewport);
 
   if (actionEvents.length === 0) {
@@ -78,8 +78,8 @@ export async function generateBaselinePolishVariant(
 
   const hasActions = actionEvents.length > 0;
   const variant: ProjectVariant = {
-    id: options.id ?? "baseline-polish",
-    displayName: options.displayName ?? "Baseline Polish",
+    id: normalizeVariantId(options.id),
+    displayName: normalizeDisplayName(options.displayName),
     source: {
       mediaPath: project.manifest.media.primary.path,
       eventsPath: project.manifest.metadata.events.path,
@@ -253,6 +253,16 @@ function uniqueWarnings(warnings: PolishWarning[]): PolishWarning[] {
     seen.add(warning.code);
     return true;
   });
+}
+
+function normalizeVariantId(value: string | undefined): string {
+  return typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+    ? value
+    : "baseline-polish";
+}
+
+function normalizeDisplayName(value: string | undefined): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : "Baseline Polish";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
