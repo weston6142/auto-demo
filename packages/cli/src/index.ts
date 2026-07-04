@@ -12,6 +12,7 @@ import {
   type CaptureStopReason,
   type CaptureViewport,
 } from "@auto-demo/capture";
+import { generateHeadlessVariants } from "@auto-demo/polish";
 
 export type CliResult = {
   exitCode: number;
@@ -46,7 +47,7 @@ type ParsedCaptureCommand =
       message: string;
     };
 
-const plannedCommands = new Set(["init", "capture", "generate", "export", "open"]);
+const plannedCommands = new Set(["init", "capture", "export", "open"]);
 
 /** Runs synchronous CLI commands. Use `runCliAsync` for async commands. */
 export function runCli(args: string[]): CliResult {
@@ -76,6 +77,14 @@ export function runCli(args: string[]): CliResult {
     };
   }
 
+  if (command === "generate") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo generate requires async execution.\n",
+    };
+  }
+
   if (plannedCommands.has(command)) {
     return {
       exitCode: 1,
@@ -100,6 +109,10 @@ export async function runCliAsync(
 
   if (command === "validate") {
     return await runValidateCommand(rest);
+  }
+
+  if (command === "generate") {
+    return await runGenerateCommand(rest);
   }
 
   if (command !== "capture") {
@@ -191,6 +204,98 @@ async function runValidateCommand(args: string[]): Promise<CliResult> {
     stdout: `Capture bundle valid: ${result.manifestPath}\n`,
     stderr: "",
   };
+}
+
+async function runGenerateCommand(args: string[]): Promise<CliResult> {
+  const parsed = parseGenerateCommand(args);
+
+  if (!parsed.json) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo generate currently requires --json output.\n",
+    };
+  }
+
+  const result = await generateHeadlessVariants({
+    projectPath: parsed.projectPath ?? "",
+    dryRun: parsed.dryRun,
+    json: parsed.json,
+    count: parsed.count,
+    style: parsed.style,
+    save: parsed.save,
+    mode: parsed.mode,
+  });
+
+  return {
+    exitCode: result.ok ? 0 : 1,
+    stdout: `${JSON.stringify(result, null, 2)}\n`,
+    stderr: "",
+  };
+}
+
+function parseGenerateCommand(args: string[]): {
+  projectPath?: string;
+  dryRun: boolean;
+  json: boolean;
+  count?: number;
+  style?: string;
+  save?: boolean;
+  mode?: string;
+} {
+  let projectPath: string | undefined;
+  let dryRun = false;
+  let json = false;
+  let count: number | undefined;
+  let style: string | undefined;
+  let save = false;
+  let mode: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--project") {
+      projectPath = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    if (arg === "--count") {
+      count = Number.parseInt(args[index + 1] ?? "", 10);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--style") {
+      style = args[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--save") {
+      save = true;
+      continue;
+    }
+
+    if (arg === "--mode") {
+      mode = args[index + 1];
+      dryRun = mode === "dry-run";
+      index += 1;
+      continue;
+    }
+  }
+
+  return { projectPath, dryRun, json, count, style, save, mode };
 }
 
 async function waitForManualInterrupt(

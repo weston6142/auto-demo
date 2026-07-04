@@ -1,4 +1,5 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -55,6 +56,65 @@ async function createValidCaptureBundle(): Promise<string> {
   return outputDir;
 }
 
+async function createValidProject(): Promise<string> {
+  const projectDir = join(tmpdir(), `auto-demo-cli-generate-${randomUUID()}`);
+  await mkdir(join(projectDir, "raw"), { recursive: true });
+  await mkdir(join(projectDir, "metadata"), { recursive: true });
+  await mkdir(join(projectDir, "variants"), { recursive: true });
+  await mkdir(join(projectDir, "previews"), { recursive: true });
+  await mkdir(join(projectDir, "exports"), { recursive: true });
+  await writeFile(join(projectDir, "raw", "capture.webm"), "video");
+  await writeFile(join(projectDir, "metadata", "capture.manifest.json"), "{}\n");
+  await writeFile(
+    join(projectDir, "metadata", "events.jsonl"),
+    `${JSON.stringify({
+      id: "event-1",
+      sequence: 1,
+      type: "click",
+      timestampMs: 2000,
+      viewport: { width: 1280, height: 720 },
+      data: { x: 960, y: 360 },
+    })}\n`,
+  );
+  await writeFile(
+    join(projectDir, "autodemo.project.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        name: "Checkout flow demo",
+        createdAt: "2026-07-04T12:00:00.000Z",
+        updatedAt: "2026-07-04T12:00:00.000Z",
+        sourceCapture: {
+          kind: "browser",
+          status: "completed",
+          source: { kind: "browser", url: "https://example.com/checkout" },
+          viewport: { width: 1280, height: 720 },
+          timing: {
+            startedAt: "2026-07-04T12:00:00.000Z",
+            endedAt: "2026-07-04T12:00:06.000Z",
+            durationMs: 6000,
+          },
+          adapter: { kind: "browser", backend: "playwright" },
+          tools: { capturePackage: "0.0.0", playwright: "1.61.1" },
+          manifestPath: "metadata/capture.manifest.json",
+        },
+        media: {
+          primary: { kind: "viewport", path: "raw/capture.webm", contentType: "video/webm" },
+        },
+        metadata: {
+          events: { path: "metadata/events.jsonl", contentType: "application/x-ndjson" },
+        },
+        variants: [],
+        previews: [],
+        exports: [],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return projectDir;
+}
+
 describe("runCli", () => {
   it("prints help with a zero exit code", () => {
     const result = runCli(["--help"]);
@@ -65,12 +125,12 @@ describe("runCli", () => {
   });
 
   it("fails clearly for planned but unimplemented non-capture commands", () => {
-    const result = runCli(["generate"]);
+    const result = runCli(["export"]);
 
     expect(result).toEqual({
       exitCode: 1,
       stdout: "",
-      stderr: "autodemo generate is not implemented yet.\n",
+      stderr: "autodemo export is not implemented yet.\n",
     });
   });
 
@@ -80,6 +140,72 @@ describe("runCli", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("Usage: autodemo <command>");
     expect(result.stderr).toBe("Unknown command: wat\n");
+  });
+});
+
+describe("runCliAsync generate", () => {
+  it("prints a dry-run baseline summary as JSON", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync(["generate", "--project", projectDir, "--dry-run", "--json"]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      project: { projectDir: string; name: string };
+      variants: Array<{ id: string; save: { mode: string; saved: boolean } }>;
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.project).toMatchObject({ projectDir, name: "Checkout flow demo" });
+    expect(output.variants).toEqual([
+      expect.objectContaining({
+        id: "baseline-polish",
+        save: { mode: "dry-run", saved: false },
+      }),
+    ]);
+  });
+
+  it("returns a structured JSON error when project input is missing", async () => {
+    const result = await runCliAsync(["generate", "--dry-run", "--json"]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([{ code: "missing_project_path", message: expect.any(String) }]);
+  });
+
+  it("returns structured JSON errors for unsupported options", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--dry-run",
+      "--json",
+      "--style",
+      "cinematic",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([{ code: "unsupported_style", message: expect.any(String) }]);
+  });
+
+  it("requires JSON output for the first generate contract", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync(["generate", "--project", projectDir, "--dry-run"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo generate currently requires --json output.\n",
+    });
   });
 });
 

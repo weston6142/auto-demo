@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 ## Project
 
@@ -31,6 +31,8 @@ Last updated: 2026-07-03
 - WES-152 baseline polish decisions implementation plan: `docs/superpowers/plans/2026-07-02-wes-152-baseline-polish-decisions.md`
 - WES-153 polish variant persistence design spec: `docs/superpowers/specs/2026-07-03-wes-153-persist-generated-polish-variant-design.md`
 - WES-153 polish variant persistence implementation plan: `docs/superpowers/plans/2026-07-03-wes-153-persist-generated-polish-variant.md`
+- WES-154 headless variant generation contract design spec: `docs/superpowers/specs/2026-07-04-wes-154-headless-variant-generation-contract-design.md`
+- WES-154 headless variant generation contract implementation plan: `docs/superpowers/plans/2026-07-04-wes-154-headless-variant-generation-contract.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -49,7 +51,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-154. WES-154 starts Milestone 5 now that the Auto Polish Engine tracker is complete.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-154, now In Progress. WES-154 starts Milestone 5 now that the Auto Polish Engine tracker is complete.
 
 ## Issues By Milestone
 
@@ -85,7 +87,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 ### 5. Headless Variant Generation
 
 - WES-137: Milestone 5: Headless variant generation - Backlog - https://linear.app/weston-bushyeager/issue/WES-137/milestone-5-headless-variant-generation
-- WES-154: Headless variant generation CLI and API contract - Backlog - https://linear.app/weston-bushyeager/issue/WES-154/headless-variant-generation-cli-and-api-contract
+- WES-154: Headless variant generation CLI and API contract - In Progress - https://linear.app/weston-bushyeager/issue/WES-154/headless-variant-generation-cli-and-api-contract
 - WES-155: Generate deterministic named variant batches - Backlog - https://linear.app/weston-bushyeager/issue/WES-155/generate-deterministic-named-variant-batches
 - WES-156: Save selected or all headless variants with run summary - Backlog - https://linear.app/weston-bushyeager/issue/WES-156/save-selected-or-all-headless-variants-with-run-summary
 - WES-166: Open question: define MVP named style presets - Backlog - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
@@ -169,6 +171,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-03 pre-task sync: Linear shows WES-152 as Done with PR #12 completion evidence, and local `develop` includes merge commit `ea10e8c`. WES-153 is the next incomplete unblocked Auto Polish Engine child because WES-150, WES-151, and WES-152 are complete. WES-153 is ready for brainstorming: persist one generated `ProjectVariant` into project files, reload/validate it, preserve raw capture immutability, and document handoff contracts while deferring rendering, style batches, and browser editor mutation workflows.
 - 2026-07-03 WES-153 design: `@auto-demo/project` owns saved variant persistence through `savePolishVariant(project, variant, options)`. The API writes `variants/<variant-id>.json`, appends the same `ProjectVariant` to `autodemo.project.json`, revalidates saved variant files during project load/validation, and leaves generation in `@auto-demo/polish`.
 - 2026-07-03 completion-gate sync: PR #13 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `d0c17641`. WES-153 completion evidence was added and the issue was moved to Done. Because WES-151, WES-152, and WES-153 are all Done, WES-133 was moved to Done. WES-154 received a readiness note to build on `loadProject()`, `generateBaselinePolishVariant()`, and `savePolishVariant()`.
+- 2026-07-04 pre-task sync: Linear and local `develop` agree WES-154 is the first incomplete Headless Variant Generation child. WES-154 was moved to In Progress on branch `fm/wes-154`. Approved WES-154 scope is the first dry-run JSON CLI/API contract: load a project with `loadProject()`, generate one deterministic `baseline` summary through `@auto-demo/polish`, and defer named batches, save modes, run summary files, rendering, and exports to WES-155/WES-156.
 
 ## Temporary Capture Bundle
 

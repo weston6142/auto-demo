@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -9,7 +9,7 @@ import {
   type LoadedProject,
   type ProjectManifest,
 } from "@auto-demo/project";
-import { generateBaselinePolishVariant } from "./index.js";
+import { generateBaselinePolishVariant, generateHeadlessVariants } from "./index.js";
 
 const baseManifest: ProjectManifest = {
   schemaVersion: 1,
@@ -50,6 +50,10 @@ async function writeLoadedProject(
   await mkdir(join(projectDir, "raw"), { recursive: true });
   await writeFile(join(projectDir, "raw", "capture.webm"), "video-bytes");
   await writeFile(join(projectDir, "metadata", "capture.manifest.json"), "{}\n");
+  await writeFile(
+    join(projectDir, "autodemo.project.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
   await writeFile(
     join(projectDir, "metadata", "events.jsonl"),
     `${events
@@ -297,5 +301,104 @@ describe("generateBaselinePolishVariant", () => {
     await expect(generateBaselinePolishVariant(first)).resolves.toEqual(
       await generateBaselinePolishVariant(second),
     );
+  });
+});
+
+describe("generateHeadlessVariants", () => {
+  it("returns a dry-run baseline summary without saving files", async () => {
+    const project = await writeLoadedProject([
+      {
+        id: "event-1",
+        sequence: 1,
+        type: "click",
+        timestampMs: 2000,
+        viewport: { width: 1280, height: 720 },
+        data: { x: 960, y: 360 },
+      },
+    ]);
+
+    const result = await generateHeadlessVariants({
+      projectPath: project.projectDir,
+      dryRun: true,
+      json: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected generation to succeed");
+    }
+    expect(result.project).toEqual({
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      name: "Checkout flow demo",
+    });
+    expect(result.requested).toEqual({ count: 1, style: "baseline", dryRun: true });
+    expect(result.variants).toEqual([
+      {
+        id: "baseline-polish",
+        displayName: "Baseline Polish",
+        style: "baseline",
+        source: {
+          projectPath: project.projectDir,
+          manifestPath: project.manifestPath,
+          mediaPath: "raw/capture.webm",
+          eventsPath: "metadata/events.jsonl",
+        },
+        save: { mode: "dry-run", saved: false },
+        warnings: [],
+      },
+    ]);
+    expect(result.errors).toEqual([]);
+    await expect(
+      stat(join(project.projectDir, "variants", "baseline-polish.json")),
+    ).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("returns structured errors for unsupported headless options", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+
+    await expect(
+      generateHeadlessVariants({
+        projectPath: project.projectDir,
+        dryRun: true,
+        json: true,
+        count: 2,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      errors: [{ code: "unsupported_variant_count" }],
+    });
+
+    await expect(
+      generateHeadlessVariants({
+        projectPath: project.projectDir,
+        dryRun: true,
+        json: true,
+        style: "cinematic",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      errors: [{ code: "unsupported_style" }],
+    });
+  });
+
+  it("returns project validation errors without throwing", async () => {
+    const project = await writeLoadedProject([]);
+    await writeFile(join(project.projectDir, "autodemo.project.json"), "{not-json");
+
+    await expect(
+      generateHeadlessVariants({
+        projectPath: project.projectDir,
+        dryRun: true,
+        json: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_project", projectErrorCode: "invalid_project_json" }],
+    });
   });
 });
