@@ -196,6 +196,50 @@ describe("runCliAsync generate", () => {
     expect(output.errors).toEqual([{ code: "unsupported_style", message: expect.any(String) }]);
   });
 
+  it("returns structured JSON errors for missing generate option values", async () => {
+    const projectDir = await createValidProject();
+
+    for (const args of [
+      ["generate", "--project", "--dry-run", "--json"],
+      ["generate", "--project", projectDir, "--dry-run", "--json", "--count"],
+      ["generate", "--project", projectDir, "--dry-run", "--json", "--style"],
+      ["generate", "--project", projectDir, "--dry-run", "--json", "--style", "--count", "1"],
+    ]) {
+      const result = await runCliAsync(args);
+      const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBe("");
+      expect(output.ok).toBe(false);
+      expect(output.errors).toContainEqual({
+        code: "unknown_generate_argument",
+        message: expect.any(String),
+      });
+    }
+  });
+
+  it("returns structured JSON errors for unsupported generate mode arguments", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--json",
+      "--mode",
+      "dry-run",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "unknown_generate_argument",
+      message: expect.any(String),
+    });
+  });
+
   it("returns structured JSON errors for unknown generate arguments", async () => {
     const projectDir = await createValidProject();
 

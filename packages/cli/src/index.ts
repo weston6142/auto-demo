@@ -272,8 +272,11 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
     const arg = args[index];
 
     if (arg === "--project") {
-      projectPath = args[index + 1];
-      index += 1;
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        projectPath = value;
+        index += 1;
+      }
       continue;
     }
 
@@ -288,26 +291,25 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
     }
 
     if (arg === "--count") {
-      count = parseGenerateCount(args[index + 1]);
-      index += 1;
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        count = parseGenerateCount(value);
+        index += 1;
+      }
       continue;
     }
 
     if (arg === "--style") {
-      style = args[index + 1];
-      index += 1;
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        style = value;
+        index += 1;
+      }
       continue;
     }
 
     if (arg === "--save") {
       save = true;
-      continue;
-    }
-
-    if (arg === "--mode") {
-      mode = args[index + 1];
-      dryRun = mode === "dry-run";
-      index += 1;
       continue;
     }
 
@@ -318,6 +320,24 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
   }
 
   return { projectPath, dryRun, json, count, style, save, mode, errors };
+}
+
+function parseGenerateOptionValue(
+  args: string[],
+  index: number,
+  option: string,
+  errors: HeadlessVariantGenerationError[],
+): string | undefined {
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    errors.push({
+      code: "unknown_generate_argument",
+      message: `Missing value for generate argument: ${option}`,
+    });
+    return undefined;
+  }
+
+  return value;
 }
 
 function parseGenerateCount(value: string | undefined): number {
