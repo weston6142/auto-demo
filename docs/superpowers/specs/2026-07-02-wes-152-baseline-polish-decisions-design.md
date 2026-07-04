@@ -188,8 +188,9 @@ beyond user-visible output.
 ## Documentation
 
 Update `packages/polish/README.md` and root `README.md` to reflect that
-`@auto-demo/polish` can now generate a baseline variant while persistence,
-rendering, headless batches, and editor behavior remain planned.
+`@auto-demo/polish` can now generate a baseline variant while persistence is
+handed to WES-153, and rendering, headless batches, and editor behavior remain
+planned.
 
 Update the Linear project map after completion with WES-152 evidence and set the
 next task pointer to WES-153 unless completion-gate evidence shows a safer
@@ -201,7 +202,8 @@ alternative.
 - Consistency: the design uses `@auto-demo/polish` for generation and
   `@auto-demo/project` for the WES-151 variant contract, matching existing
   package boundaries.
-- Scope: persistence, rendering, presets, CLI, and editor behavior are explicitly
-  deferred, so the work fits one implementation cycle.
+- Scope: persistence is explicitly deferred to WES-153; rendering, presets, CLI,
+  and editor behavior are also deferred, so the work fits one implementation
+  cycle.
 - Ambiguity: trimming, focus, zoom, warnings, defaults, and test behavior are
   concrete enough for behavior-first implementation.

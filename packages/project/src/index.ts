@@ -177,6 +177,7 @@ export type SavePolishVariantOptions = {
   now?: Date;
 };
 
+/** Result for saving a polish variant and revalidating the saved project. */
 export type SavePolishVariantResult = ProjectValidationResult;
 
 export type ProjectImportErrorCode =

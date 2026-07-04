@@ -644,15 +644,16 @@ The baseline generator uses conservative trim, focus, cursor, and click-emphasis
 rules so downstream persistence, rendering, and editor work can consume a stable
 first-pass variant.
 
-Planned work still owns saving generated variants, named style batches, rendered
-previews, exports, and editor controls.
+WES-153 owns saving generated variants through `@auto-demo/project`. Planned
+work still owns named style batches, rendered previews, exports, and editor
+controls.
 ```
 
 - [ ] **Step 2: Update root README status**
 
 Change the `## Status` paragraph to mention that `@auto-demo/polish` can
 generate a deterministic baseline variant from project event metadata, while
-persistence, render, and editor behavior remain planned.
+WES-153 owns persistence and render/editor behavior remain planned.
 
 - [ ] **Step 3: Update root README package list**
 

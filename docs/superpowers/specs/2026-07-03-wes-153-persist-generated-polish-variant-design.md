@@ -30,7 +30,7 @@ generation, browser editing, and export.
   saved project.
 - Validate saved variant files during `validateProject()` and `loadProject()`.
 - Return structured non-secret errors for duplicate ids, invalid variant data,
-  unsafe variant paths, missing variant files, and malformed variant files.
+  unsafe source paths, and missing, malformed, or mismatched variant files.
 - Preserve raw capture media and metadata bytes when saving variants.
 - Cover the full handoff flow: WES-149 import, WES-152 generation, save variant,
   reload, and validate.
@@ -67,9 +67,10 @@ that already live in `@auto-demo/project`.
 
 ### Option C: Manifest-Only Persistence
 
-The existing `saveProject()` can already save variants directly in the manifest.
-That is too narrow for WES-153 because the acceptance criteria require variant
-data under `variants/` and missing/invalid variant file validation.
+The existing `saveProject()` can validate and write manifest entries, but it
+does not create the derived saved-variant files. That is too narrow for WES-153
+because the acceptance criteria require variant data under `variants/` and
+missing/invalid variant file validation.
 
 ## Public API
 

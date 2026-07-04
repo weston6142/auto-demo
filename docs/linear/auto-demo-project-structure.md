@@ -222,6 +222,7 @@ capture-dir/
 - WES-151 verification: TDD red check failed on existing empty-only variants behavior; after implementation `npm --workspace @auto-demo/project test -- src/index.test.ts` passed with 47 tests, `npm --workspace @auto-demo/project run typecheck` passed, `npm --workspace @auto-demo/project run build` passed, `npm run validate` passed locally, and no-mistakes PR #11 passed GitHub CI `validate` on 2026-07-02.
 - WES-152: `@auto-demo/polish` now exports `generateBaselinePolishVariant(project, options)` and returns deterministic schema-valid baseline variants plus structured warnings from project-owned event metadata.
 - WES-152 verification: PR #12 merged to `develop` at 2026-07-02T21:45:23Z with merge commit `ea10e8c6`; GitHub CI `validate` succeeded on head `7452482c` before merge.
+- WES-153: `@auto-demo/project` now exports `savePolishVariant(project, variant, options)` to write `variants/<variant-id>.json`, append the matching manifest variant, update `updatedAt`, revalidate saved variant files, and preserve raw capture media and metadata; direct `saveProject()` calls with manifest variants require matching saved variant files to already exist.
 
 ## Update Rules
 

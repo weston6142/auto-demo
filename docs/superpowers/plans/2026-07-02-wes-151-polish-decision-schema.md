@@ -386,6 +386,9 @@ it("saves and reloads a project manifest with variants without requiring preview
 });
 ```
 
+WES-153 later changed the current project-file contract so manifest variants
+must also have matching saved files under `variants/<variant-id>.json`.
+
 - [ ] **Step 2: Run focused tests**
 
 Run:

@@ -98,7 +98,8 @@ missing manifest or project file error.
 
 `saveProject(project)` validates and atomically writes the manifest, then
 revalidates the saved project. It does not copy, delete, or repair referenced
-artifact files.
+artifact files. If the manifest includes variants, the corresponding
+`variants/<variant-id>.json` files must already exist and match the manifest.
 
 `savePolishVariant(project, variant, options)` validates one generated variant,
 writes `variants/<variant-id>.json`, appends the variant to
