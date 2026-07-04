@@ -172,6 +172,13 @@ export type ProjectValidationResult =
 /** Input for saving a project manifest and revalidating the project on disk. */
 export type SaveProjectInput = LoadedProject;
 
+/** Options for saving a generated polish variant into a project. */
+export type SavePolishVariantOptions = {
+  now?: Date;
+};
+
+export type SavePolishVariantResult = ProjectValidationResult;
+
 export type ProjectImportErrorCode =
   | ProjectValidationErrorCode
   | "invalid_capture_bundle"
@@ -463,6 +470,35 @@ export async function saveProject(project: SaveProjectInput): Promise<ProjectVal
   return validateProject(project.manifestPath);
 }
 
+/** Saves one generated polish variant into `variants/<id>.json` and the project manifest. */
+export async function savePolishVariant(
+  project: LoadedProject,
+  variant: ProjectVariant,
+  options: SavePolishVariantOptions = {},
+): Promise<SavePolishVariantResult> {
+  const updatedManifest: ProjectManifest = {
+    ...project.manifest,
+    variants: [...project.manifest.variants, variant],
+    updatedAt: (options.now ?? new Date()).toISOString(),
+  };
+  const manifestValidation = validateProjectManifest(updatedManifest);
+  if (!manifestValidation.ok) {
+    return projectFailure(project, manifestValidation.errors);
+  }
+
+  await mkdir(join(project.projectDir, "variants"), { recursive: true });
+  await writeJsonFileAtomically(
+    join(project.projectDir, variantFilePath(variant.id)),
+    manifestValidation.manifest.variants[manifestValidation.manifest.variants.length - 1],
+  );
+
+  return saveProject({
+    projectDir: project.projectDir,
+    manifestPath: project.manifestPath,
+    manifest: manifestValidation.manifest,
+  });
+}
+
 async function validateProjectImportTarget(
   input: CreateProjectFromCaptureBundleInput,
 ): Promise<ProjectImportError[]> {
@@ -697,7 +733,66 @@ async function validateReferencedProjectFiles(
     }
   }
 
+  errors.push(...(await validateSavedVariantFiles(projectDir, manifest)));
+
   return errors;
+}
+
+async function validateSavedVariantFiles(
+  projectDir: string,
+  manifest: ProjectManifest,
+): Promise<ProjectValidationError[]> {
+  const errors: ProjectValidationError[] = [];
+
+  for (const variant of manifest.variants) {
+    const path = variantFilePath(variant.id);
+    const fullPath = join(projectDir, path);
+
+    if (!(await isExistingFile(fullPath))) {
+      errors.push({
+        code: "missing_project_file",
+        message: `Auto Demo project file referenced by variants.${variant.id} is missing.`,
+      });
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readFile(fullPath, "utf8")) as unknown;
+    } catch {
+      errors.push(invalidSavedVariantFileError());
+      continue;
+    }
+
+    const variantValidation = validateProjectManifest({
+      ...manifest,
+      variants: [parsed],
+    });
+    if (!variantValidation.ok) {
+      errors.push(invalidSavedVariantFileError());
+      continue;
+    }
+
+    if (JSON.stringify(variantValidation.manifest.variants[0]) !== JSON.stringify(variant)) {
+      errors.push({
+        code: "invalid_project_manifest",
+        message: "Saved Auto Demo project variant file does not match the project manifest.",
+      });
+    }
+  }
+
+  return errors;
+}
+
+function invalidSavedVariantFileError(): ProjectValidationError {
+  return {
+    code: "invalid_project_manifest",
+    message: "Saved Auto Demo project variant file is invalid.",
+  };
+}
+
+function variantFilePath(variantId: string): string {
+  return join("variants", `${variantId}.json`);
 }
 
 async function isExistingFile(path: string): Promise<boolean> {

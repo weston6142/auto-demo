@@ -28,9 +28,10 @@ The project-owned capture summary is not a verbatim WES-147 capture manifest. It
 ## Variant Definitions
 
 Schema v1 project manifests may include MVP polish variant entries in
-`variants`. The project package validates the variant data model but does not
-generate polish decisions, render previews or exports, or add editor behavior.
-New imports still start with `variants: []`.
+`variants`. New imports still start with `variants: []`. The project package
+validates the variant data model and persists saved variant JSON files, but does
+not generate polish decisions, render previews or exports, or add editor
+behavior.
 
 Each variant must include a unique lowercase slug `id`, non-empty
 `displayName`, source paths that match the manifest's primary media and events
@@ -44,12 +45,26 @@ corner radius), and MP4 export intent (`demo` or `high` quality with `16:9`,
 `4:3`, or `9:16` aspect ratio). `previews` and `exports` remain empty arrays
 in schema v1.
 
+Saved variants are stored under a derived project-relative path:
+
+```text
+variants/<variant-id>.json
+```
+
+The file contains the same formatted `ProjectVariant` JSON object referenced in
+`autodemo.project.json`. The manifest remains the authoritative project index;
+the saved variant file is the durable handoff artifact for headless generation,
+browser editor, and export work. `validateProject()` and `loadProject()` require
+each manifest variant to have a matching saved file and report structured
+non-secret errors for missing, malformed, or mismatched variant files.
+
 ## API
 
 ```ts
 import {
   createProjectFromCaptureBundle,
   loadProject,
+  savePolishVariant,
   saveProject,
   validateProject,
   validateProjectManifest,
@@ -84,3 +99,11 @@ missing manifest or project file error.
 `saveProject(project)` validates and atomically writes the manifest, then
 revalidates the saved project. It does not copy, delete, or repair referenced
 artifact files.
+
+`savePolishVariant(project, variant, options)` validates one generated variant,
+writes `variants/<variant-id>.json`, appends the variant to
+`autodemo.project.json`, updates `updatedAt`, and revalidates the saved project.
+Duplicate ids, unsafe source paths, invalid variant decisions, missing saved
+variant files, and malformed or mismatched variant files are reported through
+structured validation errors. The API does not mutate raw capture media,
+metadata, previews, or exports.

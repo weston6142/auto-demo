@@ -1,8 +1,10 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  loadProject,
+  savePolishVariant,
   validateProjectManifest,
   type LoadedProject,
   type ProjectManifest,
@@ -106,6 +108,42 @@ describe("generateBaselinePolishVariant", () => {
       ok: true,
       manifest: { ...project.manifest, variants: [result.variant] },
     });
+  });
+
+  it("persists a generated baseline variant through the project API", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "capture_started", timestampMs: 0 },
+      {
+        id: "event-2",
+        sequence: 2,
+        type: "click",
+        timestampMs: 2000,
+        viewport: { width: 1280, height: 720 },
+        data: { x: 960, y: 360 },
+      },
+      { id: "event-3", sequence: 3, type: "capture_stopped", timestampMs: 6000 },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+
+    const saved = await savePolishVariant(project, variant, {
+      now: new Date("2026-07-03T12:00:00.000Z"),
+    });
+    const expectedManifest: ProjectManifest = {
+      ...project.manifest,
+      updatedAt: "2026-07-03T12:00:00.000Z",
+      variants: [variant],
+    };
+
+    expect(saved).toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: expectedManifest,
+    });
+    await expect(loadProject(project.projectDir)).resolves.toEqual(saved);
+    expect(
+      await readFile(join(project.projectDir, "variants", "baseline-polish.json"), "utf8"),
+    ).toBe(`${JSON.stringify(variant, null, 2)}\n`);
   });
 
   it("preserves duration and warns when no action events are present", async () => {
