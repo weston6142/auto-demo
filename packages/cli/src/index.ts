@@ -12,6 +12,11 @@ import {
   type CaptureStopReason,
   type CaptureViewport,
 } from "@auto-demo/capture";
+import {
+  generateHeadlessVariants,
+  type HeadlessVariantGenerationError,
+  type HeadlessVariantGenerationResult,
+} from "@auto-demo/polish";
 
 export type CliResult = {
   exitCode: number;
@@ -46,7 +51,18 @@ type ParsedCaptureCommand =
       message: string;
     };
 
-const plannedCommands = new Set(["init", "capture", "generate", "export", "open"]);
+type ParsedGenerateCommand = {
+  projectPath?: string;
+  dryRun: boolean;
+  json: boolean;
+  count?: number;
+  style?: string;
+  save: boolean;
+  mode?: string;
+  errors: HeadlessVariantGenerationError[];
+};
+
+const plannedCommands = new Set(["init", "capture", "export", "open"]);
 
 /** Runs synchronous CLI commands. Use `runCliAsync` for async commands. */
 export function runCli(args: string[]): CliResult {
@@ -76,6 +92,14 @@ export function runCli(args: string[]): CliResult {
     };
   }
 
+  if (command === "generate") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo generate requires async execution.\n",
+    };
+  }
+
   if (plannedCommands.has(command)) {
     return {
       exitCode: 1,
@@ -100,6 +124,10 @@ export async function runCliAsync(
 
   if (command === "validate") {
     return await runValidateCommand(rest);
+  }
+
+  if (command === "generate") {
+    return await runGenerateCommand(rest);
   }
 
   if (command !== "capture") {
@@ -190,6 +218,154 @@ async function runValidateCommand(args: string[]): Promise<CliResult> {
     exitCode: 0,
     stdout: `Capture bundle valid: ${result.manifestPath}\n`,
     stderr: "",
+  };
+}
+
+async function runGenerateCommand(args: string[]): Promise<CliResult> {
+  const parsed = parseGenerateCommand(args);
+
+  if (!parsed.json) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo generate currently requires --json output.\n",
+    };
+  }
+
+  if (parsed.errors.length > 0) {
+    const result = generateParseFailure(parsed);
+    return {
+      exitCode: 1,
+      stdout: `${JSON.stringify(result, null, 2)}\n`,
+      stderr: "",
+    };
+  }
+
+  const result = await generateHeadlessVariants({
+    projectPath: parsed.projectPath ?? "",
+    dryRun: parsed.dryRun,
+    json: parsed.json,
+    count: parsed.count,
+    style: parsed.style,
+    save: parsed.save,
+    mode: parsed.mode,
+  });
+
+  return {
+    exitCode: result.ok ? 0 : 1,
+    stdout: `${JSON.stringify(result, null, 2)}\n`,
+    stderr: "",
+  };
+}
+
+function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
+  let projectPath: string | undefined;
+  let dryRun = false;
+  let json = false;
+  let count: number | undefined;
+  let style: string | undefined;
+  let save = false;
+  let mode: string | undefined;
+  const errors: HeadlessVariantGenerationError[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--project") {
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        projectPath = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    if (arg === "--count") {
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        count = parseGenerateCount(value);
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--style") {
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        style = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--save") {
+      save = true;
+      continue;
+    }
+
+    errors.push({
+      code: "unknown_generate_argument",
+      message: `Unknown generate argument: ${arg}`,
+    });
+  }
+
+  return { projectPath, dryRun, json, count, style, save, mode, errors };
+}
+
+function parseGenerateOptionValue(
+  args: string[],
+  index: number,
+  option: string,
+  errors: HeadlessVariantGenerationError[],
+): string | undefined {
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    errors.push({
+      code: "unknown_generate_argument",
+      message: `Missing value for generate argument: ${option}`,
+    });
+    return undefined;
+  }
+
+  return value;
+}
+
+function parseGenerateCount(value: string | undefined): number {
+  if (value === "1") {
+    return 1;
+  }
+
+  if (value !== undefined && /^-?\d+$/.test(value)) {
+    const parsed = Number.parseInt(value, 10);
+    return value === String(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function generateParseFailure(parsed: ParsedGenerateCommand): HeadlessVariantGenerationResult {
+  return {
+    ok: false,
+    project: {
+      projectPath: parsed.projectPath ?? "",
+    },
+    requested: {
+      count: parsed.count ?? 1,
+      style: parsed.style ?? "baseline",
+      dryRun: parsed.dryRun,
+    },
+    variants: [],
+    errors: parsed.errors,
   };
 }
 

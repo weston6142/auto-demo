@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata. Render and editor behavior are still planned work.
+This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata and expose the first headless dry-run generation summary. Render and editor behavior are still planned work.
 
 ## Quick Start
 
@@ -25,10 +25,10 @@ npm run setup:browser
 
 ## Packages
 
-- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, and capture bundle validation.
+- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, and the first dry-run `generate` JSON contract.
 - `@auto-demo/project`: Auto Demo schema v1 project manifest types, strict validation with accumulated structured errors, MVP polish variant definition and saved-file validation, capture-bundle import into the normalized project layout, and project load/save/variant persistence APIs.
 - `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, interaction metadata JSONL capture, temporary capture manifest APIs, capture output paths, and unsupported-backend fallback.
-- `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata.
+- `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata and headless dry-run variant summaries.
 - `@auto-demo/render`: export and render orchestration boundary.
 - `@auto-demo/editor`: local browser editor package.
 - `@auto-demo/agent`: agent-facing workflow helpers.
@@ -38,7 +38,7 @@ npm run setup:browser
 ```bash
 autodemo init
 autodemo capture
-autodemo generate
+autodemo generate --project <project-dir-or-manifest> --dry-run --json
 autodemo export
 autodemo open
 autodemo validate <capture-dir-or-manifest>
@@ -85,6 +85,14 @@ project-dir/
 ```
 
 The project importer validates the source bundle, copies supported artifacts into project-owned paths, writes a sanitized capture summary to `metadata/capture.manifest.json`, and leaves the original capture bundle unchanged. Project package APIs can also validate or load a project directory or direct `autodemo.project.json` path, report missing manifests, invalid JSON, schema errors, and missing referenced files with structured non-secret errors, save formatted manifests atomically before revalidating the saved project, and persist generated polish variants as `variants/<variant-id>.json` files indexed by the project manifest.
+
+Headless generation currently supports the first dry-run contract:
+
+```bash
+autodemo generate --project <project-dir-or-manifest> --dry-run --json
+```
+
+The command loads a valid Auto Demo project, generates one deterministic `baseline` variant summary, and prints machine-readable JSON with the generated id, display name, project source references, dry-run save status, validation errors, and non-secret warnings. WES-154 intentionally supports only `--count 1`, `--style baseline`, `--dry-run`, and `--json`. Named style batches, selected/all save modes, run summary files, rendering, and exports remain planned follow-up work.
 
 Other planned commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
 

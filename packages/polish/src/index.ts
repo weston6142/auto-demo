@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { LoadedProject, ProjectVariant } from "@auto-demo/project";
+import {
+  loadProject,
+  type LoadedProject,
+  type ProjectValidationErrorCode,
+  type ProjectVariant,
+} from "@auto-demo/project";
 
 export type PolishPackageRole = "edit-decision-generation";
 
@@ -34,6 +39,82 @@ export type BaselinePolishResult = {
   variant: ProjectVariant;
   warnings: PolishWarning[];
 };
+
+/** Supported first-pass headless generation inputs. */
+export type HeadlessVariantGenerationOptions = {
+  projectPath: string;
+  dryRun?: boolean;
+  json?: boolean;
+  count?: number;
+  style?: string;
+  save?: boolean;
+  mode?: string;
+};
+
+export type HeadlessVariantGenerationErrorCode =
+  | "missing_project_path"
+  | "unsupported_output_mode"
+  | "unsupported_save_mode"
+  | "unsupported_variant_count"
+  | "unsupported_style"
+  | "unknown_generate_argument"
+  | "invalid_project";
+
+/** Structured non-secret error for the headless generation contract. */
+export type HeadlessVariantGenerationError = {
+  code: HeadlessVariantGenerationErrorCode;
+  message: string;
+  projectErrorCode?: ProjectValidationErrorCode;
+};
+
+export type HeadlessVariantSaveStatus = {
+  mode: "dry-run";
+  saved: false;
+};
+
+export type HeadlessVariantSummary = {
+  id: string;
+  displayName: string;
+  style: "baseline";
+  source: {
+    projectPath: string;
+    manifestPath: string;
+    mediaPath: string;
+    eventsPath: string;
+  };
+  save: HeadlessVariantSaveStatus;
+  warnings: PolishWarning[];
+};
+
+export type HeadlessVariantGenerationResult =
+  | {
+      ok: true;
+      project: {
+        projectDir: string;
+        manifestPath: string;
+        name: string;
+      };
+      requested: {
+        count: 1;
+        style: "baseline";
+        dryRun: true;
+      };
+      variants: HeadlessVariantSummary[];
+      errors: [];
+    }
+  | {
+      ok: false;
+      project: {
+        projectPath: string;
+      };
+      requested: {
+        count: number;
+        style: string;
+        dryRun: boolean;
+      };
+      variants: [];
+      errors: HeadlessVariantGenerationError[];
+    };
 
 type CaptureEventRecord = {
   type: string;
@@ -124,6 +205,138 @@ export async function generateBaselinePolishVariant(
   };
 
   return { variant, warnings: uniqueWarnings(warnings) };
+}
+
+/** Generates the first headless dry-run variant summary for a valid Auto Demo project. */
+export async function generateHeadlessVariants(
+  options: HeadlessVariantGenerationOptions,
+): Promise<HeadlessVariantGenerationResult> {
+  const requested = normalizeHeadlessRequest(options);
+  const validationErrors = validateHeadlessOptions(options, requested);
+
+  if (validationErrors.length > 0) {
+    return headlessFailure(options.projectPath, requested, validationErrors);
+  }
+
+  const loadedProject = await loadProject(options.projectPath);
+  if (!loadedProject.ok) {
+    return headlessFailure(
+      options.projectPath,
+      requested,
+      loadedProject.errors.map((error) => ({
+        code: "invalid_project",
+        projectErrorCode: error.code,
+        message: error.message,
+      })),
+    );
+  }
+
+  const baseline = await generateBaselinePolishVariant(loadedProject);
+
+  return {
+    ok: true,
+    project: {
+      projectDir: loadedProject.projectDir,
+      manifestPath: loadedProject.manifestPath,
+      name: loadedProject.manifest.name,
+    },
+    requested: {
+      count: 1,
+      style: "baseline",
+      dryRun: true,
+    },
+    variants: [
+      {
+        id: baseline.variant.id,
+        displayName: baseline.variant.displayName,
+        style: "baseline",
+        source: {
+          projectPath: loadedProject.projectDir,
+          manifestPath: loadedProject.manifestPath,
+          mediaPath: baseline.variant.source.mediaPath,
+          eventsPath: baseline.variant.source.eventsPath,
+        },
+        save: {
+          mode: "dry-run",
+          saved: false,
+        },
+        warnings: baseline.warnings,
+      },
+    ],
+    errors: [],
+  };
+}
+
+function normalizeHeadlessRequest(options: HeadlessVariantGenerationOptions): {
+  count: number;
+  style: string;
+  dryRun: boolean;
+} {
+  return {
+    count: options.count ?? 1,
+    style: options.style ?? "baseline",
+    dryRun: options.dryRun ?? false,
+  };
+}
+
+function validateHeadlessOptions(
+  options: HeadlessVariantGenerationOptions,
+  requested: { count: number; style: string; dryRun: boolean },
+): HeadlessVariantGenerationError[] {
+  const errors: HeadlessVariantGenerationError[] = [];
+
+  if (options.projectPath.trim().length === 0) {
+    errors.push({
+      code: "missing_project_path",
+      message: "autodemo generate requires --project <project-dir-or-manifest>.",
+    });
+  }
+
+  if (options.json !== true) {
+    errors.push({
+      code: "unsupported_output_mode",
+      message: "autodemo generate currently requires --json output.",
+    });
+  }
+
+  if (requested.dryRun !== true || options.save === true || options.mode === "save") {
+    errors.push({
+      code: "unsupported_save_mode",
+      message: "autodemo generate currently supports dry-run output only.",
+    });
+  }
+
+  if (requested.count !== 1) {
+    errors.push({
+      code: "unsupported_variant_count",
+      message: "autodemo generate currently supports --count 1 only.",
+    });
+  }
+
+  if (requested.style !== "baseline") {
+    errors.push({
+      code: "unsupported_style",
+      message: "autodemo generate currently supports --style baseline only.",
+    });
+  }
+
+  return errors;
+}
+
+function headlessFailure(
+  projectPath: string,
+  requested: { count: number; style: string; dryRun: boolean },
+  errors: HeadlessVariantGenerationError[],
+): HeadlessVariantGenerationResult {
+  return {
+    ok: false,
+    project: {
+      projectPath,
+    },
+    requested,
+    variants: [],
+    errors,
+  };
 }
 
 async function readProjectEvents(
