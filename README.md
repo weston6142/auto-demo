@@ -38,7 +38,7 @@ npm run setup:browser
 ```bash
 autodemo init
 autodemo capture
-autodemo generate --project <project-dir-or-manifest> --dry-run --json
+autodemo generate --project <project-dir-or-manifest> --dry-run --json [--styles baseline] [--source-variant baseline-polish]
 autodemo export
 autodemo open
 autodemo validate <capture-dir-or-manifest>
@@ -86,7 +86,7 @@ project-dir/
 
 The project importer validates the source bundle, copies supported artifacts into project-owned paths, writes a sanitized capture summary to `metadata/capture.manifest.json`, and leaves the original capture bundle unchanged. Project package APIs can also validate or load a project directory or direct `autodemo.project.json` path, report missing manifests, invalid JSON, schema errors, and missing referenced files with structured non-secret errors, save formatted manifests atomically before revalidating the saved project, and persist generated polish variants as `variants/<variant-id>.json` files indexed by the project manifest.
 
-Headless generation currently supports the first dry-run contract:
+Headless generation currently supports the baseline-only dry-run batch contract:
 
 ```bash
 autodemo generate --project <project-dir-or-manifest> --dry-run --json [--styles baseline] [--source-variant baseline-polish]

@@ -51,8 +51,8 @@ approved preset with stable key `baseline` and display name `Baseline Polish`,
 giving WES-155 and browser-editor planning a shared source of truth without
 introducing themed visual behavior before rendering/editor validation exists.
 Unsupported style keys, duplicate style requests, counts that do not match the
-resolved style list, missing source variants, save modes, non-JSON output, and
-invalid project input return structured non-secret errors.
+baseline-only MVP batch size, missing source variants, save modes, non-JSON
+output, and invalid project input return structured non-secret errors.
 
 The baseline generator returns a variant object only. Persisting that variant is
 owned by `@auto-demo/project` through `savePolishVariant()`, which writes

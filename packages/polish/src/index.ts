@@ -54,14 +54,17 @@ export type BaselinePolishResult = {
   warnings: PolishWarning[];
 };
 
-/** Supported first-pass headless generation inputs. */
+/** Supported baseline-only headless batch generation inputs. */
 export type HeadlessVariantGenerationOptions = {
   projectPath: string;
   dryRun?: boolean;
   json?: boolean;
   count?: number;
+  /** Backwards-compatible single style key; use `styles` for batch-shaped requests. */
   style?: string;
+  /** Requested MVP style keys. Defaults to all approved MVP presets, currently `baseline`. */
   styles?: string[];
+  /** Persisted project variant used as the batch source. Defaults to `baseline-polish`. */
   sourceVariantId?: string;
   save?: boolean;
   mode?: string;
@@ -91,6 +94,7 @@ export type HeadlessVariantSaveStatus = {
   saved: false;
 };
 
+/** JSON-ready dry-run summary for one generated batch entry. */
 export type HeadlessVariantSummary = {
   id: string;
   displayName: string;
@@ -236,7 +240,7 @@ export async function generateBaselinePolishVariant(
   return { variant, warnings: uniqueWarnings(warnings) };
 }
 
-/** Generates the first headless dry-run variant summary for a valid Auto Demo project. */
+/** Generates deterministic baseline-only dry-run batch summaries for a valid Auto Demo project. */
 export async function generateHeadlessVariants(
   options: HeadlessVariantGenerationOptions,
 ): Promise<HeadlessVariantGenerationResult> {
