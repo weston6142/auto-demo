@@ -56,11 +56,14 @@ async function createValidCaptureBundle(): Promise<string> {
   return outputDir;
 }
 
-async function createValidProject(): Promise<string> {
+async function createValidProject(
+  options: { sourceVariantId?: string; sourceVariantDisplayName?: string } = {},
+): Promise<string> {
   const projectDir = join(tmpdir(), `auto-demo-cli-generate-${randomUUID()}`);
+  const sourceVariantId = options.sourceVariantId ?? "baseline-polish";
   const baselineVariant = {
-    id: "baseline-polish",
-    displayName: "Baseline Polish",
+    id: sourceVariantId,
+    displayName: options.sourceVariantDisplayName ?? "Baseline Polish",
     source: { mediaPath: "raw/capture.webm", eventsPath: "metadata/events.jsonl" },
     timeline: { startMs: 1500, endMs: 2750 },
     viewport: { mode: "contain", focus: { x: 0.75, y: 0.5 }, zoom: 1.35 },
@@ -132,7 +135,7 @@ async function createValidProject(): Promise<string> {
     )}\n`,
   );
   await writeFile(
-    join(projectDir, "variants", "baseline-polish.json"),
+    join(projectDir, "variants", `${sourceVariantId}.json`),
     `${JSON.stringify(baselineVariant, null, 2)}\n`,
   );
   return projectDir;
@@ -167,6 +170,145 @@ describe("runCli", () => {
 });
 
 describe("runCliAsync generate", () => {
+  it("prints selected save summary as JSON", async () => {
+    const projectDir = await createValidProject({
+      sourceVariantId: "source-baseline",
+      sourceVariantDisplayName: "Source Baseline",
+    });
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--json",
+      "--source-variant",
+      "source-baseline",
+      "--save",
+      "baseline-polish",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      summary: {
+        mode: string;
+        saved: Array<{ id: string; path: string }>;
+        validation: { ok: boolean };
+      };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.summary).toMatchObject({
+      mode: "selected",
+      saved: [{ id: "baseline-polish", path: "variants/baseline-polish.json" }],
+      validation: { ok: true },
+    });
+  });
+
+  it("prints save-all summary as JSON", async () => {
+    const projectDir = await createValidProject({
+      sourceVariantId: "source-baseline",
+      sourceVariantDisplayName: "Source Baseline",
+    });
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--json",
+      "--source-variant",
+      "source-baseline",
+      "--save",
+      "all",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      summary: { mode: string; saved: Array<{ id: string; path: string }> };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.summary.mode).toBe("all");
+    expect(output.summary.saved).toEqual([
+      { id: "baseline-polish", path: "variants/baseline-polish.json" },
+    ]);
+  });
+
+  it("returns a structured duplicate error when the generated variant already exists", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--json",
+      "--save",
+      "baseline-polish",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "duplicate_variant_id",
+      message: expect.any(String),
+    });
+  });
+
+  it("returns a structured JSON error when dry-run is combined with save", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--dry-run",
+      "--json",
+      "--save",
+      "baseline-polish",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "unsupported_save_mode",
+      message: expect.any(String),
+    });
+  });
+
+  it("returns structured JSON errors for repeated save arguments", async () => {
+    const projectDir = await createValidProject({
+      sourceVariantId: "source-baseline",
+      sourceVariantDisplayName: "Source Baseline",
+    });
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--json",
+      "--source-variant",
+      "source-baseline",
+      "--save",
+      "all",
+      "--save",
+      "baseline-polish",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "unknown_generate_argument",
+      message: expect.any(String),
+    });
+  });
+
   it("prints a dry-run baseline summary as JSON", async () => {
     const projectDir = await createValidProject();
 

@@ -61,6 +61,7 @@ type ParsedGenerateCommand = {
   sourceVariantId?: string;
   save: boolean;
   mode?: string;
+  selectedVariantId?: string;
   errors: HeadlessVariantGenerationError[];
 };
 
@@ -253,6 +254,7 @@ async function runGenerateCommand(args: string[]): Promise<CliResult> {
     sourceVariantId: parsed.sourceVariantId,
     save: parsed.save,
     mode: parsed.mode,
+    selectedVariantId: parsed.selectedVariantId,
   });
 
   return {
@@ -271,7 +273,9 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
   let styles: string[] | undefined;
   let sourceVariantId: string | undefined;
   let save = false;
+  let saveSeen = false;
   let mode: string | undefined;
+  let selectedVariantId: string | undefined;
   const errors: HeadlessVariantGenerationError[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -333,7 +337,24 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
     }
 
     if (arg === "--save") {
-      save = true;
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        if (saveSeen) {
+          errors.push({
+            code: "unknown_generate_argument",
+            message: "Generate argument --save may only be used once.",
+          });
+        } else {
+          saveSeen = true;
+          save = true;
+          if (value === "all") {
+            mode = "all";
+          } else {
+            selectedVariantId = value;
+          }
+        }
+        index += 1;
+      }
       continue;
     }
 
@@ -343,7 +364,19 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
     });
   }
 
-  return { projectPath, dryRun, json, count, style, styles, sourceVariantId, save, mode, errors };
+  return {
+    projectPath,
+    dryRun,
+    json,
+    count,
+    style,
+    styles,
+    sourceVariantId,
+    save,
+    mode,
+    selectedVariantId,
+    errors,
+  };
 }
 
 function parseGenerateOptionValue(

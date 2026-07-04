@@ -108,3 +108,7 @@ Duplicate ids, unsafe source paths, invalid variant decisions, missing saved
 variant files, and malformed or mismatched variant files are reported through
 structured validation errors. The API does not mutate raw capture media,
 metadata, previews, or exports.
+
+Headless generation save mode in `@auto-demo/polish` and `autodemo generate`
+uses this API for selected and save-all requests, so saved variants are durable
+project files while raw capture artifacts remain immutable.
