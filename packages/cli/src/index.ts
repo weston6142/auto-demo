@@ -273,6 +273,7 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
   let styles: string[] | undefined;
   let sourceVariantId: string | undefined;
   let save = false;
+  let saveSeen = false;
   let mode: string | undefined;
   let selectedVariantId: string | undefined;
   const errors: HeadlessVariantGenerationError[] = [];
@@ -338,11 +339,19 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
     if (arg === "--save") {
       const value = parseGenerateOptionValue(args, index, arg, errors);
       if (value !== undefined) {
-        save = true;
-        if (value === "all") {
-          mode = "all";
+        if (saveSeen) {
+          errors.push({
+            code: "unknown_generate_argument",
+            message: "Generate argument --save may only be used once.",
+          });
         } else {
-          selectedVariantId = value;
+          saveSeen = true;
+          save = true;
+          if (value === "all") {
+            mode = "all";
+          } else {
+            selectedVariantId = value;
+          }
         }
         index += 1;
       }

@@ -448,6 +448,35 @@ describe("generateHeadlessVariants", () => {
     });
   });
 
+  it("rejects explicit save requests without a selected or all target", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, {
+      ...variant,
+      id: "source-baseline",
+      displayName: "Source Baseline",
+    });
+
+    const result = await generateHeadlessVariants({
+      projectPath: project.projectDir,
+      json: true,
+      styles: ["baseline"],
+      sourceVariantId: "source-baseline",
+      save: true,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContainEqual({
+      code: "unsupported_save_mode",
+      message: expect.any(String),
+    });
+    await expect(
+      stat(join(project.projectDir, "variants", "baseline-polish.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("returns a dry-run baseline summary without saving files", async () => {
     const project = await writeLoadedProject([
       {

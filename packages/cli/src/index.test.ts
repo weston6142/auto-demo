@@ -280,6 +280,35 @@ describe("runCliAsync generate", () => {
     });
   });
 
+  it("returns structured JSON errors for repeated save arguments", async () => {
+    const projectDir = await createValidProject({
+      sourceVariantId: "source-baseline",
+      sourceVariantDisplayName: "Source Baseline",
+    });
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--json",
+      "--source-variant",
+      "source-baseline",
+      "--save",
+      "all",
+      "--save",
+      "baseline-polish",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "unknown_generate_argument",
+      message: expect.any(String),
+    });
+  });
+
   it("prints a dry-run baseline summary as JSON", async () => {
     const projectDir = await createValidProject();
 

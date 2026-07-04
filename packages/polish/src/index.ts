@@ -425,6 +425,7 @@ function validateHeadlessOptions(
   if (
     (requested.dryRun !== true && options.save !== true) ||
     (requested.dryRun === true && options.save === true) ||
+    (options.save === true && options.mode !== "all" && options.selectedVariantId === undefined) ||
     (options.mode !== undefined && options.mode !== "all")
   ) {
     errors.push({
