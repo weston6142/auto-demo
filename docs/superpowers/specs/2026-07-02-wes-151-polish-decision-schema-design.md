@@ -192,7 +192,8 @@ Tests stay behavior-oriented:
 - Invalid timeline ranges and out-of-bounds caption/callout ranges are rejected.
 - Invalid style/export literals are rejected.
 - A saved project with variants round-trips through `saveProject()` and
-  `validateProject()` without requiring preview/export files.
+  `validateProject()` without requiring preview/export files. WES-153 later
+  added the saved-variant file requirement for manifest variants.
 
 Tests should not assert private helper names or parsing order.
 

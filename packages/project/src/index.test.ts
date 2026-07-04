@@ -7,6 +7,7 @@ import {
   SUPPORTED_PROJECT_SCHEMA_VERSION,
   createProjectFromCaptureBundle,
   loadProject,
+  savePolishVariant,
   saveProject,
   validateProject,
   validateProjectManifest,
@@ -608,7 +609,7 @@ describe("project filesystem APIs", () => {
     );
   });
 
-  it("saves and reloads a project manifest with variants without requiring preview or export files", async () => {
+  it("reports missing variant files when saveProject writes a manifest with variants directly", async () => {
     const project = await importValidProject("auto-demo-project-variant-save-");
     const manifestWithVariant: ProjectManifest = {
       ...project.manifest,
@@ -623,12 +624,221 @@ describe("project filesystem APIs", () => {
     });
 
     expect(saved).toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "missing_project_file",
+          message: "Auto Demo project file referenced by variants.checkout-focused is missing.",
+        },
+      ],
+    });
+    expect(await readFile(project.manifestPath, "utf8")).toBe(
+      `${JSON.stringify(manifestWithVariant, null, 2)}\n`,
+    );
+  });
+
+  it("saves a polish variant file, updates the manifest, reloads, and preserves capture artifacts", async () => {
+    const project = await importValidProject("auto-demo-project-polish-save-");
+    const beforeMedia = await readFile(join(project.projectDir, "raw", "capture.webm"), "utf8");
+    const beforeEvents = await readFile(
+      join(project.projectDir, "metadata", "events.jsonl"),
+      "utf8",
+    );
+
+    const saved = await savePolishVariant(
+      {
+        projectDir: project.projectDir,
+        manifestPath: project.manifestPath,
+        manifest: project.manifest,
+      },
+      validVariant,
+      { now: new Date("2026-07-03T12:00:00.000Z") },
+    );
+    const expectedManifest: ProjectManifest = {
+      ...project.manifest,
+      variants: [validVariant],
+      updatedAt: "2026-07-03T12:00:00.000Z",
+    };
+
+    expect(saved).toEqual({
       ok: true,
       projectDir: project.projectDir,
       manifestPath: project.manifestPath,
-      manifest: manifestWithVariant,
+      manifest: expectedManifest,
     });
     await expect(loadProject(project.projectDir)).resolves.toEqual(saved);
+    expect(
+      await readFile(join(project.projectDir, "variants", "checkout-focused.json"), "utf8"),
+    ).toBe(`${JSON.stringify(validVariant, null, 2)}\n`);
+    expect(await readFile(join(project.projectDir, "raw", "capture.webm"), "utf8")).toBe(
+      beforeMedia,
+    );
+    expect(await readFile(join(project.projectDir, "metadata", "events.jsonl"), "utf8")).toBe(
+      beforeEvents,
+    );
+  });
+
+  it("rejects duplicate polish variant ids without overwriting existing files", async () => {
+    const project = await importValidProject("auto-demo-project-polish-duplicate-");
+    const firstSave = await savePolishVariant(
+      {
+        projectDir: project.projectDir,
+        manifestPath: project.manifestPath,
+        manifest: project.manifest,
+      },
+      validVariant,
+      { now: new Date("2026-07-03T12:00:00.000Z") },
+    );
+    if (!firstSave.ok) {
+      throw new Error("Expected first variant save to succeed");
+    }
+    const variantPath = join(project.projectDir, "variants", "checkout-focused.json");
+    const beforeVariantFile = await readFile(variantPath, "utf8");
+    const beforeManifestFile = await readFile(project.manifestPath, "utf8");
+
+    await expect(
+      savePolishVariant(firstSave, { ...validVariant, displayName: "Duplicate" }),
+    ).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Auto Demo project variant ids must be unique lowercase slugs.",
+        },
+      ],
+    });
+
+    expect(await readFile(variantPath, "utf8")).toBe(beforeVariantFile);
+    expect(await readFile(project.manifestPath, "utf8")).toBe(beforeManifestFile);
+  });
+
+  it("rejects invalid polish variant data before writing a variant file", async () => {
+    const project = await importValidProject("auto-demo-project-polish-invalid-");
+    const unsafeVariant: ProjectVariant = {
+      ...validVariant,
+      id: "unsafe-source",
+      source: {
+        mediaPath: "../capture.webm",
+        eventsPath: "metadata/events.jsonl",
+      },
+    };
+
+    await expect(
+      savePolishVariant(
+        {
+          projectDir: project.projectDir,
+          manifestPath: project.manifestPath,
+          manifest: project.manifest,
+        },
+        unsafeVariant,
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "unsafe_project_path",
+          message: "Project variant source paths must be relative paths inside the project.",
+        },
+      ],
+    });
+    await expect(
+      stat(join(project.projectDir, "variants", "unsafe-source.json")),
+    ).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("reports a missing saved polish variant file during project validation", async () => {
+    const project = await importValidProject("auto-demo-project-polish-missing-file-");
+    const saved = await savePolishVariant(
+      {
+        projectDir: project.projectDir,
+        manifestPath: project.manifestPath,
+        manifest: project.manifest,
+      },
+      validVariant,
+    );
+    if (!saved.ok) {
+      throw new Error("Expected variant save to succeed");
+    }
+    await rm(join(project.projectDir, "variants", "checkout-focused.json"));
+
+    await expect(validateProject(project.projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "missing_project_file",
+          message: "Auto Demo project file referenced by variants.checkout-focused is missing.",
+        },
+      ],
+    });
+  });
+
+  it("reports invalid saved polish variant JSON during project validation", async () => {
+    const project = await importValidProject("auto-demo-project-polish-invalid-json-");
+    const saved = await savePolishVariant(
+      {
+        projectDir: project.projectDir,
+        manifestPath: project.manifestPath,
+        manifest: project.manifest,
+      },
+      validVariant,
+    );
+    if (!saved.ok) {
+      throw new Error("Expected variant save to succeed");
+    }
+    await writeFile(join(project.projectDir, "variants", "checkout-focused.json"), "{not-json");
+
+    await expect(validateProject(project.projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Saved Auto Demo project variant file is invalid.",
+        },
+      ],
+    });
+  });
+
+  it("reports mismatched saved polish variant JSON during project validation", async () => {
+    const project = await importValidProject("auto-demo-project-polish-mismatch-");
+    const saved = await savePolishVariant(
+      {
+        projectDir: project.projectDir,
+        manifestPath: project.manifestPath,
+        manifest: project.manifest,
+      },
+      validVariant,
+    );
+    if (!saved.ok) {
+      throw new Error("Expected variant save to succeed");
+    }
+    await writeFile(
+      join(project.projectDir, "variants", "checkout-focused.json"),
+      `${JSON.stringify({ ...validVariant, displayName: "Changed Outside Manifest" }, null, 2)}\n`,
+    );
+
+    await expect(validateProject(project.projectDir)).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Saved Auto Demo project variant file does not match the project manifest.",
+        },
+      ],
+    });
   });
 
   it("does not overwrite the project manifest when save input is invalid", async () => {
