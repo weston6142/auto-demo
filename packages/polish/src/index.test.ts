@@ -326,6 +326,10 @@ describe("generateHeadlessVariants", () => {
         data: { x: 960, y: 360 },
       },
     ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, variant, {
+      now: new Date("2026-07-04T12:30:00.000Z"),
+    });
 
     const result = await generateHeadlessVariants({
       projectPath: project.projectDir,
@@ -342,7 +346,12 @@ describe("generateHeadlessVariants", () => {
       manifestPath: project.manifestPath,
       name: "Checkout flow demo",
     });
-    expect(result.requested).toEqual({ count: 1, style: "baseline", dryRun: true });
+    expect(result.requested).toEqual({
+      count: 1,
+      styles: ["baseline"],
+      dryRun: true,
+      sourceVariantId: "baseline-polish",
+    });
     expect(result.variants).toEqual([
       {
         id: "baseline-polish",
@@ -353,6 +362,14 @@ describe("generateHeadlessVariants", () => {
           manifestPath: project.manifestPath,
           mediaPath: "raw/capture.webm",
           eventsPath: "metadata/events.jsonl",
+          variantId: "baseline-polish",
+        },
+        metadata: {
+          presetKey: "baseline",
+          presetDisplayName: "Baseline Polish",
+          batchIndex: 0,
+          batchSize: 1,
+          sourceVariantId: "baseline-polish",
         },
         save: { mode: "dry-run", saved: false },
         warnings: [],
@@ -360,16 +377,47 @@ describe("generateHeadlessVariants", () => {
     ]);
     expect(result.errors).toEqual([]);
     await expect(
-      stat(join(project.projectDir, "variants", "baseline-polish.json")),
+      stat(join(project.projectDir, "variants", "baseline-polish-1.json")),
     ).rejects.toMatchObject({
       code: "ENOENT",
     });
+  });
+
+  it("returns identical named batch summaries for identical inputs", async () => {
+    const project = await writeLoadedProject([
+      {
+        id: "event-1",
+        sequence: 1,
+        type: "click",
+        timestampMs: 2000,
+        viewport: { width: 1280, height: 720 },
+        data: { x: 960, y: 360 },
+      },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, variant, {
+      now: new Date("2026-07-04T12:30:00.000Z"),
+    });
+
+    const options = {
+      projectPath: project.projectDir,
+      dryRun: true,
+      json: true,
+      styles: ["baseline"],
+      sourceVariantId: "baseline-polish",
+    };
+
+    await expect(generateHeadlessVariants(options)).resolves.toEqual(
+      await generateHeadlessVariants(options),
+    );
   });
 
   it("returns structured errors for unsupported headless options", async () => {
     const project = await writeLoadedProject([
       { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
     ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, variant);
 
     await expect(
       generateHeadlessVariants({
@@ -393,6 +441,80 @@ describe("generateHeadlessVariants", () => {
     ).resolves.toMatchObject({
       ok: false,
       errors: [{ code: "unsupported_style" }],
+    });
+  });
+
+  it("returns structured errors for invalid named batch requests", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, variant);
+
+    await expect(
+      generateHeadlessVariants({
+        projectPath: project.projectDir,
+        dryRun: true,
+        json: true,
+        style: "baseline",
+        styles: ["baseline"],
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      errors: [{ code: "conflicting_style_options" }],
+    });
+
+    await expect(
+      generateHeadlessVariants({
+        projectPath: project.projectDir,
+        dryRun: true,
+        json: true,
+        styles: ["baseline", "baseline"],
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+    });
+    const duplicateResult = await generateHeadlessVariants({
+      projectPath: project.projectDir,
+      dryRun: true,
+      json: true,
+      styles: ["baseline", "baseline"],
+    });
+    expect(duplicateResult.errors).toContainEqual({
+      code: "duplicate_style",
+      message: expect.any(String),
+    });
+
+    await expect(
+      generateHeadlessVariants({
+        projectPath: project.projectDir,
+        dryRun: true,
+        json: true,
+        styles: ["baseline"],
+        count: 2,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      errors: [{ code: "unsupported_variant_count" }],
+    });
+  });
+
+  it("returns a structured error when the source variant is missing", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+
+    await expect(
+      generateHeadlessVariants({
+        projectPath: project.projectDir,
+        dryRun: true,
+        json: true,
+        styles: ["baseline"],
+        sourceVariantId: "baseline-polish",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      errors: [{ code: "missing_source_variant" }],
     });
   });
 

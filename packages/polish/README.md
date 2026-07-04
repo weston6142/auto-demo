@@ -6,10 +6,10 @@ The package currently exposes `generateBaselinePolishVariant(project, options)`,
 which reads a validated Auto Demo project's `metadata/events.jsonl` file and
 returns one deterministic schema v1 project variant plus structured warnings.
 It also exposes the baseline-only `MVP_STYLE_PRESETS` contract and
-`generateHeadlessVariants(options)` for the first headless dry-run generation
-contract used by `autodemo generate`. The baseline generator uses conservative
-trim, focus, cursor, and click-emphasis rules so downstream persistence,
-rendering, and editor work can consume a stable first-pass variant.
+`generateHeadlessVariants(options)` for the headless dry-run generation contract
+used by `autodemo generate`. The baseline generator uses conservative trim,
+focus, cursor, and click-emphasis rules so downstream persistence, rendering,
+and editor work can consume a stable first-pass variant.
 
 ```ts
 import { loadProject } from "@auto-demo/project";
@@ -32,7 +32,8 @@ if (project.ok) {
 ```
 
 Headless generation accepts a project path and returns a compact JSON-ready
-summary without saving files:
+batch summary without saving files. The project must already contain the source
+variant in `autodemo.project.json` and `variants/baseline-polish.json`.
 
 ```ts
 const summary = await generateHeadlessVariants({
@@ -40,7 +41,8 @@ const summary = await generateHeadlessVariants({
   dryRun: true,
   json: true,
   count: 1,
-  style: MVP_STYLE_PRESETS[0].key,
+  styles: [MVP_STYLE_PRESETS[0].key],
+  sourceVariantId: "baseline-polish",
 });
 ```
 
@@ -48,7 +50,8 @@ The WES-166 MVP preset decision is baseline-only. `MVP_STYLE_PRESETS` exports on
 approved preset with stable key `baseline` and display name `Baseline Polish`,
 giving WES-155 and browser-editor planning a shared source of truth without
 introducing themed visual behavior before rendering/editor validation exists.
-Unsupported style keys, counts other than `1`, save modes, non-JSON output, and
+Unsupported style keys, duplicate style requests, counts that do not match the
+resolved style list, missing source variants, save modes, non-JSON output, and
 invalid project input return structured non-secret errors.
 
 The baseline generator returns a variant object only. Persisting that variant is
@@ -63,5 +66,5 @@ event files, malformed JSONL lines, missing action events, missing usable click
 coordinates, and failed or interrupted source captures without echoing raw event
 payloads, URLs, typed values, or local paths.
 
-Planned work still owns named style batches, selected/all save modes, rendered
-previews, exports, and editor controls.
+Planned work still owns selected/all save modes, run summary files, rendered
+previews, exports, additional themed presets, and editor controls.

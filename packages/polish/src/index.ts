@@ -61,6 +61,8 @@ export type HeadlessVariantGenerationOptions = {
   json?: boolean;
   count?: number;
   style?: string;
+  styles?: string[];
+  sourceVariantId?: string;
   save?: boolean;
   mode?: string;
 };
@@ -71,6 +73,9 @@ export type HeadlessVariantGenerationErrorCode =
   | "unsupported_save_mode"
   | "unsupported_variant_count"
   | "unsupported_style"
+  | "conflicting_style_options"
+  | "duplicate_style"
+  | "missing_source_variant"
   | "unknown_generate_argument"
   | "invalid_project";
 
@@ -95,6 +100,14 @@ export type HeadlessVariantSummary = {
     manifestPath: string;
     mediaPath: string;
     eventsPath: string;
+    variantId: string;
+  };
+  metadata: {
+    presetKey: MvpStylePresetKey;
+    presetDisplayName: MvpStylePreset["displayName"];
+    batchIndex: number;
+    batchSize: number;
+    sourceVariantId: string;
   };
   save: HeadlessVariantSaveStatus;
   warnings: PolishWarning[];
@@ -110,8 +123,9 @@ export type HeadlessVariantGenerationResult =
       };
       requested: {
         count: 1;
-        style: "baseline";
+        styles: ["baseline"];
         dryRun: true;
+        sourceVariantId: string;
       };
       variants: HeadlessVariantSummary[];
       errors: [];
@@ -123,8 +137,9 @@ export type HeadlessVariantGenerationResult =
       };
       requested: {
         count: number;
-        style: string;
+        styles: string[];
         dryRun: boolean;
+        sourceVariantId: string;
       };
       variants: [];
       errors: HeadlessVariantGenerationError[];
@@ -245,7 +260,20 @@ export async function generateHeadlessVariants(
     );
   }
 
+  const sourceVariant = loadedProject.manifest.variants.find(
+    (variant) => variant.id === requested.sourceVariantId,
+  );
+  if (sourceVariant === undefined) {
+    return headlessFailure(options.projectPath, requested, [
+      {
+        code: "missing_source_variant",
+        message: `Project does not contain source variant ${requested.sourceVariantId}.`,
+      },
+    ]);
+  }
+
   const baseline = await generateBaselinePolishVariant(loadedProject);
+  const preset = MVP_STYLE_PRESETS[0];
 
   return {
     ok: true,
@@ -256,8 +284,9 @@ export async function generateHeadlessVariants(
     },
     requested: {
       count: 1,
-      style: "baseline",
+      styles: ["baseline"],
       dryRun: true,
+      sourceVariantId: requested.sourceVariantId,
     },
     variants: [
       {
@@ -269,6 +298,14 @@ export async function generateHeadlessVariants(
           manifestPath: loadedProject.manifestPath,
           mediaPath: baseline.variant.source.mediaPath,
           eventsPath: baseline.variant.source.eventsPath,
+          variantId: sourceVariant.id,
+        },
+        metadata: {
+          presetKey: preset.key,
+          presetDisplayName: preset.displayName,
+          batchIndex: 0,
+          batchSize: 1,
+          sourceVariantId: sourceVariant.id,
         },
         save: {
           mode: "dry-run",
@@ -283,19 +320,28 @@ export async function generateHeadlessVariants(
 
 function normalizeHeadlessRequest(options: HeadlessVariantGenerationOptions): {
   count: number;
-  style: string;
+  styles: string[];
   dryRun: boolean;
+  sourceVariantId: string;
 } {
+  const styles =
+    options.styles !== undefined
+      ? options.styles
+      : options.style !== undefined
+        ? [options.style]
+        : MVP_STYLE_PRESETS.map((preset) => preset.key);
+
   return {
-    count: options.count ?? 1,
-    style: options.style ?? "baseline",
+    count: options.count ?? styles.length,
+    styles,
     dryRun: options.dryRun ?? false,
+    sourceVariantId: options.sourceVariantId ?? "baseline-polish",
   };
 }
 
 function validateHeadlessOptions(
   options: HeadlessVariantGenerationOptions,
-  requested: { count: number; style: string; dryRun: boolean },
+  requested: { count: number; styles: string[]; dryRun: boolean; sourceVariantId: string },
 ): HeadlessVariantGenerationError[] {
   const errors: HeadlessVariantGenerationError[] = [];
 
@@ -320,14 +366,29 @@ function validateHeadlessOptions(
     });
   }
 
-  if (requested.count !== 1) {
+  if (options.style !== undefined && options.styles !== undefined) {
     errors.push({
-      code: "unsupported_variant_count",
-      message: "autodemo generate currently supports --count 1 only.",
+      code: "conflicting_style_options",
+      message: "Use either --style or --styles, not both.",
     });
   }
 
-  if (requested.style !== "baseline") {
+  if (new Set(requested.styles).size !== requested.styles.length) {
+    errors.push({
+      code: "duplicate_style",
+      message: "Each requested style key may appear only once.",
+    });
+  }
+
+  if (requested.count !== requested.styles.length || requested.count !== MVP_STYLE_PRESETS.length) {
+    errors.push({
+      code: "unsupported_variant_count",
+      message: "autodemo generate count must match the MVP style batch size.",
+    });
+  }
+
+  const supportedStyles = new Set<string>(MVP_STYLE_PRESETS.map((preset) => preset.key));
+  if (requested.styles.some((style) => !supportedStyles.has(style))) {
     errors.push({
       code: "unsupported_style",
       message: "autodemo generate currently supports --style baseline only.",
@@ -339,7 +400,7 @@ function validateHeadlessOptions(
 
 function headlessFailure(
   projectPath: string,
-  requested: { count: number; style: string; dryRun: boolean },
+  requested: { count: number; styles: string[]; dryRun: boolean; sourceVariantId: string },
   errors: HeadlessVariantGenerationError[],
 ): HeadlessVariantGenerationResult {
   return {

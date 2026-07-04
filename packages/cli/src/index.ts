@@ -57,6 +57,8 @@ type ParsedGenerateCommand = {
   json: boolean;
   count?: number;
   style?: string;
+  styles?: string[];
+  sourceVariantId?: string;
   save: boolean;
   mode?: string;
   errors: HeadlessVariantGenerationError[];
@@ -247,6 +249,8 @@ async function runGenerateCommand(args: string[]): Promise<CliResult> {
     json: parsed.json,
     count: parsed.count,
     style: parsed.style,
+    styles: parsed.styles,
+    sourceVariantId: parsed.sourceVariantId,
     save: parsed.save,
     mode: parsed.mode,
   });
@@ -264,6 +268,8 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
   let json = false;
   let count: number | undefined;
   let style: string | undefined;
+  let styles: string[] | undefined;
+  let sourceVariantId: string | undefined;
   let save = false;
   let mode: string | undefined;
   const errors: HeadlessVariantGenerationError[] = [];
@@ -308,6 +314,24 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
       continue;
     }
 
+    if (arg === "--styles") {
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        styles = parseGenerateStyles(value);
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--source-variant") {
+      const value = parseGenerateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        sourceVariantId = value;
+        index += 1;
+      }
+      continue;
+    }
+
     if (arg === "--save") {
       save = true;
       continue;
@@ -319,7 +343,7 @@ function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
     });
   }
 
-  return { projectPath, dryRun, json, count, style, save, mode, errors };
+  return { projectPath, dryRun, json, count, style, styles, sourceVariantId, save, mode, errors };
 }
 
 function parseGenerateOptionValue(
@@ -353,16 +377,28 @@ function parseGenerateCount(value: string | undefined): number {
   return 0;
 }
 
+function parseGenerateStyles(value: string): string[] {
+  return value.split(",").map((style) => style.trim());
+}
+
 function generateParseFailure(parsed: ParsedGenerateCommand): HeadlessVariantGenerationResult {
+  const styles =
+    parsed.styles !== undefined
+      ? parsed.styles
+      : parsed.style !== undefined
+        ? [parsed.style]
+        : ["baseline"];
+
   return {
     ok: false,
     project: {
       projectPath: parsed.projectPath ?? "",
     },
     requested: {
-      count: parsed.count ?? 1,
-      style: parsed.style ?? "baseline",
+      count: parsed.count ?? styles.length,
+      styles,
       dryRun: parsed.dryRun,
+      sourceVariantId: parsed.sourceVariantId ?? "baseline-polish",
     },
     variants: [],
     errors: parsed.errors,

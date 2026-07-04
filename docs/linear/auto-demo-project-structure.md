@@ -35,6 +35,8 @@ Last updated: 2026-07-04
 - WES-154 headless variant generation contract implementation plan: `docs/superpowers/plans/2026-07-04-wes-154-headless-variant-generation-contract.md`
 - WES-166 MVP named style presets design spec: `docs/superpowers/specs/2026-07-04-wes-166-mvp-named-style-presets-design.md`
 - WES-166 MVP named style presets implementation plan: `docs/superpowers/plans/2026-07-04-wes-166-mvp-named-style-presets.md`
+- WES-155 deterministic named variant batches design spec: `docs/superpowers/specs/2026-07-04-wes-155-deterministic-named-variant-batches-design.md`
+- WES-155 deterministic named variant batches implementation plan: `docs/superpowers/plans/2026-07-04-wes-155-deterministic-named-variant-batches.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -53,7 +55,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-166 completion: WES-155, because the MVP named style preset decision unblocks deterministic named variant batch generation.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-155, because the MVP named style preset decision unblocks deterministic named variant batch generation.
 
 ## Issues By Milestone
 
@@ -90,7 +92,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 - WES-137: Milestone 5: Headless variant generation - Backlog - https://linear.app/weston-bushyeager/issue/WES-137/milestone-5-headless-variant-generation
 - WES-154: Headless variant generation CLI and API contract - Done - https://linear.app/weston-bushyeager/issue/WES-154/headless-variant-generation-cli-and-api-contract
-- WES-155: Generate deterministic named variant batches - Backlog - https://linear.app/weston-bushyeager/issue/WES-155/generate-deterministic-named-variant-batches
+- WES-155: Generate deterministic named variant batches - In Progress - https://linear.app/weston-bushyeager/issue/WES-155/generate-deterministic-named-variant-batches
 - WES-156: Save selected or all headless variants with run summary - Backlog - https://linear.app/weston-bushyeager/issue/WES-156/save-selected-or-all-headless-variants-with-run-summary
 - WES-166: Open question: define MVP named style presets - Done - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
 
@@ -176,6 +178,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-04 pre-task sync: Linear and local `develop` agree WES-154 is the first incomplete Headless Variant Generation child. WES-154 was moved to In Progress on branch `fm/wes-154`. Approved WES-154 scope is the first dry-run JSON CLI/API contract: load a project with `loadProject()`, generate one deterministic `baseline` summary through `@auto-demo/polish`, and defer named batches, save modes, run summary files, rendering, and exports to WES-155/WES-156.
 - 2026-07-04 completion-gate sync: PR #14 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `b440d703`. WES-154 added `autodemo generate --project <project-dir-or-manifest> --dry-run --json`, `generateHeadlessVariants()` in `@auto-demo/polish`, structured JSON errors for invalid project and unsupported options, and behavior-focused CLI/API tests. No-mistakes fixed malformed generate argument handling and synchronized docs. At WES-154 completion, WES-155 was unblocked by the headless entry point but still waiting on the WES-166 preset decision.
 - 2026-07-04 WES-166 decision: the MVP named style preset list is baseline-only with stable key `baseline` and display name `Baseline Polish`. Themed presets and browser preset pickers are deferred until rendering/editor fidelity can validate meaningful visual differences. WES-155 is unblocked to generate deterministic batches using only the approved baseline preset and structured errors for unsupported style keys.
+- 2026-07-04 WES-155 pre-task sync: Linear and local project map agreed WES-155 is the first incomplete unblocked Headless Variant Generation child after WES-154 and WES-166. WES-155 was moved to In Progress on branch `fm/wes-155`.
+- 2026-07-04 WES-155 design: headless generation remains baseline-only for MVP but becomes batch-shaped through `styles`, `sourceVariantId`, source-variant metadata, deterministic dry-run summaries, and structured errors for duplicate styles, unsupported styles, invalid counts, and missing source variants. Saving generated variants, run summary files, rendering, exports, and additional themed presets remain deferred to WES-156 and later milestones.
 
 ## Temporary Capture Bundle
 
