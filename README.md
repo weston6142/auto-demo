@@ -39,6 +39,7 @@ npm run setup:browser
 autodemo init
 autodemo capture
 autodemo generate --project <project-dir-or-manifest> --dry-run --json [--styles baseline] [--source-variant baseline-polish]
+autodemo generate --project <project-dir-or-manifest> --json --save <variant-id|all> [--styles baseline] [--source-variant <source-variant-id>]
 autodemo export
 autodemo open
 autodemo validate <capture-dir-or-manifest>
@@ -86,13 +87,16 @@ project-dir/
 
 The project importer validates the source bundle, copies supported artifacts into project-owned paths, writes a sanitized capture summary to `metadata/capture.manifest.json`, and leaves the original capture bundle unchanged. Project package APIs can also validate or load a project directory or direct `autodemo.project.json` path, report missing manifests, invalid JSON, schema errors, and missing referenced files with structured non-secret errors, save formatted manifests atomically before revalidating the saved project, and persist generated polish variants as `variants/<variant-id>.json` files indexed by the project manifest.
 
-Headless generation currently supports the baseline-only dry-run batch contract:
+Headless generation currently supports the baseline-only dry-run and save
+contracts:
 
 ```bash
 autodemo generate --project <project-dir-or-manifest> --dry-run --json [--styles baseline] [--source-variant baseline-polish]
+autodemo generate --project <project-dir-or-manifest> --json --save baseline-polish --source-variant source-baseline
+autodemo generate --project <project-dir-or-manifest> --json --save all --source-variant source-baseline
 ```
 
-The command loads a valid Auto Demo project with a persisted source variant, resolves the requested MVP style list, generates one deterministic `baseline` batch summary, and prints machine-readable JSON with the generated id, display name, project/source-variant references, dry-run save status, batch metadata, validation errors, and non-secret warnings. The approved MVP style preset list is baseline-only: stable key `baseline`, display name `Baseline Polish`. `--styles` accepts a comma-separated list, which may contain only `baseline` once in the MVP; `--source-variant` defaults to `baseline-polish`. Unsupported style keys, duplicate style requests, invalid counts, missing source variants, and save/output modes outside dry-run JSON return structured errors. Selected/all save modes, run summary files, rendering, exports, and additional themed presets remain planned follow-up work.
+The command loads a valid Auto Demo project with a persisted source variant, resolves the requested MVP style list, generates one deterministic `baseline` batch summary, and prints machine-readable JSON with the generated id, display name, project/source-variant references, save status, batch metadata, validation errors, and non-secret warnings. Dry-run mode writes nothing and reports skipped variants. Save mode persists either one selected generated variant or all generated variants through `savePolishVariant()`, then reports saved `variants/<variant-id>.json` paths, skipped variants, final validation status, and next-step hints for editor or export workflows. The approved MVP style preset list is baseline-only: stable key `baseline`, display name `Baseline Polish`. `--styles` accepts a comma-separated list, which may contain only `baseline` once in the MVP; `--source-variant` defaults to `baseline-polish`. Saving a generated id that already exists in the project returns a structured `duplicate_variant_id` error, so callers that use a persisted source variant named `baseline-polish` should select a non-colliding source id when they intend to save a new generated `baseline-polish` variant. Unsupported style keys, duplicate style requests, invalid counts, missing source variants, invalid selected save ids, duplicate generated ids, non-JSON output, and malformed save arguments return structured errors. Rendering, exports, run summary files on disk, additional themed presets, and browser preview remain planned follow-up work.
 
 Other planned commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
 

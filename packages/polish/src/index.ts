@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   loadProject,
+  savePolishVariant,
   type LoadedProject,
   type ProjectValidationErrorCode,
   type ProjectVariant,
@@ -68,6 +69,7 @@ export type HeadlessVariantGenerationOptions = {
   sourceVariantId?: string;
   save?: boolean;
   mode?: string;
+  selectedVariantId?: string;
 };
 
 export type HeadlessVariantGenerationErrorCode =
@@ -79,6 +81,9 @@ export type HeadlessVariantGenerationErrorCode =
   | "conflicting_style_options"
   | "duplicate_style"
   | "missing_source_variant"
+  | "invalid_selected_variant"
+  | "duplicate_variant_id"
+  | "unsafe_variant_path"
   | "unknown_generate_argument"
   | "invalid_project";
 
@@ -89,9 +94,28 @@ export type HeadlessVariantGenerationError = {
   projectErrorCode?: ProjectValidationErrorCode;
 };
 
-export type HeadlessVariantSaveStatus = {
-  mode: "dry-run";
-  saved: false;
+export type HeadlessVariantSaveStatus =
+  | {
+      mode: "dry-run";
+      saved: false;
+    }
+  | {
+      mode: "selected" | "all";
+      saved: true;
+      path: string;
+    }
+  | {
+      mode: "selected";
+      saved: false;
+      reason: "not-selected";
+    };
+
+export type HeadlessVariantSaveSummary = {
+  mode: "dry-run" | "selected" | "all";
+  saved: Array<{ id: string; path: string }>;
+  skipped: Array<{ id: string; reason: "dry-run" | "not-selected" }>;
+  validation: { ok: true; manifestPath: string };
+  nextSteps: string[];
 };
 
 /** JSON-ready dry-run summary for one generated batch entry. */
@@ -128,10 +152,11 @@ export type HeadlessVariantGenerationResult =
       requested: {
         count: 1;
         styles: ["baseline"];
-        dryRun: true;
+        dryRun: boolean;
         sourceVariantId: string;
       };
       variants: HeadlessVariantSummary[];
+      summary: HeadlessVariantSaveSummary;
       errors: [];
     }
   | {
@@ -146,8 +171,12 @@ export type HeadlessVariantGenerationResult =
         sourceVariantId: string;
       };
       variants: [];
+      summary?: HeadlessVariantSaveSummary;
       errors: HeadlessVariantGenerationError[];
     };
+
+type HeadlessSaveRequest =
+  { mode: "dry-run" } | { mode: "selected"; selectedVariantId: string } | { mode: "all" };
 
 type CaptureEventRecord = {
   type: string;
@@ -278,6 +307,37 @@ export async function generateHeadlessVariants(
 
   const baseline = await generateBaselinePolishVariant(loadedProject);
   const preset = MVP_STYLE_PRESETS[0];
+  const saveRequest = normalizeSaveRequest(options, requested);
+  const generatedVariants = [
+    {
+      variant: baseline.variant,
+      warnings: baseline.warnings,
+      preset,
+      sourceVariantId: sourceVariant.id,
+    },
+  ];
+  const saveValidationErrors = validateSaveRequest(
+    loadedProject,
+    generatedVariants.map((generated) => generated.variant),
+    saveRequest,
+  );
+  if (saveValidationErrors.length > 0) {
+    return headlessFailure(options.projectPath, requested, saveValidationErrors);
+  }
+
+  const saveResult = await saveGeneratedVariants(loadedProject, generatedVariants, saveRequest);
+  if (!saveResult.ok) {
+    return {
+      ok: false,
+      project: {
+        projectPath: options.projectPath,
+      },
+      requested,
+      variants: [],
+      summary: saveResult.summary,
+      errors: saveResult.errors,
+    };
+  }
 
   return {
     ok: true,
@@ -289,35 +349,34 @@ export async function generateHeadlessVariants(
     requested: {
       count: 1,
       styles: ["baseline"],
-      dryRun: true,
+      dryRun: saveRequest.mode === "dry-run",
       sourceVariantId: requested.sourceVariantId,
     },
-    variants: [
-      {
-        id: baseline.variant.id,
-        displayName: baseline.variant.displayName,
-        style: "baseline",
-        source: {
-          projectPath: loadedProject.projectDir,
-          manifestPath: loadedProject.manifestPath,
-          mediaPath: baseline.variant.source.mediaPath,
-          eventsPath: baseline.variant.source.eventsPath,
-          variantId: sourceVariant.id,
-        },
-        metadata: {
-          presetKey: preset.key,
-          presetDisplayName: preset.displayName,
-          batchIndex: 0,
-          batchSize: 1,
-          sourceVariantId: sourceVariant.id,
-        },
-        save: {
-          mode: "dry-run",
-          saved: false,
-        },
-        warnings: baseline.warnings,
+    variants: generatedVariants.map((generated) => ({
+      id: generated.variant.id,
+      displayName: generated.variant.displayName,
+      style: "baseline",
+      source: {
+        projectPath: loadedProject.projectDir,
+        manifestPath: loadedProject.manifestPath,
+        mediaPath: generated.variant.source.mediaPath,
+        eventsPath: generated.variant.source.eventsPath,
+        variantId: sourceVariant.id,
       },
-    ],
+      metadata: {
+        presetKey: generated.preset.key,
+        presetDisplayName: generated.preset.displayName,
+        batchIndex: 0,
+        batchSize: 1,
+        sourceVariantId: generated.sourceVariantId,
+      },
+      save: saveResult.statusByVariantId.get(generated.variant.id) ?? {
+        mode: "dry-run",
+        saved: false,
+      },
+      warnings: generated.warnings,
+    })),
+    summary: saveResult.summary,
     errors: [],
   };
 }
@@ -363,10 +422,14 @@ function validateHeadlessOptions(
     });
   }
 
-  if (requested.dryRun !== true || options.save === true || options.mode === "save") {
+  if (
+    (requested.dryRun !== true && options.save !== true) ||
+    (requested.dryRun === true && options.save === true) ||
+    (options.mode !== undefined && options.mode !== "all")
+  ) {
     errors.push({
       code: "unsupported_save_mode",
-      message: "autodemo generate currently supports dry-run output only.",
+      message: "Use --dry-run for previews, --save <variant-id>, or --save all.",
     });
   }
 
@@ -400,6 +463,164 @@ function validateHeadlessOptions(
   }
 
   return errors;
+}
+
+function normalizeSaveRequest(
+  options: HeadlessVariantGenerationOptions,
+  requested: { dryRun: boolean },
+): HeadlessSaveRequest {
+  if (options.save === true && options.mode === "all") {
+    return { mode: "all" };
+  }
+
+  if (options.save === true && options.selectedVariantId !== undefined) {
+    return { mode: "selected", selectedVariantId: options.selectedVariantId };
+  }
+
+  if (requested.dryRun) {
+    return { mode: "dry-run" };
+  }
+
+  return { mode: "dry-run" };
+}
+
+function validateSaveRequest(
+  project: LoadedProject,
+  generatedVariants: ProjectVariant[],
+  saveRequest: HeadlessSaveRequest,
+): HeadlessVariantGenerationError[] {
+  const errors: HeadlessVariantGenerationError[] = [];
+
+  if (saveRequest.mode === "dry-run") {
+    return errors;
+  }
+
+  const generatedIds = new Set(generatedVariants.map((variant) => variant.id));
+  if (saveRequest.mode === "selected" && !generatedIds.has(saveRequest.selectedVariantId)) {
+    errors.push({
+      code: "invalid_selected_variant",
+      message: `Generated variants do not include selected variant ${saveRequest.selectedVariantId}.`,
+    });
+  }
+
+  const existingIds = new Set(project.manifest.variants.map((variant) => variant.id));
+  for (const variant of generatedVariants) {
+    if (!isSafeVariantId(variant.id)) {
+      errors.push({
+        code: "unsafe_variant_path",
+        message: `Generated variant ${variant.id} cannot be saved to a safe variant path.`,
+      });
+    }
+
+    if (shouldSaveVariant(variant.id, saveRequest) && existingIds.has(variant.id)) {
+      errors.push({
+        code: "duplicate_variant_id",
+        message: `Project already contains generated variant ${variant.id}.`,
+      });
+    }
+  }
+
+  return errors;
+}
+
+async function saveGeneratedVariants(
+  project: LoadedProject,
+  generatedVariants: Array<{
+    variant: ProjectVariant;
+    warnings: PolishWarning[];
+    preset: MvpStylePreset;
+    sourceVariantId: string;
+  }>,
+  saveRequest: HeadlessSaveRequest,
+): Promise<
+  | {
+      ok: true;
+      summary: HeadlessVariantSaveSummary;
+      statusByVariantId: Map<string, HeadlessVariantSaveStatus>;
+    }
+  | {
+      ok: false;
+      summary: HeadlessVariantSaveSummary;
+      errors: HeadlessVariantGenerationError[];
+    }
+> {
+  const saved: HeadlessVariantSaveSummary["saved"] = [];
+  const skipped: HeadlessVariantSaveSummary["skipped"] = [];
+  const statusByVariantId = new Map<string, HeadlessVariantSaveStatus>();
+  let currentProject = project;
+
+  for (const generated of generatedVariants) {
+    const path = variantArtifactPath(generated.variant.id);
+
+    if (saveRequest.mode === "dry-run") {
+      skipped.push({ id: generated.variant.id, reason: "dry-run" });
+      statusByVariantId.set(generated.variant.id, { mode: "dry-run", saved: false });
+      continue;
+    }
+
+    if (!shouldSaveVariant(generated.variant.id, saveRequest)) {
+      skipped.push({ id: generated.variant.id, reason: "not-selected" });
+      statusByVariantId.set(generated.variant.id, {
+        mode: "selected",
+        saved: false,
+        reason: "not-selected",
+      });
+      continue;
+    }
+
+    const result = await savePolishVariant(currentProject, generated.variant);
+    if (!result.ok) {
+      return {
+        ok: false,
+        summary: buildSaveSummary(saveRequest.mode, saved, skipped, currentProject.manifestPath),
+        errors: result.errors.map((error) => ({
+          code: "invalid_project",
+          projectErrorCode: error.code,
+          message: error.message,
+        })),
+      };
+    }
+
+    currentProject = result;
+    saved.push({ id: generated.variant.id, path });
+    statusByVariantId.set(generated.variant.id, { mode: saveRequest.mode, saved: true, path });
+  }
+
+  return {
+    ok: true,
+    summary: buildSaveSummary(saveRequest.mode, saved, skipped, currentProject.manifestPath),
+    statusByVariantId,
+  };
+}
+
+function buildSaveSummary(
+  mode: HeadlessVariantSaveSummary["mode"],
+  saved: HeadlessVariantSaveSummary["saved"],
+  skipped: HeadlessVariantSaveSummary["skipped"],
+  manifestPath: string,
+): HeadlessVariantSaveSummary {
+  return {
+    mode,
+    saved,
+    skipped,
+    validation: { ok: true, manifestPath },
+    nextSteps: ["open-editor", "export-variant"],
+  };
+}
+
+function shouldSaveVariant(variantId: string, saveRequest: HeadlessSaveRequest): boolean {
+  return (
+    saveRequest.mode === "all" ||
+    (saveRequest.mode === "selected" && saveRequest.selectedVariantId === variantId)
+  );
+}
+
+function variantArtifactPath(variantId: string): string {
+  return join("variants", `${variantId}.json`);
+}
+
+function isSafeVariantId(variantId: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(variantId);
 }
 
 function headlessFailure(

@@ -315,6 +315,139 @@ describe("generateBaselinePolishVariant", () => {
 });
 
 describe("generateHeadlessVariants", () => {
+  it("saves a selected generated variant and reports reload validation", async () => {
+    const project = await writeLoadedProject([
+      {
+        id: "event-1",
+        sequence: 1,
+        type: "click",
+        timestampMs: 2000,
+        viewport: { width: 1280, height: 720 },
+        data: { x: 960, y: 360 },
+      },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, {
+      ...variant,
+      id: "source-baseline",
+      displayName: "Source Baseline",
+    });
+
+    const result = await generateHeadlessVariants({
+      projectPath: project.projectDir,
+      json: true,
+      styles: ["baseline"],
+      sourceVariantId: "source-baseline",
+      save: true,
+      selectedVariantId: "baseline-polish",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected selected save to succeed");
+    }
+    expect(result.summary).toEqual({
+      mode: "selected",
+      saved: [{ id: "baseline-polish", path: "variants/baseline-polish.json" }],
+      skipped: [],
+      validation: { ok: true, manifestPath: project.manifestPath },
+      nextSteps: ["open-editor", "export-variant"],
+    });
+    expect(result.variants[0]?.save).toEqual({
+      mode: "selected",
+      saved: true,
+      path: "variants/baseline-polish.json",
+    });
+    await expect(loadProject(project.projectDir)).resolves.toMatchObject({
+      ok: true,
+      manifest: {
+        variants: expect.arrayContaining([expect.objectContaining({ id: "baseline-polish" })]),
+      },
+    });
+  });
+
+  it("saves all generated variants and reports saved paths", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, {
+      ...variant,
+      id: "source-baseline",
+      displayName: "Source Baseline",
+    });
+
+    const result = await generateHeadlessVariants({
+      projectPath: project.projectDir,
+      json: true,
+      styles: ["baseline"],
+      sourceVariantId: "source-baseline",
+      save: true,
+      mode: "all",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected save all to succeed");
+    }
+    expect(result.summary.mode).toBe("all");
+    expect(result.summary.saved).toEqual([
+      { id: "baseline-polish", path: "variants/baseline-polish.json" },
+    ]);
+    expect(result.summary.skipped).toEqual([]);
+  });
+
+  it("rejects an invalid selected generated variant without writing", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, {
+      ...variant,
+      id: "source-baseline",
+      displayName: "Source Baseline",
+    });
+
+    const result = await generateHeadlessVariants({
+      projectPath: project.projectDir,
+      json: true,
+      styles: ["baseline"],
+      sourceVariantId: "source-baseline",
+      save: true,
+      selectedVariantId: "missing",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContainEqual({
+      code: "invalid_selected_variant",
+      message: expect.any(String),
+    });
+    await expect(
+      stat(join(project.projectDir, "variants", "baseline-polish.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("returns a structured duplicate error when a generated variant already exists", async () => {
+    const project = await writeLoadedProject([
+      { id: "event-1", sequence: 1, type: "press", timestampMs: 1000 },
+    ]);
+    const { variant } = await generateBaselinePolishVariant(project);
+    await savePolishVariant(project, variant);
+
+    const result = await generateHeadlessVariants({
+      projectPath: project.projectDir,
+      json: true,
+      save: true,
+      selectedVariantId: "baseline-polish",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContainEqual({
+      code: "duplicate_variant_id",
+      message: expect.any(String),
+    });
+  });
+
   it("returns a dry-run baseline summary without saving files", async () => {
     const project = await writeLoadedProject([
       {
