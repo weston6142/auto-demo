@@ -39,9 +39,12 @@ const summary = await generateHeadlessVariants({
 });
 ```
 
-The WES-154 contract intentionally supports only one baseline dry run. Unsupported
-style keys, counts other than `1`, save modes, non-JSON output, and invalid
-project input return structured non-secret errors.
+The WES-166 MVP preset decision is baseline-only. `MVP_STYLE_PRESETS` exports one
+approved preset with stable key `baseline` and display name `Baseline Polish`,
+giving WES-155 and browser-editor planning a shared source of truth without
+introducing themed visual behavior before rendering/editor validation exists.
+Unsupported style keys, counts other than `1`, save modes, non-JSON output, and
+invalid project input return structured non-secret errors.
 
 The baseline generator returns a variant object only. Persisting that variant is
 owned by `@auto-demo/project` through `savePolishVariant()`, which writes

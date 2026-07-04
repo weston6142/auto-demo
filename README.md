@@ -92,7 +92,7 @@ Headless generation currently supports the first dry-run contract:
 autodemo generate --project <project-dir-or-manifest> --dry-run --json
 ```
 
-The command loads a valid Auto Demo project, generates one deterministic `baseline` variant summary, and prints machine-readable JSON with the generated id, display name, project source references, dry-run save status, validation errors, and non-secret warnings. WES-154 intentionally supports only `--count 1`, `--style baseline`, `--dry-run`, and `--json`. Named style batches, selected/all save modes, run summary files, rendering, and exports remain planned follow-up work.
+The command loads a valid Auto Demo project, generates one deterministic `baseline` variant summary, and prints machine-readable JSON with the generated id, display name, project source references, dry-run save status, validation errors, and non-secret warnings. The approved MVP style preset list is baseline-only: stable key `baseline`, display name `Baseline Polish`. WES-154 and WES-166 intentionally support only `--count 1`, `--style baseline`, `--dry-run`, and `--json`. Additional themed presets, selected/all save modes, run summary files, rendering, and exports remain planned follow-up work.
 
 Other planned commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
 
