@@ -43,8 +43,8 @@ The WES-154 contract intentionally supports only one baseline dry run. Unsupport
 style keys, counts other than `1`, save modes, non-JSON output, and invalid
 project input return structured non-secret errors.
 
-The generator returns a variant object only. Persisting that variant is owned by
-`@auto-demo/project` through `savePolishVariant()`, which writes
+The baseline generator returns a variant object only. Persisting that variant is
+owned by `@auto-demo/project` through `savePolishVariant()`, which writes
 `variants/<variant-id>.json`, updates `autodemo.project.json`, and revalidates
 the saved project. `options.id` must be a lowercase slug, and invalid labels
 fall back to `baseline-polish` and `Baseline Polish` so the returned variant

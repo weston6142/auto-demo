@@ -17,8 +17,8 @@ WES-154 starts the Headless Variant Generation milestone by exposing a stable
 headless command and programmatic API that agents can call without the browser
 editor.
 
-The existing CLI reserves `autodemo generate` but still reports it as
-unimplemented. The first contract should use existing project loading and polish
+Before WES-154, the CLI reserved `autodemo generate` but reported it as
+unimplemented. The first contract uses existing project loading and polish
 generation behavior rather than parsing project files inside the CLI.
 
 ## Goals
@@ -80,10 +80,12 @@ decision before WES-166 is resolved.
 ```ts
 type HeadlessVariantGenerationOptions = {
   projectPath: string;
-  dryRun: true;
-  json: true;
+  dryRun?: boolean;
+  json?: boolean;
   count?: number;
-  style?: "baseline";
+  style?: string;
+  save?: boolean;
+  mode?: string;
 };
 
 type HeadlessVariantSaveStatus = {
@@ -147,6 +149,7 @@ Validation errors are structured and non-secret:
 - `unsupported_save_mode`
 - `unsupported_variant_count`
 - `unsupported_style`
+- `unknown_generate_argument`
 - `invalid_project`
 
 `invalid_project` wraps project validation failures by code and message without
@@ -175,9 +178,11 @@ Unsupported or invalid input prints the same result shape with `ok: false` to
 stdout when `--json` is present and exits `1`. Non-JSON invocations exit `1`
 with stderr explaining that WES-154 only supports `--json` output.
 
-`--save`, `--mode save`, counts other than `1`, and style keys other than
-`baseline` are rejected as unsupported contract inputs rather than silently
-ignored.
+`--save`, counts other than `1`, and style keys other than `baseline` are
+rejected as unsupported contract inputs rather than silently ignored. The CLI
+does not support `--mode` in WES-154; mode arguments are returned as
+`unknown_generate_argument` in JSON mode, while the programmatic API can reject
+save-mode requests as `unsupported_save_mode`.
 
 ## JSON Shape
 
