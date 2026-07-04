@@ -5,15 +5,20 @@ Creates edit decisions from project metadata.
 The package currently exposes `generateBaselinePolishVariant(project, options)`,
 which reads a validated Auto Demo project's `metadata/events.jsonl` file and
 returns one deterministic schema v1 project variant plus structured warnings.
-It also exposes `generateHeadlessVariants(options)` for the first headless
-dry-run generation contract used by `autodemo generate`. The baseline generator
-uses conservative trim, focus, cursor, and click-emphasis rules so downstream
-persistence, rendering, and editor work can consume a stable first-pass variant.
+It also exposes the baseline-only `MVP_STYLE_PRESETS` contract and
+`generateHeadlessVariants(options)` for the first headless dry-run generation
+contract used by `autodemo generate`. The baseline generator uses conservative
+trim, focus, cursor, and click-emphasis rules so downstream persistence,
+rendering, and editor work can consume a stable first-pass variant.
 
 ```ts
 import { loadProject } from "@auto-demo/project";
 import { savePolishVariant } from "@auto-demo/project";
-import { generateBaselinePolishVariant, generateHeadlessVariants } from "@auto-demo/polish";
+import {
+  MVP_STYLE_PRESETS,
+  generateBaselinePolishVariant,
+  generateHeadlessVariants,
+} from "@auto-demo/polish";
 
 const project = await loadProject("projects/checkout-demo");
 
@@ -35,13 +40,16 @@ const summary = await generateHeadlessVariants({
   dryRun: true,
   json: true,
   count: 1,
-  style: "baseline",
+  style: MVP_STYLE_PRESETS[0].key,
 });
 ```
 
-The WES-154 contract intentionally supports only one baseline dry run. Unsupported
-style keys, counts other than `1`, save modes, non-JSON output, and invalid
-project input return structured non-secret errors.
+The WES-166 MVP preset decision is baseline-only. `MVP_STYLE_PRESETS` exports one
+approved preset with stable key `baseline` and display name `Baseline Polish`,
+giving WES-155 and browser-editor planning a shared source of truth without
+introducing themed visual behavior before rendering/editor validation exists.
+Unsupported style keys, counts other than `1`, save modes, non-JSON output, and
+invalid project input return structured non-secret errors.
 
 The baseline generator returns a variant object only. Persisting that variant is
 owned by `@auto-demo/project` through `savePolishVariant()`, which writes

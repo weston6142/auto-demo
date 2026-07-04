@@ -11,6 +11,20 @@ export type PolishPackageRole = "edit-decision-generation";
 
 export const polishPackageRole: PolishPackageRole = "edit-decision-generation";
 
+/** Approved style keys for MVP headless generation. */
+export type MvpStylePresetKey = "baseline";
+
+/** Stable style preset metadata shared by headless generation and downstream UI planning. */
+export type MvpStylePreset = {
+  key: MvpStylePresetKey;
+  displayName: "Baseline Polish";
+};
+
+/** The MVP intentionally ships only the conservative baseline preset. */
+export const MVP_STYLE_PRESETS = [
+  { key: "baseline", displayName: "Baseline Polish" },
+] as const satisfies readonly MvpStylePreset[];
+
 /** Optional stable labels for the generated baseline variant. */
 export type GenerateBaselinePolishOptions = {
   /** Lowercase slug used for the returned variant id. */

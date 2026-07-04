@@ -41,8 +41,8 @@ generation behavior rather than parsing project files inside the CLI.
 
 - Saving generated variants from the CLI. WES-156 owns selected/all save modes
   and run summary persistence.
-- Generating multiple named variants or real style preset batches. WES-155 and
-  WES-166 own that scope.
+- Generating multiple named variants or real style preset batches. WES-155 owns
+  batch behavior, using the WES-166 baseline-only MVP preset decision.
 - Rendering previews or MP4 exports.
 - Browser editor behavior.
 - Direct capture-bundle input. The first command requires a validated Auto Demo
@@ -70,8 +70,8 @@ programmatic contract requested by WES-154.
 ### Option C: Implement Save And Batch Modes Now
 
 The CLI could support `--save`, `--count`, and multiple style keys immediately.
-That would blur WES-154 with WES-155 and WES-156 and force a style-preset product
-decision before WES-166 is resolved.
+That would blur WES-154 with WES-155 and WES-156 and require style-preset
+behavior beyond the WES-166 baseline-only MVP decision.
 
 ## Public API
 

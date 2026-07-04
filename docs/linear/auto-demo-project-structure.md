@@ -33,6 +33,8 @@ Last updated: 2026-07-04
 - WES-153 polish variant persistence implementation plan: `docs/superpowers/plans/2026-07-03-wes-153-persist-generated-polish-variant.md`
 - WES-154 headless variant generation contract design spec: `docs/superpowers/specs/2026-07-04-wes-154-headless-variant-generation-contract-design.md`
 - WES-154 headless variant generation contract implementation plan: `docs/superpowers/plans/2026-07-04-wes-154-headless-variant-generation-contract.md`
+- WES-166 MVP named style presets design spec: `docs/superpowers/specs/2026-07-04-wes-166-mvp-named-style-presets-design.md`
+- WES-166 MVP named style presets implementation plan: `docs/superpowers/plans/2026-07-04-wes-166-mvp-named-style-presets.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -51,7 +53,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task: WES-166, because WES-154 is complete and WES-155 remains blocked on the MVP named style preset decision.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-166 completion: WES-155, because the MVP named style preset decision unblocks deterministic named variant batch generation.
 
 ## Issues By Milestone
 
@@ -90,7 +92,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-154: Headless variant generation CLI and API contract - Done - https://linear.app/weston-bushyeager/issue/WES-154/headless-variant-generation-cli-and-api-contract
 - WES-155: Generate deterministic named variant batches - Backlog - https://linear.app/weston-bushyeager/issue/WES-155/generate-deterministic-named-variant-batches
 - WES-156: Save selected or all headless variants with run summary - Backlog - https://linear.app/weston-bushyeager/issue/WES-156/save-selected-or-all-headless-variants-with-run-summary
-- WES-166: Open question: define MVP named style presets - Backlog - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
+- WES-166: Open question: define MVP named style presets - Done - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
 
 ### 6. Browser Editor
 
@@ -172,7 +174,8 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-03 WES-153 design: `@auto-demo/project` owns saved variant persistence through `savePolishVariant(project, variant, options)`. The API writes `variants/<variant-id>.json`, appends the same `ProjectVariant` to `autodemo.project.json`, revalidates saved variant files during project load/validation, and leaves generation in `@auto-demo/polish`.
 - 2026-07-03 completion-gate sync: PR #13 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `d0c17641`. WES-153 completion evidence was added and the issue was moved to Done. Because WES-151, WES-152, and WES-153 are all Done, WES-133 was moved to Done. WES-154 received a readiness note to build on `loadProject()`, `generateBaselinePolishVariant()`, and `savePolishVariant()`.
 - 2026-07-04 pre-task sync: Linear and local `develop` agree WES-154 is the first incomplete Headless Variant Generation child. WES-154 was moved to In Progress on branch `fm/wes-154`. Approved WES-154 scope is the first dry-run JSON CLI/API contract: load a project with `loadProject()`, generate one deterministic `baseline` summary through `@auto-demo/polish`, and defer named batches, save modes, run summary files, rendering, and exports to WES-155/WES-156.
-- 2026-07-04 completion-gate sync: PR #14 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `b440d703`. WES-154 added `autodemo generate --project <project-dir-or-manifest> --dry-run --json`, `generateHeadlessVariants()` in `@auto-demo/polish`, structured JSON errors for invalid project and unsupported options, and behavior-focused CLI/API tests. No-mistakes fixed malformed generate argument handling and synchronized docs. WES-155 is now unblocked by the headless entry point but remains blocked by WES-166, so WES-166 is the next task pointer.
+- 2026-07-04 completion-gate sync: PR #14 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `b440d703`. WES-154 added `autodemo generate --project <project-dir-or-manifest> --dry-run --json`, `generateHeadlessVariants()` in `@auto-demo/polish`, structured JSON errors for invalid project and unsupported options, and behavior-focused CLI/API tests. No-mistakes fixed malformed generate argument handling and synchronized docs. At WES-154 completion, WES-155 was unblocked by the headless entry point but still waiting on the WES-166 preset decision.
+- 2026-07-04 WES-166 decision: the MVP named style preset list is baseline-only with stable key `baseline` and display name `Baseline Polish`. Themed presets and browser preset pickers are deferred until rendering/editor fidelity can validate meaningful visual differences. WES-155 is unblocked to generate deterministic batches using only the approved baseline preset and structured errors for unsupported style keys.
 
 ## Temporary Capture Bundle
 
@@ -231,6 +234,7 @@ capture-dir/
 - WES-153 verification: TDD red checks failed first for the missing `savePolishVariant()` API and then for missing saved-variant file validation. After implementation, `npm --workspace @auto-demo/project test -- src/index.test.ts`, `npm --workspace @auto-demo/polish test -- src/index.test.ts`, `npm --workspace @auto-demo/project run typecheck`, `npm --workspace @auto-demo/project run build`, and `npm run validate` passed locally. No-mistakes PR #13 passed review, test, document, lint, push, PR, and GitHub CI `validate` on head `d0c17641`.
 - WES-133: Auto Polish Engine tracker completed after WES-151, WES-152, and WES-153 reached Done. The MVP now has a schema-valid variant model, deterministic baseline generation, and durable saved variant persistence for downstream Headless Variant Generation.
 - WES-154: Headless variant generation contract implemented in PR #14. `autodemo generate --project <project-dir-or-manifest> --dry-run --json` loads projects through `loadProject()`, emits one deterministic baseline dry-run summary through `@auto-demo/polish`, rejects unsupported styles/counts/save modes/malformed options with structured JSON errors, and keeps named batches, save modes, run summaries, rendering, and exports deferred. Verification: local `npm run validate` passed; no-mistakes PR #14 passed review, test, document, lint, push, PR, and GitHub CI `validate` on head `b440d703`.
+- WES-166: MVP named style preset decision completed in PR #15. `@auto-demo/polish` now exports `MvpStylePresetKey`, `MvpStylePreset`, and `MVP_STYLE_PRESETS` as the baseline-only MVP preset contract with stable key `baseline` and display name `Baseline Polish`; unsupported style keys remain structured errors in headless generation. Verification: focused polish tests, polish typecheck/build, local `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `a72e3337`.
 
 ## Update Rules
 

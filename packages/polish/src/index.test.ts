@@ -9,7 +9,11 @@ import {
   type LoadedProject,
   type ProjectManifest,
 } from "@auto-demo/project";
-import { generateBaselinePolishVariant, generateHeadlessVariants } from "./index.js";
+import {
+  MVP_STYLE_PRESETS,
+  generateBaselinePolishVariant,
+  generateHeadlessVariants,
+} from "./index.js";
 
 const baseManifest: ProjectManifest = {
   schemaVersion: 1,
@@ -67,6 +71,12 @@ async function writeLoadedProject(
     manifest,
   };
 }
+
+describe("MVP style presets", () => {
+  it("publishes baseline as the only approved MVP style preset", () => {
+    expect(MVP_STYLE_PRESETS).toEqual([{ key: "baseline", displayName: "Baseline Polish" }]);
+  });
+});
 
 describe("generateBaselinePolishVariant", () => {
   it("generates a schema-valid focused baseline from a simple click flow", async () => {
