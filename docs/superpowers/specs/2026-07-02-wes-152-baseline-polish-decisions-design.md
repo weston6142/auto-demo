@@ -67,8 +67,8 @@ warnings.
 ### Option C: Style-Preset Engine Now
 
 This would introduce multiple styles and generation parameters in the first
-polish slice. It overlaps with Headless Variant Generation and the open WES-166
-style-preset question, so it is too broad for WES-152.
+polish slice. It overlaps with Headless Variant Generation and the WES-166
+style-preset decision, so it is too broad for WES-152.
 
 ## Public API
 
