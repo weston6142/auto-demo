@@ -57,7 +57,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-155 completion: WES-156, because deterministic baseline-only dry-run batches now unblock selected/all save modes and machine-readable run summaries.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-156 completion: WES-157, because Headless Variant Generation is complete and Browser Editor can now load saved/generated project variants.
 
 ## Issues By Milestone
 
@@ -92,10 +92,10 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 5. Headless Variant Generation
 
-- WES-137: Milestone 5: Headless variant generation - Backlog - https://linear.app/weston-bushyeager/issue/WES-137/milestone-5-headless-variant-generation
+- WES-137: Milestone 5: Headless variant generation - Done - https://linear.app/weston-bushyeager/issue/WES-137/milestone-5-headless-variant-generation
 - WES-154: Headless variant generation CLI and API contract - Done - https://linear.app/weston-bushyeager/issue/WES-154/headless-variant-generation-cli-and-api-contract
 - WES-155: Generate deterministic named variant batches - Done - https://linear.app/weston-bushyeager/issue/WES-155/generate-deterministic-named-variant-batches
-- WES-156: Save selected or all headless variants with run summary - In Progress - https://linear.app/weston-bushyeager/issue/WES-156/save-selected-or-all-headless-variants-with-run-summary
+- WES-156: Save selected or all headless variants with run summary - Done - https://linear.app/weston-bushyeager/issue/WES-156/save-selected-or-all-headless-variants-with-run-summary
 - WES-166: Open question: define MVP named style presets - Done - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
 
 ### 6. Browser Editor
@@ -185,6 +185,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-04 WES-155 completion-gate sync: PR #16 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `c61e9da8`. WES-155 completion evidence was added to Linear and the issue was moved to Done. WES-156 received a readiness note to build selected/all save modes and run summaries on top of the baseline-only batch shape and `savePolishVariant()` persistence.
 - 2026-07-04 WES-156 pre-task sync: WES-156 was selected as the next incomplete Headless Variant Generation child after WES-155 and moved to In Progress on branch `fm/wes-156`. The implementation scope is selected/all JSON save modes for generated headless variants, structured duplicate/invalid-selection errors, reload validation summaries, and docs; rendering, exports, browser preview, non-JSON output, and on-disk run summary files remain deferred.
 - 2026-07-04 WES-156 local implementation note: `@auto-demo/polish` now supports dry-run, selected save, and save-all result summaries through `generateHeadlessVariants()`, using `savePolishVariant()` for writes. `autodemo generate --json --save <variant-id|all>` parses save targets and reports saved paths, skipped variants, validation status, and next-step hints. Focused behavior tests passed locally for `@auto-demo/polish` and `@auto-demo/cli`.
+- 2026-07-04 WES-156 completion-gate sync: PR #17 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `23b64483`. No-mistakes fixed malformed save request handling and synchronized docs. Completion evidence was added to WES-156 and WES-137, both issues were moved to Done, and WES-157 received a readiness note to build Browser Editor project loading on saved/generated variants.
 
 ## Temporary Capture Bundle
 
@@ -245,7 +246,8 @@ capture-dir/
 - WES-154: Headless variant generation contract implemented in PR #14. `autodemo generate --project <project-dir-or-manifest> --dry-run --json` loads projects through `loadProject()`, emits one deterministic baseline dry-run summary through `@auto-demo/polish`, rejects unsupported styles/counts/save modes/malformed options with structured JSON errors, and keeps named batches, save modes, run summaries, rendering, and exports deferred. Verification: local `npm run validate` passed; no-mistakes PR #14 passed review, test, document, lint, push, PR, and GitHub CI `validate` on head `b440d703`.
 - WES-166: MVP named style preset decision completed in PR #15. `@auto-demo/polish` now exports `MvpStylePresetKey`, `MvpStylePreset`, and `MVP_STYLE_PRESETS` as the baseline-only MVP preset contract with stable key `baseline` and display name `Baseline Polish`; unsupported style keys remain structured errors in headless generation. Verification: focused polish tests, polish typecheck/build, local `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `a72e3337`.
 - WES-155: Deterministic named variant batch generation completed in PR #16. `@auto-demo/polish` now supports baseline-only batch-shaped dry-run generation with `styles`, `sourceVariantId`, persisted source variant validation, batch metadata, and structured errors for duplicate styles, unsupported styles, invalid counts, missing source variants, invalid projects, and unsupported save/output modes. `autodemo generate` accepts `--styles baseline` and `--source-variant baseline-polish` in JSON dry-run mode. Verification: local focused polish/CLI tests, package typecheck/builds, `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `c61e9da8`.
-- WES-156: In progress on branch `fm/wes-156`. Current local behavior supports selected/all headless save summaries, duplicate generated id errors, invalid selected id errors, and reload validation summaries. Verification so far: `npm --workspace @auto-demo/polish test -- src/index.test.ts` passed with 19 tests; `npm --workspace @auto-demo/cli test -- src/index.test.ts` passed with 34 tests.
+- WES-156: Selected/all headless save modes completed in PR #17. `@auto-demo/polish` now supports dry-run, selected save, and save-all JSON summaries with saved paths, skipped variants, reload validation, next-step hints, invalid selected id errors, duplicate generated id errors, and malformed save request handling. `autodemo generate --json --save <variant-id|all>` exposes the behavior. Verification: local focused polish/CLI tests, local `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `23b64483`.
+- WES-137: Headless Variant Generation tracker completed after WES-154, WES-155, WES-156, and WES-166 reached Done. WES-157 is the next product task by milestone order.
 
 ## Update Rules
 
