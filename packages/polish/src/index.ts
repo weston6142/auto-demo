@@ -55,7 +55,7 @@ export type BaselinePolishResult = {
   warnings: PolishWarning[];
 };
 
-/** Supported baseline-only headless batch generation inputs. */
+/** Supported baseline-only headless batch generation inputs and save modes. */
 export type HeadlessVariantGenerationOptions = {
   projectPath: string;
   dryRun?: boolean;
@@ -118,7 +118,7 @@ export type HeadlessVariantSaveSummary = {
   nextSteps: string[];
 };
 
-/** JSON-ready dry-run summary for one generated batch entry. */
+/** JSON-ready summary for one generated batch entry. */
 export type HeadlessVariantSummary = {
   id: string;
   displayName: string;
@@ -269,7 +269,7 @@ export async function generateBaselinePolishVariant(
   return { variant, warnings: uniqueWarnings(warnings) };
 }
 
-/** Generates deterministic baseline-only dry-run batch summaries for a valid Auto Demo project. */
+/** Generates deterministic baseline-only headless summaries and optionally saves variants. */
 export async function generateHeadlessVariants(
   options: HeadlessVariantGenerationOptions,
 ): Promise<HeadlessVariantGenerationResult> {

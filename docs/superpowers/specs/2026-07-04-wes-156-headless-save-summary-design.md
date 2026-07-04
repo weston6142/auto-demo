@@ -3,10 +3,10 @@
 ## Context
 
 WES-155 made headless generation batch-shaped while keeping the MVP preset list
-baseline-only. `generateHeadlessVariants()` currently loads a valid project,
-requires a persisted source variant, returns one deterministic baseline summary,
-and rejects save modes as unsupported. WES-153 already owns project persistence
-through `savePolishVariant(project, variant)`, which writes
+baseline-only. Before WES-156, `generateHeadlessVariants()` loaded a valid
+project, required a persisted source variant, returned one deterministic
+baseline summary, and rejected save modes as unsupported. WES-153 already owns
+project persistence through `savePolishVariant(project, variant)`, which writes
 `variants/<variant-id>.json`, updates `autodemo.project.json`, and reloads the
 project.
 
@@ -176,6 +176,7 @@ finally `npm run validate`.
 - Product ranking among multiple style presets.
 - Non-JSON CLI output.
 - Additional themed presets.
+- On-disk run summary files.
 
 ## Self-Review
 

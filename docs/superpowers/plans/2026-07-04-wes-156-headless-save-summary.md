@@ -21,7 +21,7 @@
 
 ## Task 1: Polish API Save Behavior
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Add tests in `packages/polish/src/index.test.ts` under `describe("generateHeadlessVariants", () => { ... })`:
 
@@ -135,13 +135,13 @@ it("rejects an invalid selected generated variant without writing", async () => 
 });
 ```
 
-- [ ] **Step 2: Run failing API tests**
+- [x] **Step 2: Run failing API tests**
 
 Run: `npm --workspace @auto-demo/polish test -- src/index.test.ts`
 
-Expected: fail because `selectedVariantId`, `summary`, and save modes are not implemented.
+Expected before implementation: failing test output for missing `selectedVariantId`, `summary`, and save-mode behavior.
 
-- [ ] **Step 3: Implement polish save modes**
+- [x] **Step 3: Implement polish save modes**
 
 In `packages/polish/src/index.ts`:
 
@@ -155,15 +155,15 @@ In `packages/polish/src/index.ts`:
 - call `savePolishVariant()` for selected variants and build saved paths as `variants/<id>.json`;
 - return final validation from the last successful `savePolishVariant()` result.
 
-- [ ] **Step 4: Run API tests**
+- [x] **Step 4: Run API tests**
 
 Run: `npm --workspace @auto-demo/polish test -- src/index.test.ts`
 
-Expected: pass all polish tests.
+Expected after implementation: pass all polish tests.
 
 ## Task 2: CLI Save Flags
 
-- [ ] **Step 1: Write failing CLI tests**
+- [x] **Step 1: Write failing CLI tests**
 
 Add tests in `packages/cli/src/index.test.ts` under `describe("runCliAsync generate", () => { ... })`:
 
@@ -247,13 +247,13 @@ it("returns a structured JSON error when dry-run is combined with save", async (
 });
 ```
 
-- [ ] **Step 2: Run failing CLI tests**
+- [x] **Step 2: Run failing CLI tests**
 
 Run: `npm --workspace @auto-demo/cli test -- src/index.test.ts`
 
-Expected: fail because `--save` currently has no value and save modes remain unsupported.
+Expected before implementation: failing test output for missing `--save` value parsing and save-mode behavior.
 
-- [ ] **Step 3: Implement CLI parsing**
+- [x] **Step 3: Implement CLI parsing**
 
 In `packages/cli/src/index.ts`:
 
@@ -263,15 +263,15 @@ In `packages/cli/src/index.ts`:
 - pass `selectedVariantId` to `generateHeadlessVariants()`;
 - include `selectedVariantId` only in API options, not in parse-failure result unless an error message needs it.
 
-- [ ] **Step 4: Run CLI tests**
+- [x] **Step 4: Run CLI tests**
 
 Run: `npm --workspace @auto-demo/cli test -- src/index.test.ts`
 
-Expected: pass all CLI tests.
+Expected after implementation: pass all CLI tests.
 
 ## Task 3: Documentation And Validation
 
-- [ ] **Step 1: Update docs**
+- [x] **Step 1: Update docs**
 
 Update `README.md`, `packages/polish/README.md`, and `packages/project/README.md` so they describe:
 
@@ -281,7 +281,7 @@ Update `README.md`, `packages/polish/README.md`, and `packages/project/README.md
 - raw capture artifacts remain immutable because persistence uses `savePolishVariant()`;
 - rendering, export packaging, browser preview, and additional presets remain deferred.
 
-- [ ] **Step 2: Run focused package checks**
+- [x] **Step 2: Run focused package checks**
 
 Run:
 
@@ -294,15 +294,15 @@ npm --workspace @auto-demo/polish run build
 npm --workspace @auto-demo/cli run build
 ```
 
-Expected: all pass.
+Expected after implementation: all pass.
 
-- [ ] **Step 3: Run full validation**
+- [x] **Step 3: Run full validation**
 
 Run: `npm run validate`
 
-Expected: all workspace tests, typechecks, and builds pass.
+Expected after implementation: all workspace tests, typechecks, and builds pass.
 
-- [ ] **Step 4: Update project map**
+- [x] **Step 4: Update project map**
 
 Update `docs/linear/auto-demo-project-structure.md` with:
 

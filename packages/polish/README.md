@@ -77,11 +77,11 @@ giving WES-155 and browser-editor planning a shared source of truth without
 introducing themed visual behavior before rendering/editor validation exists.
 Unsupported style keys, duplicate style requests, counts that do not match the
 baseline-only MVP batch size, missing source variants, invalid selected save
-ids, duplicate generated variant ids, non-JSON output, and invalid project input
-return structured non-secret errors. If the persisted source variant is already
-named `baseline-polish`, saving the generated `baseline-polish` variant returns a
-structured `duplicate_variant_id` error; use a non-colliding source variant id
-when saving a new generated baseline variant.
+ids, duplicate generated variant ids, malformed save arguments, non-JSON output,
+and invalid project input return structured non-secret errors. If the persisted
+source variant is already named `baseline-polish`, saving the generated
+`baseline-polish` variant returns a structured `duplicate_variant_id` error; use
+a non-colliding source variant id when saving a new generated baseline variant.
 
 The baseline generator returns a variant object only. Persisting that variant is
 owned by `@auto-demo/project` through `savePolishVariant()`, which writes
