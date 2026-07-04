@@ -58,6 +58,25 @@ async function createValidCaptureBundle(): Promise<string> {
 
 async function createValidProject(): Promise<string> {
   const projectDir = join(tmpdir(), `auto-demo-cli-generate-${randomUUID()}`);
+  const baselineVariant = {
+    id: "baseline-polish",
+    displayName: "Baseline Polish",
+    source: { mediaPath: "raw/capture.webm", eventsPath: "metadata/events.jsonl" },
+    timeline: { startMs: 1500, endMs: 2750 },
+    viewport: { mode: "contain", focus: { x: 0.75, y: 0.5 }, zoom: 1.35 },
+    cursor: { visible: true, emphasis: "spotlight" },
+    clicks: { emphasis: "ring" },
+    captions: [],
+    callouts: [],
+    style: {
+      background: "solid",
+      backgroundColor: "#0f172a",
+      frame: "browser",
+      padding: 48,
+      cornerRadius: 16,
+    },
+    exportIntent: { format: "mp4", quality: "demo", aspectRatio: "16:9" },
+  };
   await mkdir(join(projectDir, "raw"), { recursive: true });
   await mkdir(join(projectDir, "metadata"), { recursive: true });
   await mkdir(join(projectDir, "variants"), { recursive: true });
@@ -104,13 +123,17 @@ async function createValidProject(): Promise<string> {
         metadata: {
           events: { path: "metadata/events.jsonl", contentType: "application/x-ndjson" },
         },
-        variants: [],
+        variants: [baselineVariant],
         previews: [],
         exports: [],
       },
       null,
       2,
     )}\n`,
+  );
+  await writeFile(
+    join(projectDir, "variants", "baseline-polish.json"),
+    `${JSON.stringify(baselineVariant, null, 2)}\n`,
   );
   return projectDir;
 }
@@ -151,19 +174,92 @@ describe("runCliAsync generate", () => {
     const output = JSON.parse(result.stdout) as {
       ok: boolean;
       project: { projectDir: string; name: string };
-      variants: Array<{ id: string; save: { mode: string; saved: boolean } }>;
+      requested: { styles: string[]; sourceVariantId: string };
+      variants: Array<{
+        id: string;
+        metadata: { presetKey: string; sourceVariantId: string };
+        save: { mode: string; saved: boolean };
+      }>;
     };
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(output.ok).toBe(true);
     expect(output.project).toMatchObject({ projectDir, name: "Checkout flow demo" });
+    expect(output.requested).toMatchObject({
+      styles: ["baseline"],
+      sourceVariantId: "baseline-polish",
+    });
     expect(output.variants).toEqual([
       expect.objectContaining({
         id: "baseline-polish",
+        metadata: expect.objectContaining({
+          presetKey: "baseline",
+          sourceVariantId: "baseline-polish",
+        }),
         save: { mode: "dry-run", saved: false },
       }),
     ]);
+  });
+
+  it("prints a dry-run baseline batch summary as JSON", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--dry-run",
+      "--json",
+      "--styles",
+      "baseline",
+      "--source-variant",
+      "baseline-polish",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      requested: { styles: string[]; sourceVariantId: string };
+      variants: Array<{ metadata: { presetKey: string; sourceVariantId: string } }>;
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.requested).toMatchObject({
+      styles: ["baseline"],
+      sourceVariantId: "baseline-polish",
+    });
+    expect(output.variants).toEqual([
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          presetKey: "baseline",
+          sourceVariantId: "baseline-polish",
+        }),
+      }),
+    ]);
+  });
+
+  it("returns structured JSON errors for duplicate generated styles", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--dry-run",
+      "--json",
+      "--styles",
+      "baseline,baseline",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "duplicate_style",
+      message: expect.any(String),
+    });
   });
 
   it("returns a structured JSON error when project input is missing", async () => {
