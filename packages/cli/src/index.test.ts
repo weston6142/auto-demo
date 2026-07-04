@@ -196,10 +196,69 @@ describe("runCliAsync generate", () => {
     expect(output.errors).toEqual([{ code: "unsupported_style", message: expect.any(String) }]);
   });
 
+  it("returns structured JSON errors for unknown generate arguments", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "generate",
+      "--project",
+      projectDir,
+      "--dry-run",
+      "--json",
+      "--savee",
+      "extra",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([
+      { code: "unknown_generate_argument", message: expect.any(String) },
+      { code: "unknown_generate_argument", message: expect.any(String) },
+    ]);
+  });
+
+  it("rejects partially numeric generate counts", async () => {
+    const projectDir = await createValidProject();
+
+    for (const count of ["1abc", "1.5", "01"]) {
+      const result = await runCliAsync([
+        "generate",
+        "--project",
+        projectDir,
+        "--dry-run",
+        "--json",
+        "--count",
+        count,
+      ]);
+      const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBe("");
+      expect(output.ok).toBe(false);
+      expect(output.errors).toEqual([
+        { code: "unsupported_variant_count", message: expect.any(String) },
+      ]);
+    }
+  });
+
   it("requires JSON output for the first generate contract", async () => {
     const projectDir = await createValidProject();
 
     const result = await runCliAsync(["generate", "--project", projectDir, "--dry-run"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo generate currently requires --json output.\n",
+    });
+  });
+
+  it("keeps the non-JSON stderr requirement when generate arguments are unknown", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync(["generate", "--project", projectDir, "--dry-run", "--savee"]);
 
     expect(result).toEqual({
       exitCode: 1,

@@ -57,6 +57,7 @@ export type HeadlessVariantGenerationErrorCode =
   | "unsupported_save_mode"
   | "unsupported_variant_count"
   | "unsupported_style"
+  | "unknown_generate_argument"
   | "invalid_project";
 
 /** Structured non-secret error for the headless generation contract. */

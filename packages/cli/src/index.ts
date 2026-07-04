@@ -12,7 +12,11 @@ import {
   type CaptureStopReason,
   type CaptureViewport,
 } from "@auto-demo/capture";
-import { generateHeadlessVariants } from "@auto-demo/polish";
+import {
+  generateHeadlessVariants,
+  type HeadlessVariantGenerationError,
+  type HeadlessVariantGenerationResult,
+} from "@auto-demo/polish";
 
 export type CliResult = {
   exitCode: number;
@@ -46,6 +50,17 @@ type ParsedCaptureCommand =
       ok: false;
       message: string;
     };
+
+type ParsedGenerateCommand = {
+  projectPath?: string;
+  dryRun: boolean;
+  json: boolean;
+  count?: number;
+  style?: string;
+  save: boolean;
+  mode?: string;
+  errors: HeadlessVariantGenerationError[];
+};
 
 const plannedCommands = new Set(["init", "capture", "export", "open"]);
 
@@ -217,6 +232,15 @@ async function runGenerateCommand(args: string[]): Promise<CliResult> {
     };
   }
 
+  if (parsed.errors.length > 0) {
+    const result = generateParseFailure(parsed);
+    return {
+      exitCode: 1,
+      stdout: `${JSON.stringify(result, null, 2)}\n`,
+      stderr: "",
+    };
+  }
+
   const result = await generateHeadlessVariants({
     projectPath: parsed.projectPath ?? "",
     dryRun: parsed.dryRun,
@@ -234,15 +258,7 @@ async function runGenerateCommand(args: string[]): Promise<CliResult> {
   };
 }
 
-function parseGenerateCommand(args: string[]): {
-  projectPath?: string;
-  dryRun: boolean;
-  json: boolean;
-  count?: number;
-  style?: string;
-  save?: boolean;
-  mode?: string;
-} {
+function parseGenerateCommand(args: string[]): ParsedGenerateCommand {
   let projectPath: string | undefined;
   let dryRun = false;
   let json = false;
@@ -250,6 +266,7 @@ function parseGenerateCommand(args: string[]): {
   let style: string | undefined;
   let save = false;
   let mode: string | undefined;
+  const errors: HeadlessVariantGenerationError[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -271,7 +288,7 @@ function parseGenerateCommand(args: string[]): {
     }
 
     if (arg === "--count") {
-      count = Number.parseInt(args[index + 1] ?? "", 10);
+      count = parseGenerateCount(args[index + 1]);
       index += 1;
       continue;
     }
@@ -293,9 +310,43 @@ function parseGenerateCommand(args: string[]): {
       index += 1;
       continue;
     }
+
+    errors.push({
+      code: "unknown_generate_argument",
+      message: `Unknown generate argument: ${arg}`,
+    });
   }
 
-  return { projectPath, dryRun, json, count, style, save, mode };
+  return { projectPath, dryRun, json, count, style, save, mode, errors };
+}
+
+function parseGenerateCount(value: string | undefined): number {
+  if (value === "1") {
+    return 1;
+  }
+
+  if (value !== undefined && /^-?\d+$/.test(value)) {
+    const parsed = Number.parseInt(value, 10);
+    return value === String(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function generateParseFailure(parsed: ParsedGenerateCommand): HeadlessVariantGenerationResult {
+  return {
+    ok: false,
+    project: {
+      projectPath: parsed.projectPath ?? "",
+    },
+    requested: {
+      count: parsed.count ?? 1,
+      style: parsed.style ?? "baseline",
+      dryRun: parsed.dryRun,
+    },
+    variants: [],
+    errors: parsed.errors,
+  };
 }
 
 async function waitForManualInterrupt(
