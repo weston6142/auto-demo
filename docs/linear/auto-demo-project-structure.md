@@ -92,7 +92,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-154: Headless variant generation CLI and API contract - Done - https://linear.app/weston-bushyeager/issue/WES-154/headless-variant-generation-cli-and-api-contract
 - WES-155: Generate deterministic named variant batches - Backlog - https://linear.app/weston-bushyeager/issue/WES-155/generate-deterministic-named-variant-batches
 - WES-156: Save selected or all headless variants with run summary - Backlog - https://linear.app/weston-bushyeager/issue/WES-156/save-selected-or-all-headless-variants-with-run-summary
-- WES-166: Open question: define MVP named style presets - Backlog - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
+- WES-166: Open question: define MVP named style presets - Done - https://linear.app/weston-bushyeager/issue/WES-166/open-question-define-mvp-named-style-presets
 
 ### 6. Browser Editor
 
@@ -234,7 +234,7 @@ capture-dir/
 - WES-153 verification: TDD red checks failed first for the missing `savePolishVariant()` API and then for missing saved-variant file validation. After implementation, `npm --workspace @auto-demo/project test -- src/index.test.ts`, `npm --workspace @auto-demo/polish test -- src/index.test.ts`, `npm --workspace @auto-demo/project run typecheck`, `npm --workspace @auto-demo/project run build`, and `npm run validate` passed locally. No-mistakes PR #13 passed review, test, document, lint, push, PR, and GitHub CI `validate` on head `d0c17641`.
 - WES-133: Auto Polish Engine tracker completed after WES-151, WES-152, and WES-153 reached Done. The MVP now has a schema-valid variant model, deterministic baseline generation, and durable saved variant persistence for downstream Headless Variant Generation.
 - WES-154: Headless variant generation contract implemented in PR #14. `autodemo generate --project <project-dir-or-manifest> --dry-run --json` loads projects through `loadProject()`, emits one deterministic baseline dry-run summary through `@auto-demo/polish`, rejects unsupported styles/counts/save modes/malformed options with structured JSON errors, and keeps named batches, save modes, run summaries, rendering, and exports deferred. Verification: local `npm run validate` passed; no-mistakes PR #14 passed review, test, document, lint, push, PR, and GitHub CI `validate` on head `b440d703`.
-- WES-166: `@auto-demo/polish` now exports `MvpStylePresetKey`, `MvpStylePreset`, and `MVP_STYLE_PRESETS` as the baseline-only MVP preset contract with stable key `baseline` and display name `Baseline Polish`; unsupported style keys remain structured errors in headless generation.
+- WES-166: MVP named style preset decision completed in PR #15. `@auto-demo/polish` now exports `MvpStylePresetKey`, `MvpStylePreset`, and `MVP_STYLE_PRESETS` as the baseline-only MVP preset contract with stable key `baseline` and display name `Baseline Polish`; unsupported style keys remain structured errors in headless generation. Verification: focused polish tests, polish typecheck/build, local `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `a72e3337`.
 
 ## Update Rules
 
