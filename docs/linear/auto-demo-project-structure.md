@@ -49,7 +49,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-153. Expected next product task after WES-153 completion: WES-133 tracker closure or WES-154, depending on completion-gate evidence for the Auto Polish Engine milestone.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-154. WES-154 starts Milestone 5 now that the Auto Polish Engine tracker is complete.
 
 ## Issues By Milestone
 
@@ -77,10 +77,10 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 4. Auto Polish Engine
 
-- WES-133: Milestone 4: Auto polish engine - Backlog - https://linear.app/weston-bushyeager/issue/WES-133/milestone-4-auto-polish-engine
+- WES-133: Milestone 4: Auto polish engine - Done - https://linear.app/weston-bushyeager/issue/WES-133/milestone-4-auto-polish-engine
 - WES-151: Polish decision schema and variant data model - Done - https://linear.app/weston-bushyeager/issue/WES-151/polish-decision-schema-and-variant-data-model
 - WES-152: Generate baseline polish decisions from capture events - Done - https://linear.app/weston-bushyeager/issue/WES-152/generate-baseline-polish-decisions-from-capture-events
-- WES-153: Persist generated polish variant into project files - In Progress - https://linear.app/weston-bushyeager/issue/WES-153/persist-generated-polish-variant-into-project-files
+- WES-153: Persist generated polish variant into project files - Done - https://linear.app/weston-bushyeager/issue/WES-153/persist-generated-polish-variant-into-project-files
 
 ### 5. Headless Variant Generation
 
@@ -168,6 +168,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - 2026-07-02 WES-152 design: `@auto-demo/polish` owns a deterministic baseline generator that reads loaded project event JSONL and returns one schema-valid `ProjectVariant` plus structured warnings. Persistence, rendering, CLI, browser editor, and multi-variant presets remain deferred.
 - 2026-07-03 pre-task sync: Linear shows WES-152 as Done with PR #12 completion evidence, and local `develop` includes merge commit `ea10e8c`. WES-153 is the next incomplete unblocked Auto Polish Engine child because WES-150, WES-151, and WES-152 are complete. WES-153 is ready for brainstorming: persist one generated `ProjectVariant` into project files, reload/validate it, preserve raw capture immutability, and document handoff contracts while deferring rendering, style batches, and browser editor mutation workflows.
 - 2026-07-03 WES-153 design: `@auto-demo/project` owns saved variant persistence through `savePolishVariant(project, variant, options)`. The API writes `variants/<variant-id>.json`, appends the same `ProjectVariant` to `autodemo.project.json`, revalidates saved variant files during project load/validation, and leaves generation in `@auto-demo/polish`.
+- 2026-07-03 completion-gate sync: PR #13 passed no-mistakes review, test, document, lint, push, PR, and GitHub CI `validate` on head `d0c17641`. WES-153 completion evidence was added and the issue was moved to Done. Because WES-151, WES-152, and WES-153 are all Done, WES-133 was moved to Done. WES-154 received a readiness note to build on `loadProject()`, `generateBaselinePolishVariant()`, and `savePolishVariant()`.
 
 ## Temporary Capture Bundle
 
@@ -223,6 +224,8 @@ capture-dir/
 - WES-152: `@auto-demo/polish` now exports `generateBaselinePolishVariant(project, options)` and returns deterministic schema-valid baseline variants plus structured warnings from project-owned event metadata.
 - WES-152 verification: PR #12 merged to `develop` at 2026-07-02T21:45:23Z with merge commit `ea10e8c6`; GitHub CI `validate` succeeded on head `7452482c` before merge.
 - WES-153: `@auto-demo/project` now exports `savePolishVariant(project, variant, options)` to write `variants/<variant-id>.json`, append the matching manifest variant, update `updatedAt`, revalidate saved variant files, and preserve raw capture media and metadata; direct `saveProject()` calls with manifest variants require matching saved variant files to already exist.
+- WES-153 verification: TDD red checks failed first for the missing `savePolishVariant()` API and then for missing saved-variant file validation. After implementation, `npm --workspace @auto-demo/project test -- src/index.test.ts`, `npm --workspace @auto-demo/polish test -- src/index.test.ts`, `npm --workspace @auto-demo/project run typecheck`, `npm --workspace @auto-demo/project run build`, and `npm run validate` passed locally. No-mistakes PR #13 passed review, test, document, lint, push, PR, and GitHub CI `validate` on head `d0c17641`.
+- WES-133: Auto Polish Engine tracker completed after WES-151, WES-152, and WES-153 reached Done. The MVP now has a schema-valid variant model, deterministic baseline generation, and durable saved variant persistence for downstream Headless Variant Generation.
 
 ## Update Rules
 
