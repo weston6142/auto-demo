@@ -58,6 +58,12 @@ browser editor, and export work. `validateProject()` and `loadProject()` require
 each manifest variant to have a matching saved file and report structured
 non-secret errors for missing, malformed, or mismatched variant files.
 
+Generated saves and browser-edited saves use separate persistence APIs.
+`savePolishVariant()` keeps generated output append-only and rejects duplicate
+ids. `upsertSavedVariant()` is for browser editor persistence: `update` replaces
+an existing saved variant, while `copy` writes a new variant id and display name
+without modifying the original variant.
+
 ## API
 
 ```ts
@@ -66,6 +72,7 @@ import {
   loadProject,
   savePolishVariant,
   saveProject,
+  upsertSavedVariant,
   validateProject,
   validateProjectManifest,
 } from "@auto-demo/project";
@@ -112,3 +119,11 @@ metadata, previews, or exports.
 Headless generation save mode in `@auto-demo/polish` and `autodemo generate`
 uses this API for selected and save-all requests, so saved variants are durable
 project files while raw capture artifacts remain immutable.
+
+`upsertSavedVariant(project, input, options)` validates one browser-edited saved
+variant, writes `variants/<variant-id>.json`, updates the corresponding manifest
+entry or appends a named copy, updates `updatedAt`, and revalidates the saved
+project. `update` mode requires the target variant id to already exist. `copy`
+mode requires a new `copyId` and `displayName`, rejects duplicate ids, and leaves
+the source variant unchanged. If the manifest write fails after the variant file
+write, the helper restores or removes the variant file it touched.
