@@ -61,7 +61,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-170, because WES-158 needs the Browser Editor preview-fidelity and MVP finishing-controls decision before implementation scope is final.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-170 completion: WES-158, because the Browser Editor preview-fidelity and MVP finishing-controls decision is now resolved.
 
 ## Issues By Milestone
 
@@ -108,7 +108,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-157: Serve local browser editor and load demo projects - Done - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
 - WES-158: Timeline preview and finishing controls for MVP variants - Backlog - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
 - WES-159: Save browser edits as project variants for export handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
-- WES-170: Open question: decide browser preview fidelity and MVP finishing controls - In Progress - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
+- WES-170: Open question: decide browser preview fidelity and MVP finishing controls - Done - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
 
 ### 7. Agent Integrations
 
@@ -260,6 +260,7 @@ capture-dir/
 - 2026-07-04 WES-170 pre-task sync: Linear and local project map agreed WES-170 is the next Browser Editor task because WES-158 remains blocked on preview-fidelity and MVP finishing-control scope. WES-170 was moved to In Progress on branch `fm/wes-170`.
 - 2026-07-04 WES-170 decision: WES-158 should target approximate browser review fidelity, not exact exported-media parity. MVP finishing controls must stay schema-backed: trim boundaries, viewport framing, captions/callouts, cursor/click styling, and direct style fields. Named preset/theme picker UI, exact export parity, rendering, and non-schema editor fields remain deferred.
 - WES-158 readiness update: after WES-170, WES-158 can implement the approximate preview and local editing surface against existing `ProjectVariant` fields, with WES-159 still owning persistence of edited variants.
+- 2026-07-04 WES-170 completion-gate sync: WES-170 decision spec and implementation plan were committed in PR #19, WES-158 acceptance criteria were updated in Linear, WES-158 received a readiness note, local `npm run validate` passed, and no-mistakes passed review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `447e66a8`.
 
 ## Update Rules
 
