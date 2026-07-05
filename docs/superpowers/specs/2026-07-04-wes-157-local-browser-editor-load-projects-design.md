@@ -120,7 +120,7 @@ The first UI is a static, dependency-free HTML page designed for repeated local 
 - Validation failure state shows "Project could not be loaded" and a list of stable error messages.
 - Loading and network failure states are visible instead of silent.
 
-No editing controls are introduced in WES-157. WES-158 owns timeline preview and finishing controls after WES-170 resolves the exact MVP scope.
+No editing controls are introduced in WES-157. WES-170 later scoped WES-158 to approximate browser review fidelity with schema-backed timeline preview and finishing controls.
 
 ## Testing
 
@@ -138,8 +138,8 @@ Tests should use real temporary project files and `@auto-demo/project` validatio
 ## Deferrals
 
 - Browser auto-launch.
-- Timeline media preview fidelity.
-- Editing controls and variant mutation.
+- Approximate timeline preview and schema-backed finishing controls, now scoped to WES-158 by WES-170.
+- Edited-variant persistence and save behavior, owned by WES-159.
 - Export rendering.
 - Hosted deployment.
 - Agent-facing wrappers.
