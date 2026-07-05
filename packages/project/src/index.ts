@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { validateCaptureBundle, type CaptureManifest } from "@auto-demo/capture";
 
@@ -577,16 +577,24 @@ export async function upsertSavedVariant(
   }
 
   await mkdir(join(project.projectDir, "variants"), { recursive: true });
-  await writeJsonFileAtomically(
-    join(project.projectDir, variantFilePath(nextVariant.id)),
-    nextVariant,
-  );
+  const variantPath = join(project.projectDir, variantFilePath(nextVariant.id));
+  const previousVariantFile = await readOptionalFile(variantPath);
+  await writeJsonFileAtomically(variantPath, nextVariant);
 
-  return saveProject({
-    projectDir: project.projectDir,
-    manifestPath: project.manifestPath,
-    manifest: manifestValidation.manifest,
-  });
+  try {
+    return await saveProject({
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: manifestValidation.manifest,
+    });
+  } catch (error) {
+    if (previousVariantFile === null) {
+      await rm(variantPath, { force: true });
+    } else {
+      await writeFileAtomically(variantPath, previousVariantFile);
+    }
+    throw error;
+  }
 }
 
 async function validateProjectImportTarget(
@@ -902,9 +910,24 @@ function isMissingPathError(error: unknown): boolean {
 }
 
 async function writeJsonFileAtomically(path: string, value: unknown): Promise<void> {
+  await writeFileAtomically(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function writeFileAtomically(path: string, value: string): Promise<void> {
   const tempPath = `${path}.tmp`;
-  await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(tempPath, value);
   await rename(tempPath, path);
+}
+
+async function readOptionalFile(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
