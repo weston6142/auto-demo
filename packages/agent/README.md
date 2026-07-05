@@ -58,5 +58,8 @@ Expected failures return `ok: false` with stable error codes such as
 successful JSON handoff summary and `1` for expected validation, generation, or
 handoff failures.
 
-Codex and Claude skill wrappers, MCP transport, final media export, and
-interactive/non-JSON workflow output remain follow-up work.
+The WES-169 MVP host decision treats a Codex production wrapper as
+acceptance-critical for the first demo. Claude wrapper parity remains documented
+follow-up scope: it should match the same invocation inputs, command sequence,
+expected artifacts, and failure handling once implemented. MCP transport, final
+media export, and interactive/non-JSON workflow output remain follow-up work.

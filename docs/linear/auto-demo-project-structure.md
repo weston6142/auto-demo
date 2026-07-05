@@ -49,6 +49,8 @@ Last updated: 2026-07-05
 - WES-159 save browser edits implementation plan: `docs/superpowers/plans/2026-07-05-wes-159-save-browser-edits.md`
 - WES-160 agent workflow handoff contract design spec: `docs/superpowers/specs/2026-07-05-wes-160-agent-workflow-handoff-contract-design.md`
 - WES-160 agent workflow handoff contract implementation plan: `docs/superpowers/plans/2026-07-05-wes-160-agent-workflow-handoff-contract.md`
+- WES-169 MVP agent host wrapper scope design spec: `docs/superpowers/specs/2026-07-05-wes-169-agent-host-wrapper-scope-design.md`
+- WES-169 MVP agent host wrapper scope implementation plan: `docs/superpowers/plans/2026-07-05-wes-169-agent-host-wrapper-scope.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -67,7 +69,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-160 completion: WES-169, because the agent-facing workflow contract is implemented and WES-169 resolves MVP agent-host wrapper scope before WES-161 builds Codex/Claude wrappers.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-169, because the agent-facing workflow contract is implemented and WES-169 resolves MVP agent-host wrapper scope before WES-161 builds host wrappers.
 
 ## Issues By Milestone
 
@@ -122,7 +124,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-160: Agent-facing workflow CLI and handoff contract - Done - https://linear.app/weston-bushyeager/issue/WES-160/agent-facing-workflow-cli-and-handoff-contract
 - WES-161: Codex and Claude skill wrappers for the demo workflow - Backlog - https://linear.app/weston-bushyeager/issue/WES-161/codex-and-claude-skill-wrappers-for-the-demo-workflow
 - WES-162: Open question: decide whether MCP is required for MVP - Backlog - https://linear.app/weston-bushyeager/issue/WES-162/open-question-decide-whether-mcp-is-required-for-mvp
-- WES-169: Open question: choose MVP agent host wrapper scope - Backlog - https://linear.app/weston-bushyeager/issue/WES-169/open-question-choose-mvp-agent-host-wrapper-scope
+- WES-169: Open question: choose MVP agent host wrapper scope - In Progress - https://linear.app/weston-bushyeager/issue/WES-169/open-question-choose-mvp-agent-host-wrapper-scope
 
 ### 8. Export And Packaging
 
@@ -263,6 +265,7 @@ capture-dir/
 - 2026-07-05 WES-160 pre-task sync: Linear and local `develop` agree WES-160 is the first incomplete unblocked Agent Integrations child after Browser Editor completion. WES-160 was moved to In Progress on branch `fm/wes-160`. The implementation scope is an `@auto-demo/agent` workflow API plus `autodemo agent run --project <project> --json` for selecting or baseline-generating a saved variant, optional editor URL handoff, structured non-secret errors, and docs; Codex/Claude skill wrappers, MCP, and export rendering remain deferred.
 - 2026-07-05 WES-160 completion-gate sync: PR #22 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `06c03483`. `@auto-demo/agent` now exposes `runAgentWorkflow()`, and `autodemo agent run --project <project> --json` selects saved variants or saves the baseline generated variant, emits JSON handoff artifacts and deterministic non-secret errors, and documents the intentional long-lived local editor handoff for `--open-editor`. No-mistakes fixed the editor lifecycle documentation, constrained agent save targets to `baseline-polish|all`, rejected `--source-variant` without generation, and added agent dependency build hooks. WES-169 is the next task by the selection rule because it resolves wrapper scope before WES-161.
 - WES-160: Agent workflow handoff contract completed in PR #22. `@auto-demo/agent` exposes a JSON-ready `runAgentWorkflow()` API, and `autodemo agent run --project <project> --json` selects saved variants, saves baseline generated variants with `--save baseline-polish|all`, reports project/variant artifact paths, warnings, next-step hints, and deterministic non-secret errors, and can start the long-lived local editor handoff with `--open-editor`.
+- 2026-07-05 WES-169 pre-task sync: Linear and local `develop` agree WES-169 is the first incomplete unblocked Agent Integrations decision after WES-160. WES-169 was moved to In Progress on branch `fm/wes-169-agent-host-wrapper-scope`. The selected decision is a Codex production wrapper for the MVP demo plus documented Claude wrapper parity as follow-up scope; WES-161 should implement the Codex wrapper and stop inferring full Codex/Claude production parity as MVP acceptance.
 - 2026-07-04 WES-157 completion-gate sync: PR #18 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `287b10bb`. WES-157 completion evidence was added to Linear and the issue was moved to Done. WES-158 received a readiness note that the local editor/project-load entry point is available, with WES-170 still owning the preview-fidelity and MVP finishing-control decision before WES-158 implementation.
 - WES-157: Local browser editor project loading completed in PR #18. `autodemo open --project <project-dir-or-manifest>` starts the local review-only editor server, `@auto-demo/editor` loads validated project summaries through `@auto-demo/project`, `/api/project` returns operator-facing success or validation-error JSON, and the static editor lists saved/generated variants or shows empty-variant generation guidance.
 - WES-157 verification: TDD red checks failed first for missing `loadEditorProject()`/`startEditorServer()` exports and unimplemented CLI `open` routing; after implementation, focused editor/CLI tests passed, local `npm run validate` passed, and no-mistakes PR #18 passed GitHub CI `validate` on head `287b10bb`.
