@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
@@ -103,6 +103,14 @@ function baselineVariant(): unknown {
 
 async function runEditorScript(
   project: EditorProjectSummary,
+  options: {
+    fetch?: (
+      input: string,
+      init?: { method?: string; body?: string },
+    ) => Promise<{
+      json: () => Promise<unknown>;
+    }>;
+  } = {},
 ): Promise<{ evaluate: <T>(script: string) => T }> {
   const server = await startEditorServer({ projectPath: project.projectDir });
   servers.push(server);
@@ -121,10 +129,12 @@ async function runEditorScript(
       querySelector: (selector: string) => (selector === "#app" ? app : { ...element }),
       querySelectorAll: () => [],
     },
-    fetch: () =>
-      Promise.resolve({
-        json: () => Promise.resolve({ ok: true, project }),
-      }),
+    fetch:
+      options.fetch ??
+      (() =>
+        Promise.resolve({
+          json: () => Promise.resolve({ ok: true, project }),
+        })),
   });
 
   vm.runInContext(scriptMatch?.[1] ?? "", context);
@@ -238,6 +248,10 @@ describe("startEditorServer", () => {
     expect(html).toContain("Clicks");
     expect(html).toContain("Style");
     expect(html).toContain("Reset Changes");
+    expect(html).toContain("Save Changes");
+    expect(html).toContain("Save As Copy");
+    expect(html).toContain("Copy ID");
+    expect(html).toContain("Copy Display Name");
     expect(html).toContain("Edited Variant JSON");
     expect(html).not.toContain("Named Preset");
     expect(project).toMatchObject({
@@ -309,6 +323,156 @@ describe("startEditorServer", () => {
     const response = await fetch(new URL("/project-file/%", server.url));
 
     expect(response.status).toBe(404);
+  });
+
+  it("updates an existing variant through POST /api/variants and reloads it from the project API", async () => {
+    const projectDir = await createEditorProject();
+    const server = await startEditorServer({ projectPath: projectDir });
+    servers.push(server);
+    const editedVariant = {
+      ...(baselineVariant() as Record<string, unknown>),
+      displayName: "Saved Browser Edit",
+      style: {
+        ...((baselineVariant() as Record<string, unknown>).style as Record<string, unknown>),
+        backgroundColor: "#123456",
+      },
+    };
+
+    const saveResponse = await fetch(new URL("/api/variants", server.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "update", variant: editedVariant }),
+    });
+    const saveBody = await saveResponse.json();
+    const projectBody = (await fetch(new URL("/api/project", server.url)).then((response) =>
+      response.json(),
+    )) as { project: { variants: unknown[] } };
+
+    expect(saveResponse.status).toBe(200);
+    expect(saveBody).toMatchObject({
+      ok: true,
+      mode: "update",
+      variantId: "baseline-polish",
+      variantPath: "variants/baseline-polish.json",
+      validation: { ok: true },
+      message: "Saved baseline-polish.",
+    });
+    expect(projectBody.project.variants).toEqual([editedVariant]);
+    expect(
+      JSON.parse(await readFile(join(projectDir, "variants", "baseline-polish.json"), "utf8")),
+    ).toEqual(editedVariant);
+  });
+
+  it("saves a named copy through POST /api/variants without changing the source variant", async () => {
+    const projectDir = await createEditorProject();
+    const server = await startEditorServer({ projectPath: projectDir });
+    servers.push(server);
+    const sourceVariant = baselineVariant();
+
+    const response = await fetch(new URL("/api/variants", server.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        mode: "copy",
+        variant: sourceVariant,
+        copyId: "browser-copy",
+        displayName: "Browser Copy",
+      }),
+    });
+    const body = await response.json();
+    const projectBody = (await fetch(new URL("/api/project", server.url)).then((projectResponse) =>
+      projectResponse.json(),
+    )) as { project: { variants: unknown[] } };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      mode: "copy",
+      variantId: "browser-copy",
+      variantPath: "variants/browser-copy.json",
+      validation: { ok: true },
+      message: "Saved browser-copy.",
+    });
+    expect(projectBody.project.variants).toEqual([
+      sourceVariant,
+      {
+        ...(sourceVariant as Record<string, unknown>),
+        id: "browser-copy",
+        displayName: "Browser Copy",
+      },
+    ]);
+  });
+
+  it.each([
+    ["text/plain", "{", 415, "POST /api/variants accepts application/json requests only."],
+    ["application/json", "{", 400, "POST /api/variants request body must be valid JSON."],
+    [
+      "application/json",
+      JSON.stringify({ mode: "rename", variant: baselineVariant() }),
+      400,
+      "POST /api/variants mode must be update or copy.",
+    ],
+    [
+      "application/json",
+      JSON.stringify({ mode: "update", variant: { id: "missing-fields" } }),
+      422,
+      "Auto Demo project variant display name is invalid.",
+    ],
+  ])(
+    "returns a stable error for invalid variant save request %#",
+    async (contentType, body, status, message) => {
+      const projectDir = await createEditorProject();
+      const server = await startEditorServer({ projectPath: projectDir });
+      servers.push(server);
+
+      const response = await fetch(new URL("/api/variants", server.url), {
+        method: "POST",
+        headers: { "content-type": contentType },
+        body,
+      });
+
+      expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        errors: expect.arrayContaining([{ message }]),
+      });
+    },
+  );
+
+  it("returns a stable error for duplicate copy ids and missing update targets", async () => {
+    const projectDir = await createEditorProject();
+    const server = await startEditorServer({ projectPath: projectDir });
+    servers.push(server);
+
+    const duplicate = await fetch(new URL("/api/variants", server.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        mode: "copy",
+        variant: baselineVariant(),
+        copyId: "baseline-polish",
+        displayName: "Duplicate",
+      }),
+    });
+    const missingUpdate = await fetch(new URL("/api/variants", server.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        mode: "update",
+        variant: { ...(baselineVariant() as Record<string, unknown>), id: "missing-variant" },
+      }),
+    });
+
+    expect(duplicate.status).toBe(422);
+    await expect(duplicate.json()).resolves.toEqual({
+      ok: false,
+      errors: [{ message: "Saved Auto Demo project variant copy id already exists." }],
+    });
+    expect(missingUpdate.status).toBe(422);
+    await expect(missingUpdate.json()).resolves.toEqual({
+      ok: false,
+      errors: [{ message: "Saved Auto Demo project variant cannot update a missing variant." }],
+    });
   });
 
   it("keeps timed text inside the draft timeline after trim edits", async () => {
@@ -400,5 +564,127 @@ describe("startEditorServer", () => {
     const backgroundColor = editor.evaluate<string>("draft.style.backgroundColor");
 
     expect(backgroundColor).toBe("#0f172a");
+  });
+
+  it("posts update saves and refreshes the project from the public API", async () => {
+    const projectDir = await createEditorProject();
+    const project = await loadEditorProject(projectDir);
+    expect(project.ok).toBe(true);
+    if (!project.ok) return;
+    const calls: Array<{ input: string; method: string; body?: unknown }> = [];
+    const refreshedProject: EditorProjectSummary = {
+      ...project.project,
+      variants: [
+        {
+          ...project.project.variants[0],
+          displayName: "Saved Browser Edit",
+          style: { ...project.project.variants[0].style, backgroundColor: "#123456" },
+        },
+      ],
+    };
+    let projectFetchCount = 0;
+    const editor = await runEditorScript(project.project, {
+      fetch: async (input, init) => {
+        calls.push({
+          input,
+          method: init?.method ?? "GET",
+          body: init?.body === undefined ? undefined : JSON.parse(init.body),
+        });
+        if (init?.method === "POST") {
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                mode: "update",
+                variantId: "baseline-polish",
+                message: "Saved baseline-polish.",
+              }),
+          };
+        }
+        projectFetchCount += 1;
+        return {
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              project: projectFetchCount === 1 ? project.project : refreshedProject,
+            }),
+        };
+      },
+    });
+
+    editor.evaluate('update("style.backgroundColor", "#123456")');
+    await editor.evaluate<Promise<void>>('saveVariant("update")');
+
+    expect(calls).toContainEqual({
+      input: "/api/variants",
+      method: "POST",
+      body: {
+        mode: "update",
+        variant: {
+          ...project.project.variants[0],
+          style: { ...project.project.variants[0].style, backgroundColor: "#123456" },
+        },
+      },
+    });
+    expect(calls.at(-1)).toMatchObject({ input: "/api/project", method: "GET" });
+    expect(editor.evaluate<string>("draft.displayName")).toBe("Saved Browser Edit");
+    expect(editor.evaluate<string>("saveStatus")).toBe("Saved baseline-polish.");
+  });
+
+  it("posts named-copy saves and selects the refreshed copy", async () => {
+    const projectDir = await createEditorProject();
+    const project = await loadEditorProject(projectDir);
+    expect(project.ok).toBe(true);
+    if (!project.ok) return;
+    const copyVariant = {
+      ...project.project.variants[0],
+      id: "browser-copy",
+      displayName: "Browser Copy",
+    };
+    const calls: Array<{ input: string; method: string; body?: unknown }> = [];
+    const editor = await runEditorScript(project.project, {
+      fetch: async (input, init) => {
+        calls.push({
+          input,
+          method: init?.method ?? "GET",
+          body: init?.body === undefined ? undefined : JSON.parse(init.body),
+        });
+        if (init?.method === "POST") {
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                mode: "copy",
+                variantId: "browser-copy",
+                message: "Saved browser-copy.",
+              }),
+          };
+        }
+        return {
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              project: { ...project.project, variants: [project.project.variants[0], copyVariant] },
+            }),
+        };
+      },
+    });
+
+    await editor.evaluate<Promise<void>>(
+      'saveVariant("copy", { copyId: "browser-copy", displayName: "Browser Copy" })',
+    );
+
+    expect(calls).toContainEqual({
+      input: "/api/variants",
+      method: "POST",
+      body: {
+        mode: "copy",
+        variant: project.project.variants[0],
+        copyId: "browser-copy",
+        displayName: "Browser Copy",
+      },
+    });
+    expect(editor.evaluate<string>("draft.id")).toBe("browser-copy");
+    expect(editor.evaluate<string>("saveStatus")).toBe("Saved browser-copy.");
   });
 });

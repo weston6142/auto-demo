@@ -180,6 +180,26 @@ export type SavePolishVariantOptions = {
 /** Result for saving a polish variant and revalidating the saved project. */
 export type SavePolishVariantResult = ProjectValidationResult;
 
+export type UpsertSavedVariantInput =
+  | {
+      mode: "update";
+      variant: ProjectVariant;
+    }
+  | {
+      mode: "copy";
+      variant: ProjectVariant;
+      copyId: string;
+      displayName: string;
+    };
+
+/** Options for saving browser-edited variants into existing project files. */
+export type UpsertSavedVariantOptions = {
+  now?: Date;
+};
+
+/** Result for upserting one browser-edited saved variant and revalidating the project. */
+export type UpsertSavedVariantResult = ProjectValidationResult;
+
 export type ProjectImportErrorCode =
   | ProjectValidationErrorCode
   | "invalid_capture_bundle"
@@ -491,6 +511,75 @@ export async function savePolishVariant(
   await writeJsonFileAtomically(
     join(project.projectDir, variantFilePath(variant.id)),
     manifestValidation.manifest.variants[manifestValidation.manifest.variants.length - 1],
+  );
+
+  return saveProject({
+    projectDir: project.projectDir,
+    manifestPath: project.manifestPath,
+    manifest: manifestValidation.manifest,
+  });
+}
+
+/** Updates an existing saved variant or saves a named copy for browser editor persistence. */
+export async function upsertSavedVariant(
+  project: LoadedProject,
+  input: UpsertSavedVariantInput,
+  options: UpsertSavedVariantOptions = {},
+): Promise<UpsertSavedVariantResult> {
+  const nextVariant =
+    input.mode === "copy"
+      ? { ...input.variant, id: input.copyId, displayName: input.displayName.trim() }
+      : input.variant;
+  const variantValidation = validateProjectManifest({
+    ...project.manifest,
+    variants: [nextVariant],
+  });
+  if (!variantValidation.ok) {
+    return projectFailure(project, variantValidation.errors);
+  }
+
+  const existingIndex = project.manifest.variants.findIndex(
+    (variant) => variant.id === nextVariant.id,
+  );
+
+  if (input.mode === "update" && existingIndex === -1) {
+    return projectFailure(project, [
+      {
+        code: "invalid_project_manifest",
+        message: "Saved Auto Demo project variant cannot update a missing variant.",
+      },
+    ]);
+  }
+
+  if (input.mode === "copy" && existingIndex !== -1) {
+    return projectFailure(project, [
+      {
+        code: "invalid_project_manifest",
+        message: "Saved Auto Demo project variant copy id already exists.",
+      },
+    ]);
+  }
+
+  const nextVariants =
+    input.mode === "update"
+      ? project.manifest.variants.map((variant, index) =>
+          index === existingIndex ? nextVariant : variant,
+        )
+      : [...project.manifest.variants, nextVariant];
+  const updatedManifest: ProjectManifest = {
+    ...project.manifest,
+    variants: nextVariants,
+    updatedAt: (options.now ?? new Date()).toISOString(),
+  };
+  const manifestValidation = validateProjectManifest(updatedManifest);
+  if (!manifestValidation.ok) {
+    return projectFailure(project, manifestValidation.errors);
+  }
+
+  await mkdir(join(project.projectDir, "variants"), { recursive: true });
+  await writeJsonFileAtomically(
+    join(project.projectDir, variantFilePath(nextVariant.id)),
+    nextVariant,
   );
 
   return saveProject({
