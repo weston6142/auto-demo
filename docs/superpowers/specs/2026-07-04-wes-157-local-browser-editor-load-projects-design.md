@@ -13,8 +13,8 @@ The repo already has the project contract needed by this task:
 - `@auto-demo/project` validates and loads project directories or direct `autodemo.project.json` paths.
 - Project manifests include saved `variants[]`, and validation verifies the matching `variants/<id>.json` files.
 - `autodemo generate --json --save <variant-id|all>` can create saved variants for the editor to inspect.
-- `@auto-demo/editor` currently exists only as a package placeholder.
-- `autodemo open` is listed in the command surface but currently reports that it is not implemented.
+- Before WES-157 implementation, `@auto-demo/editor` existed only as a package placeholder.
+- Before WES-157 implementation, `autodemo open` was listed in the command surface but reported that it was not implemented.
 
 The Linear acceptance criteria require documented startup, operator-readable validation errors, visible variant listing, and an empty/missing variant state that points the user back to generation or save mode.
 
@@ -60,7 +60,8 @@ Behavior:
 HTTP behavior:
 
 - `GET /` returns the HTML editor shell.
-- `GET /api/project` loads the configured project and returns JSON.
+- `GET /api/project` loads the configured project and returns JSON with `200` for valid projects and `422` for project validation failures.
+- Non-GET requests return `405`.
 - Any other path returns `404`.
 
 Project API success shape:
@@ -113,7 +114,7 @@ The API does not echo raw manifest JSON, event contents, typed values, command a
 The first UI is a static, dependency-free HTML page designed for repeated local review:
 
 - Header shows the project name and source status when loading succeeds.
-- Project summary shows source URL, capture duration, viewport, project directory, and manifest path.
+- Project summary shows source URL, capture duration, viewport, and project directory. The JSON API also includes `manifestPath` for integrations.
 - Variant list shows each saved/generated variant's display name, id, timeline range, style frame/background, and export intent.
 - Empty variant state says no saved variants were found and points to `autodemo generate --project <project> --json --save all`.
 - Validation failure state shows "Project could not be loaded" and a list of stable error messages.
