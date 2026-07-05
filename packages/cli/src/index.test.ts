@@ -276,6 +276,31 @@ describe("runCliAsync agent", () => {
     expect(output.nextSteps).toEqual(["open-editor", "export-variant"]);
   });
 
+  it("returns structured JSON errors when source variant is used without generation", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "agent",
+      "run",
+      "--project",
+      projectDir,
+      "--json",
+      "--source-variant",
+      "missing",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([
+      {
+        code: "unsupported_generation",
+        message: "autodemo agent run requires --generate baseline when --source-variant is used.",
+      },
+    ]);
+  });
+
   it("prints generated save-all handoff summary as JSON", async () => {
     const projectDir = await createValidProject({
       sourceVariantId: "source-baseline",

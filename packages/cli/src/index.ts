@@ -573,6 +573,13 @@ function parseAgentCommand(args: string[]): ParsedAgentCommand {
     });
   }
 
+  if (sourceVariantId !== undefined && generate === undefined) {
+    errors.push({
+      code: "unsupported_generation",
+      message: "autodemo agent run requires --generate baseline when --source-variant is used.",
+    });
+  }
+
   if (errors.length > 0) {
     return { ok: false, json, errors };
   }
