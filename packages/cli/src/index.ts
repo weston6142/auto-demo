@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { runAgentWorkflow, type AgentWorkflowError } from "@auto-demo/agent";
 import {
   createPlaywrightBrowserCaptureAdapter,
   DEFAULT_BROWSER_VIEWPORT,
@@ -81,6 +82,31 @@ type ParsedOpenCommand =
       message: string;
     };
 
+type ParsedAgentCommand =
+  | {
+      ok: true;
+      help: true;
+    }
+  | {
+      ok: true;
+      help: false;
+      projectPath: string;
+      json: true;
+      variantId?: string;
+      generate?: "baseline";
+      save?: "all" | string;
+      sourceVariantId?: string;
+      openEditor: boolean;
+      host?: string;
+      port?: number;
+    }
+  | {
+      ok: false;
+      json: boolean;
+      stderr?: string;
+      errors: AgentWorkflowError[];
+    };
+
 const plannedCommands = new Set(["init", "capture", "export"]);
 
 /** Runs synchronous CLI commands. Use `runCliAsync` for async commands. */
@@ -127,6 +153,14 @@ export function runCli(args: string[]): CliResult {
     };
   }
 
+  if (command === "agent") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo agent requires async execution.\n",
+    };
+  }
+
   if (plannedCommands.has(command)) {
     return {
       exitCode: 1,
@@ -159,6 +193,10 @@ export async function runCliAsync(
 
   if (command === "open") {
     return await runOpenCommand(rest, dependencies);
+  }
+
+  if (command === "agent") {
+    return await runAgentCommand(rest, dependencies);
   }
 
   if (command !== "capture") {
@@ -224,6 +262,65 @@ export async function runCliAsync(
     childResult.exitCode,
     childResult.exitCode === 0 ? "" : `Child command exited with code ${childResult.exitCode}.\n`,
   );
+}
+
+async function runAgentCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
+  const parsed = parseAgentCommand(args);
+  if (parsed.ok && parsed.help) {
+    return {
+      exitCode: 0,
+      stdout: agentHelpText(),
+      stderr: "",
+    };
+  }
+
+  if (!parsed.ok) {
+    if (!parsed.json && parsed.stderr !== undefined) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: `${parsed.stderr}\n`,
+      };
+    }
+
+    return {
+      exitCode: 1,
+      stdout: `${JSON.stringify(agentParseFailure(parsed.errors), null, 2)}\n`,
+      stderr: "",
+    };
+  }
+
+  const result = await runAgentWorkflow(
+    {
+      projectPath: parsed.projectPath,
+      json: true,
+      variantId: parsed.variantId,
+      generate: parsed.generate,
+      save: parsed.save,
+      sourceVariantId: parsed.sourceVariantId,
+      openEditor: parsed.openEditor,
+      editor: {
+        host: parsed.host,
+        port: parsed.port,
+      },
+    },
+    {
+      async startEditorServer(options) {
+        const startServer = dependencies.startEditorServer ?? startEditorServer;
+        return await startServer({
+          projectPath: options.projectPath,
+          host: options.host ?? "127.0.0.1",
+          port: options.port ?? 0,
+        });
+      },
+    },
+  );
+
+  return {
+    exitCode: result.ok ? 0 : 1,
+    stdout: `${JSON.stringify(result, null, 2)}\n`,
+    stderr: "",
+  };
 }
 
 async function runOpenCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
@@ -308,6 +405,209 @@ async function runGenerateCommand(args: string[]): Promise<CliResult> {
     exitCode: result.ok ? 0 : 1,
     stdout: `${JSON.stringify(result, null, 2)}\n`,
     stderr: "",
+  };
+}
+
+function parseAgentCommand(args: string[]): ParsedAgentCommand {
+  const [subcommand, ...rest] = args;
+  if (subcommand === "--help" || subcommand === "-h") {
+    return { ok: true, help: true };
+  }
+
+  if (subcommand !== "run") {
+    return {
+      ok: false,
+      json: rest.includes("--json"),
+      errors: [
+        {
+          code: "unsupported_agent_command",
+          message: "Unsupported autodemo agent command. Use autodemo agent run.",
+        },
+      ],
+    };
+  }
+
+  if (rest.includes("--help") || rest.includes("-h")) {
+    return { ok: true, help: true };
+  }
+
+  let projectPath = "";
+  let json = false;
+  let variantId: string | undefined;
+  let generate: "baseline" | undefined;
+  let save: "all" | string | undefined;
+  let sourceVariantId: string | undefined;
+  let openEditor = false;
+  let host: string | undefined;
+  let port: number | undefined;
+  const errors: AgentWorkflowError[] = [];
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+
+    if (arg === "--project") {
+      const value = parseAgentOptionValue(rest, index, arg, errors);
+      if (value !== undefined) {
+        projectPath = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    if (arg === "--variant") {
+      const value = parseAgentOptionValue(rest, index, arg, errors);
+      if (value !== undefined) {
+        variantId = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--generate") {
+      const value = parseAgentOptionValue(rest, index, arg, errors);
+      if (value === "baseline") {
+        generate = "baseline";
+      } else if (value !== undefined) {
+        errors.push({
+          code: "unsupported_generation",
+          message: "autodemo agent run supports only --generate baseline.",
+        });
+      }
+      if (value !== undefined) {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--save") {
+      const value = parseAgentOptionValue(rest, index, arg, errors);
+      if (value !== undefined) {
+        save = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--source-variant") {
+      const value = parseAgentOptionValue(rest, index, arg, errors);
+      if (value !== undefined) {
+        sourceVariantId = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--open-editor" || arg === "--no-browser") {
+      openEditor = arg === "--open-editor" ? true : openEditor;
+      continue;
+    }
+
+    if (arg === "--host") {
+      const value = parseAgentOptionValue(rest, index, arg, errors);
+      if (value !== undefined) {
+        host = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--port") {
+      const value = parseAgentOptionValue(rest, index, arg, errors);
+      const parsedPort = parseOpenPort(value);
+      if (value !== undefined && parsedPort === undefined) {
+        errors.push({
+          code: "unknown_agent_argument",
+          message: "autodemo agent run --port must be an integer from 0 to 65535.",
+        });
+      } else {
+        port = parsedPort;
+      }
+      if (value !== undefined) {
+        index += 1;
+      }
+      continue;
+    }
+
+    errors.push({
+      code: "unknown_agent_argument",
+      message: `Unknown agent argument: ${arg}`,
+    });
+  }
+
+  if (!json) {
+    return {
+      ok: false,
+      json: false,
+      stderr: "autodemo agent run currently requires --json output.",
+      errors,
+    };
+  }
+
+  if (projectPath.trim().length === 0) {
+    errors.push({
+      code: "missing_project_path",
+      message: "autodemo agent run requires --project <project-dir-or-manifest>.",
+    });
+  }
+
+  if (save !== undefined && generate === undefined) {
+    errors.push({
+      code: "unsupported_generation",
+      message: "autodemo agent run requires --generate baseline when --save is used.",
+    });
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, json, errors };
+  }
+
+  return {
+    ok: true,
+    help: false,
+    projectPath,
+    json: true,
+    variantId,
+    generate,
+    save,
+    sourceVariantId,
+    openEditor,
+    host,
+    port,
+  };
+}
+
+function parseAgentOptionValue(
+  args: string[],
+  index: number,
+  option: string,
+  errors: AgentWorkflowError[],
+): string | undefined {
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    errors.push({
+      code: "unknown_agent_argument",
+      message: `Missing value for agent argument: ${option}`,
+    });
+    return undefined;
+  }
+
+  return value;
+}
+
+function agentParseFailure(errors: AgentWorkflowError[]): {
+  ok: false;
+  project: { projectPath: string };
+  errors: AgentWorkflowError[];
+} {
+  return {
+    ok: false,
+    project: { projectPath: "" },
+    errors,
   };
 }
 
@@ -763,9 +1063,31 @@ function helpText(): string {
     "  init       Prepare an Auto Demo project context",
     "  capture    Record a browser-first walkthrough",
     "  generate   Generate polished variants",
+    "  agent      Run the agent-facing workflow handoff",
     "  export     Render selected variants",
     "  open       Open the local editor",
     "  validate   Validate a capture bundle",
+    "",
+  ].join("\n");
+}
+
+function agentHelpText(): string {
+  return [
+    "Usage: autodemo agent run --project <project-dir-or-manifest> --json",
+    "",
+    "Options:",
+    "  --variant <variant-id>       Select an existing saved variant",
+    "  --generate baseline          Generate the MVP baseline variant",
+    "  --source-variant <id>        Source variant for baseline generation",
+    "  --save <variant-id|all>      Save generated variant output",
+    "  --open-editor                Include local editor handoff URL",
+    "  --host <host>                Editor bind host when --open-editor is used",
+    "  --port <port>                Editor port when --open-editor is used",
+    "  --no-browser                 Accepted for compatibility; no browser auto-launch",
+    "",
+    "Exit codes:",
+    "  0  Agent handoff summary written as JSON",
+    "  1  Expected validation, generation, or handoff failure",
     "",
   ].join("\n");
 }
