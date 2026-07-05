@@ -249,6 +249,198 @@ describe("runCliAsync open", () => {
   });
 });
 
+describe("runCliAsync agent", () => {
+  it("prints a selected variant handoff summary as JSON", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync(["agent", "run", "--project", projectDir, "--json"]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      variant: { id: string; path: string; source: string };
+      artifacts: Array<{ kind: string; path: string }>;
+      nextSteps: string[];
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.variant).toEqual({
+      id: "baseline-polish",
+      path: "variants/baseline-polish.json",
+      source: "selected",
+    });
+    expect(output.artifacts).toContainEqual({
+      kind: "variant",
+      path: "variants/baseline-polish.json",
+    });
+    expect(output.nextSteps).toEqual(["open-editor", "export-variant"]);
+  });
+
+  it("returns structured JSON errors when source variant is used without generation", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "agent",
+      "run",
+      "--project",
+      projectDir,
+      "--json",
+      "--source-variant",
+      "missing",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([
+      {
+        code: "unsupported_generation",
+        message: "autodemo agent run requires --generate baseline when --source-variant is used.",
+      },
+    ]);
+  });
+
+  it("prints generated save-all handoff summary as JSON", async () => {
+    const projectDir = await createValidProject({
+      sourceVariantId: "source-baseline",
+      sourceVariantDisplayName: "Source Baseline",
+    });
+
+    const result = await runCliAsync([
+      "agent",
+      "run",
+      "--project",
+      projectDir,
+      "--json",
+      "--generate",
+      "baseline",
+      "--source-variant",
+      "source-baseline",
+      "--save",
+      "all",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      variant: { id: string; path: string; source: string };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.variant).toEqual({
+      id: "baseline-polish",
+      path: "variants/baseline-polish.json",
+      source: "generated",
+    });
+  });
+
+  it("includes the local editor URL in the handoff summary", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync(
+      ["agent", "run", "--project", projectDir, "--json", "--open-editor"],
+      {
+        now: () => new Date("2026-07-05T12:00:00.000Z"),
+        async runChildCommand() {
+          return { exitCode: 0 };
+        },
+        browserCaptureAdapter: {
+          kind: "browser",
+          async start() {
+            throw new Error("capture should not start for agent workflow");
+          },
+        },
+        async startEditorServer() {
+          return {
+            url: "http://127.0.0.1:4321/",
+            async close() {},
+          };
+        },
+      },
+    );
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      editor: { opened: boolean; url: string };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.editor).toEqual({
+      opened: true,
+      lifecycle: "long-lived-local-server",
+      url: "http://127.0.0.1:4321/",
+    });
+  });
+
+  it("returns structured JSON errors for unsupported custom agent save ids", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "agent",
+      "run",
+      "--project",
+      projectDir,
+      "--json",
+      "--generate",
+      "baseline",
+      "--save",
+      "custom-id",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "unsupported_generation",
+      message: "autodemo agent run supports only --save baseline-polish or --save all.",
+    });
+  });
+
+  it("returns structured JSON errors for missing project input", async () => {
+    const result = await runCliAsync(["agent", "run", "--json"]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([{ code: "missing_project_path", message: expect.any(String) }]);
+  });
+
+  it("requires JSON output for the first agent workflow contract", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync(["agent", "run", "--project", projectDir]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo agent run currently requires --json output.\n",
+    });
+  });
+
+  it("returns structured JSON errors for unsupported agent options", async () => {
+    const projectDir = await createValidProject();
+
+    for (const args of [
+      ["agent", "wat", "--project", projectDir, "--json"],
+      ["agent", "run", "--project", projectDir, "--json", "--wat"],
+      ["agent", "run", "--project", projectDir, "--json", "--generate", "cinematic"],
+      ["agent", "run", "--project", projectDir, "--json", "--save", "all"],
+    ]) {
+      const result = await runCliAsync(args);
+      const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBe("");
+      expect(output.ok).toBe(false);
+      expect(output.errors.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("runCliAsync generate", () => {
   it("prints selected save summary as JSON", async () => {
     const projectDir = await createValidProject({

@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata and expose baseline-only headless dry-run, selected-save, and save-all JSON summaries. `autodemo open` now serves a local browser editor that loads validated projects, previews saved variants with approximate browser fidelity, provides schema-backed draft controls for trims, viewport framing, captions, callouts, cursor/click emphasis, and direct style fields, and saves browser edits back as updated or copied project variants. Rendering and export remain planned work.
+This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata and expose baseline-only headless dry-run, selected-save, and save-all JSON summaries. `autodemo open` now serves a local browser editor that loads validated projects, previews saved variants with approximate browser fidelity, provides schema-backed draft controls for trims, viewport framing, captions, callouts, cursor/click emphasis, and direct style fields, and saves browser edits back as updated or copied project variants. `autodemo agent run` provides the first noninteractive agent handoff summary for selecting or generating saved variants and optionally starting the editor. Rendering and export remain planned work.
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ npm run setup:browser
 - `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata, the baseline-only MVP style preset contract, and headless dry-run/save batch summaries.
 - `@auto-demo/render`: export and render orchestration boundary.
 - `@auto-demo/editor`: local browser editor server, approximate variant preview, schema-backed local finishing UI, and update/copy saves for browser-edited variants.
-- `@auto-demo/agent`: agent-facing workflow helpers.
+- `@auto-demo/agent`: agent-facing workflow helpers and JSON handoff summaries.
 
 ## CLI
 
@@ -40,6 +40,9 @@ autodemo init
 autodemo capture
 autodemo generate --project <project-dir-or-manifest> --dry-run --json [--styles baseline] [--source-variant baseline-polish]
 autodemo generate --project <project-dir-or-manifest> --json --save <variant-id|all> [--styles baseline] [--source-variant <source-variant-id>]
+autodemo agent run --project <project-dir-or-manifest> --json [--variant <variant-id>]
+autodemo agent run --project <project-dir-or-manifest> --json --generate baseline --source-variant <source-variant-id> --save <baseline-polish|all>
+autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo export
 autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo validate <capture-dir-or-manifest>
@@ -98,13 +101,24 @@ autodemo generate --project <project-dir-or-manifest> --json --save all --source
 
 The command loads a valid Auto Demo project with a persisted source variant, resolves the requested MVP style list, generates one deterministic `baseline` batch summary, and prints machine-readable JSON with the generated id, display name, project/source-variant references, save status, batch metadata, validation errors, and non-secret warnings. Dry-run mode writes nothing and reports skipped variants. Save mode persists either one selected generated variant or all generated variants through `savePolishVariant()`, then reports saved `variants/<variant-id>.json` paths, skipped variants, final validation status, and next-step hints for editor or export workflows. The approved MVP style preset list is baseline-only: stable key `baseline`, display name `Baseline Polish`. `--styles` accepts a comma-separated list, which may contain only `baseline` once in the MVP; `--source-variant` defaults to `baseline-polish`. Saving a generated id that already exists in the project returns a structured `duplicate_variant_id` error, so callers that use a persisted source variant named `baseline-polish` should select a non-colliding source id when they intend to save a new generated `baseline-polish` variant. Unsupported style keys, duplicate style requests, invalid counts, missing source variants, invalid selected save ids, duplicate generated ids, non-JSON output, and malformed save arguments return structured errors. Rendering, exports, run summary files on disk, and additional themed presets remain planned follow-up work; local browser preview and save controls are available through `autodemo open`.
 
+Run the agent-facing workflow handoff with:
+
+```bash
+autodemo agent run --project <project-dir-or-manifest> --json
+autodemo agent run --project <project-dir-or-manifest> --json --variant baseline-polish
+autodemo agent run --project <project-dir-or-manifest> --json --generate baseline --source-variant source-baseline --save all
+autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
+```
+
+The command validates the project, selects an existing saved variant or saves a generated baseline variant, and prints one JSON summary with the project manifest path, selected variant id, variant artifact path, warnings, and next-step hints for agent logs. The WES-160 baseline-only MVP accepts `--save baseline-polish` or `--save all`; arbitrary generated variant ids are not part of this agent contract, and `--save` or `--source-variant` require `--generate baseline`. `--open-editor` starts the existing local editor, includes its URL in the same JSON output, and keeps the local editor server alive until the process is stopped; `--host` and `--port` override the bind address, while `--no-browser` is accepted as a no-op compatibility flag because the workflow does not auto-launch a browser. The WES-160 agent workflow requires JSON output and returns structured non-secret errors for unknown agent subcommands or arguments, missing projects, invalid projects, missing variants, unsupported generation requests, generation failures, and unavailable editor handoff. Successful handoffs exit `0`; expected validation, generation, or handoff failures exit `1`. Codex/Claude skill wrappers, MCP transport, and final MP4 export remain planned follow-up work.
+
 Open a validated project in the local browser editor with:
 
 ```bash
 autodemo open --project <project-dir-or-manifest>
 ```
 
-The command starts an HTTP server on `127.0.0.1` and an OS-assigned port by default, then prints the local URL. Use `--host` and `--port` to override the bind address; `--port 0` keeps OS port assignment. `--no-browser` is accepted as a no-op compatibility flag because the editor does not auto-launch a browser. The editor shell loads the project through the same validation path as `@auto-demo/project`, reports stable operator-readable validation errors, and shows saved/generated variants from the project manifest. Projects with no saved variants show a guidance message pointing back to `autodemo generate --project <project> --json --save all`. Saved variants open in an approximate browser preview with schema-backed local draft controls for trim, viewport, captions, callouts, cursor/click emphasis, and direct style fields. Save controls can update the selected variant or save the current draft as a named copy through `POST /api/variants`; successful saves write `variants/<variant-id>.json`, update `autodemo.project.json`, and refresh the browser from `/api/project`. Exact export parity, named preset picker UI, export rendering, browser auto-launch, autosave, hosted sync, and agent handoff commands remain deferred.
+The command starts an HTTP server on `127.0.0.1` and an OS-assigned port by default, then prints the local URL. Use `--host` and `--port` to override the bind address; `--port 0` keeps OS port assignment. `--no-browser` is accepted as a no-op compatibility flag because the editor does not auto-launch a browser. The editor shell loads the project through the same validation path as `@auto-demo/project`, reports stable operator-readable validation errors, and shows saved/generated variants from the project manifest. Projects with no saved variants show a guidance message pointing back to `autodemo generate --project <project> --json --save all`. Saved variants open in an approximate browser preview with schema-backed local draft controls for trim, viewport, captions, callouts, cursor/click emphasis, and direct style fields. Save controls can update the selected variant or save the current draft as a named copy through `POST /api/variants`; successful saves write `variants/<variant-id>.json`, update `autodemo.project.json`, and refresh the browser from `/api/project`. Exact export parity, named preset picker UI, export rendering, browser auto-launch, autosave, and hosted sync remain deferred.
 
 Other planned commands may exist before their behavior is implemented. Unimplemented commands fail clearly.
 
