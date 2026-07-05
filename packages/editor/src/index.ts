@@ -579,6 +579,7 @@ function editorHtml(): string {
       let originalVariant = null;
       let draft = null;
       let saveStatus = "";
+      let copyForm = null;
 
       function mediaUrl(path) {
         return "/project-file/" + String(path).split("/").map(encodeURIComponent).join("/");
@@ -619,14 +620,32 @@ function editorHtml(): string {
       function resetDraft() {
         draft = clone(originalVariant);
         saveStatus = "";
-        renderEditor();
+        resetCopyForm();
+        renderEditor(false);
       }
 
       function selectVariant(id) {
         originalVariant = project.variants.find((variant) => variant.id === id) || project.variants[0];
         draft = clone(originalVariant);
         saveStatus = "";
-        renderEditor();
+        resetCopyForm();
+        renderEditor(false);
+      }
+
+      function defaultCopyForm() {
+        return { copyId: draft.id + "-copy", displayName: draft.displayName + " Copy" };
+      }
+
+      function resetCopyForm() {
+        copyForm = defaultCopyForm();
+      }
+
+      function syncCopyFormFromDom() {
+        if (!app.innerHTML.includes('id="copy-id"')) return;
+        copyForm = {
+          copyId: document.querySelector("#copy-id").value,
+          displayName: document.querySelector("#copy-display-name").value
+        };
       }
 
       function addCaption() {
@@ -687,8 +706,9 @@ function editorHtml(): string {
       }
 
       async function saveVariant(mode, copyOptions) {
-        const copyId = mode === "copy" ? copyOptions?.copyId ?? document.querySelector("#copy-id").value : undefined;
-        const displayName = mode === "copy" ? copyOptions?.displayName ?? document.querySelector("#copy-display-name").value : undefined;
+        if (mode === "copy" && copyOptions === undefined) syncCopyFormFromDom();
+        const copyId = mode === "copy" ? copyOptions?.copyId ?? copyForm.copyId : undefined;
+        const displayName = mode === "copy" ? copyOptions?.displayName ?? copyForm.displayName : undefined;
         saveStatus = "Saving...";
         renderEditor();
         const payload = mode === "copy"
@@ -729,7 +749,9 @@ function editorHtml(): string {
         return rows || "<p class=\\"muted\\">No " + kind + " yet.</p>";
       }
 
-      function renderEditor() {
+      function renderEditor(preserveCopyForm = true) {
+        if (preserveCopyForm) syncCopyFormFromDom();
+        const nextCopyForm = copyForm ?? defaultCopyForm();
         const duration = project.source.durationMs || 1;
         const left = (draft.timeline.startMs / duration) * 100;
         const width = ((draft.timeline.endMs - draft.timeline.startMs) / duration) * 100;
@@ -757,8 +779,8 @@ function editorHtml(): string {
                 "<button id=\\"save-update\\">Save Changes</button>" +
                 "<button class=\\"secondary\\" id=\\"reset\\">Reset Changes</button>" +
               "</div><div class=\\"grid\\">" +
-                "<label>Copy ID<input id=\\"copy-id\\" value=\\"" + escapeHtml(draft.id + "-copy") + "\\"></label>" +
-                "<label>Copy Display Name<input id=\\"copy-display-name\\" value=\\"" + escapeHtml(draft.displayName + " Copy") + "\\"></label>" +
+                "<label>Copy ID<input id=\\"copy-id\\" value=\\"" + escapeHtml(nextCopyForm.copyId) + "\\"></label>" +
+                "<label>Copy Display Name<input id=\\"copy-display-name\\" value=\\"" + escapeHtml(nextCopyForm.displayName) + "\\"></label>" +
               "</div><div class=\\"actions\\"><button class=\\"secondary\\" id=\\"save-copy\\">Save As Copy</button>" +
                 "<span class=\\"" + (saveStatus.startsWith("Saved ") || saveStatus === "" || saveStatus === "Saving..." ? "muted" : "error") + "\\">" + escapeHtml(saveStatus) + "</span></div></section>" +
               "<section class=\\"panel\\"><h3>Trim</h3><div class=\\"grid\\">" +
@@ -799,6 +821,8 @@ function editorHtml(): string {
         document.querySelector("#reset").addEventListener("click", resetDraft);
         document.querySelector("#save-update").addEventListener("click", () => saveVariant("update"));
         document.querySelector("#save-copy").addEventListener("click", () => saveVariant("copy"));
+        document.querySelector("#copy-id").addEventListener("input", syncCopyFormFromDom);
+        document.querySelector("#copy-display-name").addEventListener("input", syncCopyFormFromDom);
         document.querySelector("#add-caption").addEventListener("click", addCaption);
         document.querySelector("#add-callout").addEventListener("click", addCallout);
         document.querySelectorAll("[data-update]").forEach((input) => input.addEventListener("change", (event) => {

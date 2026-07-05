@@ -765,4 +765,69 @@ describe("startEditorServer", () => {
       },
     });
   });
+
+  it("preserves current copy form values across ordinary draft edits", async () => {
+    const projectDir = await createEditorProject();
+    const project = await loadEditorProject(projectDir);
+    expect(project.ok).toBe(true);
+    if (!project.ok) return;
+    const calls: Array<{ input: string; method: string; body?: unknown }> = [];
+    const editor = await runEditorScript(project.project, {
+      fetch: async (input, init) => {
+        calls.push({
+          input,
+          method: init?.method ?? "GET",
+          body: init?.body === undefined ? undefined : JSON.parse(init.body),
+        });
+        if (init?.method === "POST") {
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                mode: "copy",
+                variantId: "custom-copy",
+                message: "Saved custom-copy.",
+              }),
+          };
+        }
+        return {
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              project: {
+                ...project.project,
+                variants: [
+                  project.project.variants[0],
+                  {
+                    ...project.project.variants[0],
+                    id: "custom-copy",
+                    displayName: "Custom Copy",
+                    style: { ...project.project.variants[0].style, backgroundColor: "#123456" },
+                  },
+                ],
+              },
+            }),
+        };
+      },
+    });
+
+    editor.evaluate('document.querySelector("#copy-id").value = "custom-copy"');
+    editor.evaluate('document.querySelector("#copy-display-name").value = "Custom Copy"');
+    editor.evaluate('update("style.backgroundColor", "#123456")');
+    await editor.evaluate<Promise<void>>('saveVariant("copy")');
+
+    expect(calls).toContainEqual({
+      input: "/api/variants",
+      method: "POST",
+      body: {
+        mode: "copy",
+        variant: {
+          ...project.project.variants[0],
+          style: { ...project.project.variants[0].style, backgroundColor: "#123456" },
+        },
+        copyId: "custom-copy",
+        displayName: "Custom Copy",
+      },
+    });
+  });
 });
