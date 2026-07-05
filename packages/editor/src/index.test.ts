@@ -118,15 +118,33 @@ async function runEditorScript(
   const scriptMatch = html.match(/<script>\n([\s\S]*)\n {4}<\/script>/);
   expect(scriptMatch).not.toBeNull();
 
-  const app = { innerHTML: "" };
-  const element = {
-    value: "",
+  const elements = new Map<string, { value: string; addEventListener: () => undefined }>();
+  const createElement = (value = "") => ({
+    value,
     addEventListener: () => undefined,
+  });
+  const app = {
+    html: "",
+    get innerHTML() {
+      return this.html;
+    },
+    set innerHTML(value: string) {
+      this.html = value;
+      const copyId = value.match(/id="copy-id" value="([^"]*)"/);
+      const copyDisplayName = value.match(/id="copy-display-name" value="([^"]*)"/);
+      if (copyId) elements.set("#copy-id", createElement(copyId[1]));
+      if (copyDisplayName) elements.set("#copy-display-name", createElement(copyDisplayName[1]));
+    },
   };
   const context = vm.createContext({
     app,
     document: {
-      querySelector: (selector: string) => (selector === "#app" ? app : { ...element }),
+      querySelector: (selector: string) => {
+        if (selector === "#app") return app;
+        const element = elements.get(selector) ?? createElement();
+        elements.set(selector, element);
+        return element;
+      },
       querySelectorAll: () => [],
     },
     fetch:
@@ -686,5 +704,65 @@ describe("startEditorServer", () => {
     });
     expect(editor.evaluate<string>("draft.id")).toBe("browser-copy");
     expect(editor.evaluate<string>("saveStatus")).toBe("Saved browser-copy.");
+  });
+
+  it("posts current copy form values when saving a copy", async () => {
+    const projectDir = await createEditorProject();
+    const project = await loadEditorProject(projectDir);
+    expect(project.ok).toBe(true);
+    if (!project.ok) return;
+    const calls: Array<{ input: string; method: string; body?: unknown }> = [];
+    const editor = await runEditorScript(project.project, {
+      fetch: async (input, init) => {
+        calls.push({
+          input,
+          method: init?.method ?? "GET",
+          body: init?.body === undefined ? undefined : JSON.parse(init.body),
+        });
+        if (init?.method === "POST") {
+          return {
+            json: () =>
+              Promise.resolve({
+                ok: true,
+                mode: "copy",
+                variantId: "custom-copy",
+                message: "Saved custom-copy.",
+              }),
+          };
+        }
+        return {
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              project: {
+                ...project.project,
+                variants: [
+                  project.project.variants[0],
+                  {
+                    ...project.project.variants[0],
+                    id: "custom-copy",
+                    displayName: "Custom Copy",
+                  },
+                ],
+              },
+            }),
+        };
+      },
+    });
+
+    editor.evaluate('document.querySelector("#copy-id").value = "custom-copy"');
+    editor.evaluate('document.querySelector("#copy-display-name").value = "Custom Copy"');
+    await editor.evaluate<Promise<void>>('saveVariant("copy")');
+
+    expect(calls).toContainEqual({
+      input: "/api/variants",
+      method: "POST",
+      body: {
+        mode: "copy",
+        variant: project.project.variants[0],
+        copyId: "custom-copy",
+        displayName: "Custom Copy",
+      },
+    });
   });
 });

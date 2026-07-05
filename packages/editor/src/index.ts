@@ -687,10 +687,10 @@ function editorHtml(): string {
       }
 
       async function saveVariant(mode, copyOptions) {
+        const copyId = mode === "copy" ? copyOptions?.copyId ?? document.querySelector("#copy-id").value : undefined;
+        const displayName = mode === "copy" ? copyOptions?.displayName ?? document.querySelector("#copy-display-name").value : undefined;
         saveStatus = "Saving...";
         renderEditor();
-        const copyId = copyOptions?.copyId ?? document.querySelector("#copy-id").value;
-        const displayName = copyOptions?.displayName ?? document.querySelector("#copy-display-name").value;
         const payload = mode === "copy"
           ? { mode, variant: draft, copyId, displayName }
           : { mode: "update", variant: draft };
