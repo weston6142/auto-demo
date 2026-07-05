@@ -6,9 +6,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "prebuild": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run src/index.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "pretypecheck": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
+    "test": "vitest run src/index.test.ts"
   },
   "dependencies": {
     "@auto-demo/polish": "0.0.0",
