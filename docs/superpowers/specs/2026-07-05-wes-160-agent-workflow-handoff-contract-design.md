@@ -90,10 +90,10 @@ non-secret error objects. The command exits `1` for expected workflow failures.
 
 ### Option A: Agent Package Plus `autodemo agent run`
 
-This is the selected approach. It creates a real package contract for WES-161
-skill wrappers while keeping the CLI command small and testable. The workflow
-summary can be consumed by Codex, Claude, and future wrappers without parsing
-human-oriented command output.
+This is the selected approach. It creates a real package contract for WES-161's
+Codex skill wrapper and host-neutral parity documentation while keeping the CLI
+command small and testable. The workflow summary can be consumed by Codex,
+Claude, and future wrappers without parsing human-oriented command output.
 
 ### Option B: Extend `autodemo generate`
 
@@ -188,7 +188,8 @@ Tests stay behavior-first:
 ## Deferrals
 
 - Final MP4 rendering and export bundle generation.
-- Codex and Claude skill wrapper files, owned by WES-161.
+- Codex skill wrapper files and Claude parity documentation, owned by WES-161
+  after the WES-169 host-scope decision.
 - MCP transport or server behavior, owned by WES-162 after the MVP decision.
 - Agent-driven capture orchestration beyond the existing `autodemo capture`
   command.
