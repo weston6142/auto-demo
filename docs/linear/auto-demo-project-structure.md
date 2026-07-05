@@ -63,7 +63,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-158, because the Browser Editor preview-fidelity and MVP finishing-controls decision is resolved and the local editor/project-load entry point exists.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-158 completion: WES-159, because the Browser Editor preview and local finishing-control surface now produces schema-backed edited variant JSON but persistence of browser edits remains outstanding.
 
 ## Issues By Milestone
 
@@ -108,7 +108,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 - WES-140: Milestone 6: Browser editor - Backlog - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
 - WES-157: Serve local browser editor and load demo projects - Done - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
-- WES-158: Timeline preview and finishing controls for MVP variants - In Progress - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
+- WES-158: Timeline preview and finishing controls for MVP variants - Done - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
 - WES-159: Save browser edits as project variants for export handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
 - WES-170: Open question: decide browser preview fidelity and MVP finishing controls - Done - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
 
@@ -265,6 +265,7 @@ capture-dir/
 - 2026-07-04 WES-170 completion-gate sync: WES-170 decision spec and implementation plan were committed in PR #19, WES-158 acceptance criteria were updated in Linear, WES-158 received a readiness note, local `npm run validate` passed, and no-mistakes passed review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `447e66a8`.
 - 2026-07-05 WES-158 pre-task sync: Linear and local project map agreed WES-158 is the next Browser Editor implementation issue after WES-157 and WES-170. WES-158 was moved to In Progress on branch `fm/wes-158`. Approved scope is a read-only server with approximate browser preview and schema-backed local draft controls for trim, viewport, captions, callouts, cursor/click emphasis, and direct style fields. WES-159 still owns persistence of edited browser variants; exact export parity, named preset picker UI, export rendering, browser auto-launch, and hosted deployment remain deferred.
 - 2026-07-05 WES-158 local implementation note: `@auto-demo/editor` now returns full schema-backed variant summaries, serves whitelisted project media/metadata through `/project-file/`, renders an approximate browser preview, and keeps trim, viewport, caption, callout, cursor/click, and direct style edits in local browser draft state with reset and edited JSON output. WES-159 still owns saving those browser edits.
+- 2026-07-05 WES-158 completion-gate sync: PR #20 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `8399ea1e`. No-mistakes fixed draft schema-validity issues, hardened `/project-file/` serving against symlink escapes and large buffered video responses, and synchronized docs. Completion evidence was added to Linear and WES-158 was moved to Done. WES-159 received a readiness note to persist the edited variant JSON/local draft state into schema-valid project files.
 
 ## Update Rules
 
