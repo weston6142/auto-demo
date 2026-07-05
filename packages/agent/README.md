@@ -28,6 +28,10 @@ autodemo agent run --project projects/checkout --json --generate baseline --sour
 autodemo agent run --project projects/checkout --json --open-editor
 ```
 
+For WES-160, generated agent saves are baseline-only and accept only
+`--save baseline-polish` or `--save all`. Custom generated variant ids remain
+outside the MVP agent contract.
+
 Successful results include:
 
 - selected project path, manifest path, and project name;
@@ -36,7 +40,12 @@ Successful results include:
 - artifact paths for the project manifest and variant file;
 - stable non-secret warnings;
 - next-step hints such as `open-editor` and `export-variant`;
-- optional editor URL when `--open-editor` is used.
+- optional editor URL and `long-lived-local-server` lifecycle marker when
+  `--open-editor` is used.
+
+`--open-editor` starts the same local editor used by `autodemo open`, prints the
+handoff URL in JSON, and intentionally keeps the editor server alive until the
+process is stopped. It does not auto-launch a browser.
 
 Expected failures return `ok: false` with stable error codes such as
 `missing_project_path`, `unsupported_agent_output`, `invalid_project`,

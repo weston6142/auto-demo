@@ -34,7 +34,7 @@ Add an `@auto-demo/agent` workflow API and expose it through a new CLI command:
 ```text
 autodemo agent run --project <project-dir-or-manifest> --json
 autodemo agent run --project <project-dir-or-manifest> --variant <variant-id> --json
-autodemo agent run --project <project-dir-or-manifest> --generate baseline --source-variant <variant-id> --save <variant-id|all> --json
+autodemo agent run --project <project-dir-or-manifest> --generate baseline --source-variant <variant-id> --save <baseline-polish|all> --json
 autodemo agent run --project <project-dir-or-manifest> --open-editor --json
 ```
 
@@ -73,10 +73,15 @@ If `--open-editor` is supplied, the summary also includes:
 {
   "editor": {
     "opened": true,
+    "lifecycle": "long-lived-local-server",
     "url": "http://127.0.0.1:4321/"
   }
 }
 ```
+
+This editor handoff matches `autodemo open`: after JSON is printed, the local
+editor server remains alive until the process is stopped so the returned URL
+stays usable.
 
 Failures return `ok: false`, the selected project path if known, and stable
 non-secret error objects. The command exits `1` for expected workflow failures.
@@ -112,11 +117,13 @@ implemented contract is the better integration boundary.
 - With no generation flags, the workflow selects `--variant <id>` when supplied;
   otherwise it selects the first manifest variant. Missing variants return a
   structured `missing_variant` or `variant_not_found` error.
-- `--generate baseline --save <variant-id|all>` delegates to
+- `--generate baseline --save <baseline-polish|all>` delegates to
   `generateHeadlessVariants()` with JSON mode, baseline-only styles, and
   optional `--source-variant <variant-id>`. It then reloads the project and
   selects the saved variant. If `--save all` is used, the selected variant is the
   first saved variant reported by the generation summary.
+- Arbitrary generated variant ids are outside the WES-160 agent MVP; use the
+  polish generator directly for lower-level save behavior.
 - Dry-run generation is not part of the agent workflow. Agents can continue to
   call `autodemo generate --dry-run --json` directly when they need planning
   output.
@@ -124,7 +131,8 @@ implemented contract is the better integration boundary.
   state except through `generateHeadlessVariants()` save mode.
 - `--open-editor` starts the existing local editor after project/variant
   selection succeeds. It does not auto-open a browser. The editor URL is
-  included in JSON output.
+  included in JSON output, and the server intentionally remains alive until the
+  process is stopped.
 - The summary includes selected project, selected variant id, produced artifact
   paths, warnings, and next-step hints suitable for noninteractive agent logs.
 - Expected failures use deterministic error codes and do not echo raw manifest

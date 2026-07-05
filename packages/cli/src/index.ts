@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { runAgentWorkflow, type AgentWorkflowError } from "@auto-demo/agent";
+import {
+  runAgentWorkflow,
+  type AgentWorkflowError,
+  type AgentWorkflowSaveTarget,
+} from "@auto-demo/agent";
 import {
   createPlaywrightBrowserCaptureAdapter,
   DEFAULT_BROWSER_VIEWPORT,
@@ -94,7 +98,7 @@ type ParsedAgentCommand =
       json: true;
       variantId?: string;
       generate?: "baseline";
-      save?: "all" | string;
+      save?: AgentWorkflowSaveTarget;
       sourceVariantId?: string;
       openEditor: boolean;
       host?: string;
@@ -435,7 +439,7 @@ function parseAgentCommand(args: string[]): ParsedAgentCommand {
   let json = false;
   let variantId: string | undefined;
   let generate: "baseline" | undefined;
-  let save: "all" | string | undefined;
+  let save: AgentWorkflowSaveTarget | undefined;
   let sourceVariantId: string | undefined;
   let openEditor = false;
   let host: string | undefined;
@@ -487,7 +491,14 @@ function parseAgentCommand(args: string[]): ParsedAgentCommand {
     if (arg === "--save") {
       const value = parseAgentOptionValue(rest, index, arg, errors);
       if (value !== undefined) {
-        save = value;
+        if (isSupportedAgentSaveTarget(value)) {
+          save = value;
+        } else {
+          errors.push({
+            code: "unsupported_generation",
+            message: "autodemo agent run supports only --save baseline-polish or --save all.",
+          });
+        }
         index += 1;
       }
       continue;
@@ -597,6 +608,10 @@ function parseAgentOptionValue(
   }
 
   return value;
+}
+
+function isSupportedAgentSaveTarget(value: string): value is AgentWorkflowSaveTarget {
+  return value === "baseline-polish" || value === "all";
 }
 
 function agentParseFailure(errors: AgentWorkflowError[]): {
@@ -1079,8 +1094,8 @@ function agentHelpText(): string {
     "  --variant <variant-id>       Select an existing saved variant",
     "  --generate baseline          Generate the MVP baseline variant",
     "  --source-variant <id>        Source variant for baseline generation",
-    "  --save <variant-id|all>      Save generated variant output",
-    "  --open-editor                Include local editor handoff URL",
+    "  --save <baseline-polish|all> Save generated baseline output",
+    "  --open-editor                Include local editor URL and keep server alive",
     "  --host <host>                Editor bind host when --open-editor is used",
     "  --port <port>                Editor port when --open-editor is used",
     "  --no-browser                 Accepted for compatibility; no browser auto-launch",

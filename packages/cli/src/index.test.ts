@@ -342,7 +342,36 @@ describe("runCliAsync agent", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(output.ok).toBe(true);
-    expect(output.editor).toEqual({ opened: true, url: "http://127.0.0.1:4321/" });
+    expect(output.editor).toEqual({
+      opened: true,
+      lifecycle: "long-lived-local-server",
+      url: "http://127.0.0.1:4321/",
+    });
+  });
+
+  it("returns structured JSON errors for unsupported custom agent save ids", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync([
+      "agent",
+      "run",
+      "--project",
+      projectDir,
+      "--json",
+      "--generate",
+      "baseline",
+      "--save",
+      "custom-id",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "unsupported_generation",
+      message: "autodemo agent run supports only --save baseline-polish or --save all.",
+    });
   });
 
   it("returns structured JSON errors for missing project input", async () => {

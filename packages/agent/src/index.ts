@@ -53,6 +53,7 @@ export type AgentWorkflowArtifact =
     };
 
 export type AgentWorkflowVariantSource = "selected" | "generated";
+export type AgentWorkflowSaveTarget = "baseline-polish" | "all";
 
 export type AgentWorkflowSummary = {
   ok: true;
@@ -71,6 +72,7 @@ export type AgentWorkflowSummary = {
   nextSteps: string[];
   editor?: {
     opened: true;
+    lifecycle: "long-lived-local-server";
     url: string;
   };
 };
@@ -95,6 +97,8 @@ export type AgentWorkflowDependencies = {
     close: () => Promise<void>;
   }>;
 };
+
+const activeEditorHandoffs = new Set<() => Promise<void>>();
 
 export async function runAgentWorkflow(
   options: AgentWorkflowOptions,
@@ -131,7 +135,13 @@ export async function runAgentWorkflow(
       return failure(projectPath, {
         code: "unsupported_generation",
         message:
-          "autodemo agent run supports only --generate baseline with --save <variant-id|all>.",
+          "autodemo agent run supports only --generate baseline with --save baseline-polish or --save all.",
+      });
+    }
+    if (!isSupportedAgentSaveTarget(options.save)) {
+      return failure(projectPath, {
+        code: "unsupported_generation",
+        message: "autodemo agent run supports only --save baseline-polish or --save all.",
       });
     }
 
@@ -229,8 +239,10 @@ export async function runAgentWorkflow(
         host: options.editor?.host,
         port: options.editor?.port,
       });
+      activeEditorHandoffs.add(editor.close);
       summary.editor = {
         opened: true,
+        lifecycle: "long-lived-local-server",
         url: editor.url,
       };
     } catch {
@@ -257,6 +269,10 @@ function selectVariant(
 
 function variantPath(variantId: string): string {
   return `variants/${variantId}.json`;
+}
+
+function isSupportedAgentSaveTarget(save: string): save is AgentWorkflowSaveTarget {
+  return save === "baseline-polish" || save === "all";
 }
 
 function invalidProjectFailure(

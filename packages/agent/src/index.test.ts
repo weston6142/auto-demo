@@ -261,7 +261,30 @@ describe("runAgentWorkflow", () => {
 
     expect(result.ok && result.editor).toEqual({
       opened: true,
+      lifecycle: "long-lived-local-server",
       url: "http://127.0.0.1:4321/",
+    });
+  });
+
+  it("rejects custom agent save ids for the baseline-only contract", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runAgentWorkflow({
+      projectPath: projectDir,
+      json: true,
+      generate: "baseline",
+      save: "custom-id",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      project: { projectPath: projectDir },
+      errors: [
+        {
+          code: "unsupported_generation",
+          message: "autodemo agent run supports only --save baseline-polish or --save all.",
+        },
+      ],
     });
   });
 });

@@ -110,7 +110,7 @@ expect(output.variant.id).toBe("baseline-polish");
 expect(result.stderr).toBe("");
 ```
 
-Also test missing `--json`, missing project, unsupported subcommand, unknown arguments, `--generate cinematic`, `--generate baseline --source-variant source-baseline --save all`, and `--open-editor` returning `editor.url`.
+Also test missing `--json`, missing project, unsupported subcommand, unknown arguments, `--generate cinematic`, `--generate baseline --source-variant source-baseline --save all`, unsupported custom agent save ids, and `--open-editor` returning `editor.url` with the long-lived server lifecycle marker.
 
 - [ ] **Step 2: Verify red**
 
@@ -124,7 +124,7 @@ Expected: fail because `agent` is still unknown.
 
 - [ ] **Step 3: Implement CLI routing**
 
-Import `runAgentWorkflow`. Reuse the existing optional `startEditorServer` dependency for editor handoff. Add `agent` to async routing before capture. Parse only `agent run`; require `--json`; support `--project`, `--variant`, `--generate baseline`, `--source-variant <id>`, `--save <id|all>`, `--open-editor`, `--host`, `--port`, `--no-browser`, and `--help`.
+Import `runAgentWorkflow`. Reuse the existing optional `startEditorServer` dependency for editor handoff. Add `agent` to async routing before capture. Parse only `agent run`; require `--json`; support `--project`, `--variant`, `--generate baseline`, `--source-variant <id>`, `--save <baseline-polish|all>`, `--open-editor`, `--host`, `--port`, `--no-browser`, and `--help`.
 
 - [ ] **Step 4: Verify green**
 
