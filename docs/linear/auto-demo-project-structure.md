@@ -69,7 +69,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-169, because the agent-facing workflow contract is implemented and WES-169 resolves MVP agent-host wrapper scope before WES-161 builds host wrappers.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active product task: WES-169, because the agent-facing workflow contract is implemented and WES-169 resolves MVP agent-host wrapper scope before WES-161 builds the Codex wrapper and documents Claude parity.
 
 ## Issues By Milestone
 

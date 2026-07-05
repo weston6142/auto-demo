@@ -19,9 +19,9 @@ autodemo agent run --project <project-dir-or-manifest> --json --generate baselin
 autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 ```
 
-WES-161 currently asks for Codex and Claude wrappers. The MVP needs a host target
-decision before implementation so wrapper work does not block on parity that is
-not required for the first demo.
+WES-161 started from a Codex-and-Claude wrapper scope. The MVP needs a host
+target decision before implementation so wrapper work does not block on parity
+that is not required for the first demo.
 
 ## Selected Decision
 

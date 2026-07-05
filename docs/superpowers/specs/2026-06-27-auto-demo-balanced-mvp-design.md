@@ -108,7 +108,7 @@ Serve a local browser editor for project review and finishing: timeline, zoom/cr
 
 ### 7. Agent Integrations
 
-Expose the core workflow to agents. Start with a CLI and Codex/Claude skill wrapper. Add MCP after the command and project contracts stabilize, unless early integration requires long-running tool state.
+Expose the core workflow to agents. Start with a CLI and one production Codex skill wrapper, with Claude wrapper parity documented as follow-up scope. Add MCP after the command and project contracts stabilize, unless early integration requires long-running tool state.
 
 ### 8. Export And Packaging
 
@@ -181,7 +181,7 @@ Visual/render verification should use small deterministic fixtures where possibl
 
 - Whether the first capture runtime targets macOS only or supports multiple platforms immediately.
 - Whether the initial browser capture path should use Playwright/CDP, OS-level screen capture, or both.
-- Whether MCP belongs in the MVP implementation or follows after CLI and skill wrappers prove stable.
+- Whether MCP belongs in the MVP implementation or follows after the CLI and Codex skill wrapper prove stable.
 - Exact project file extension and folder layout.
 - Initial rendering engine choice.
 
