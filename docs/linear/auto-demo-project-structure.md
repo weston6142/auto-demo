@@ -59,7 +59,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-156 completion: WES-157, because Headless Variant Generation is complete and Browser Editor can now load saved/generated project variants.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-157 completion: WES-170, because WES-158 needs the Browser Editor preview-fidelity and MVP finishing-controls decision before implementation scope is final.
 
 ## Issues By Milestone
 
@@ -103,7 +103,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 ### 6. Browser Editor
 
 - WES-140: Milestone 6: Browser editor - Backlog - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
-- WES-157: Serve local browser editor and load demo projects - In Progress - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
+- WES-157: Serve local browser editor and load demo projects - Done - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
 - WES-158: Timeline preview and finishing controls for MVP variants - Backlog - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
 - WES-159: Save browser edits as project variants for export handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
 - WES-170: Open question: decide browser preview fidelity and MVP finishing controls - Backlog - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
@@ -250,8 +250,11 @@ capture-dir/
 - WES-155: Deterministic named variant batch generation completed in PR #16. `@auto-demo/polish` now supports baseline-only batch-shaped dry-run generation with `styles`, `sourceVariantId`, persisted source variant validation, batch metadata, and structured errors for duplicate styles, unsupported styles, invalid counts, missing source variants, invalid projects, and unsupported save/output modes. `autodemo generate` accepts `--styles baseline` and `--source-variant baseline-polish` in JSON dry-run mode. Verification: local focused polish/CLI tests, package typecheck/builds, `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `c61e9da8`.
 - WES-156: Selected/all headless save modes completed in PR #17. `@auto-demo/polish` now supports dry-run, selected save, and save-all JSON summaries with saved paths, skipped variants, reload validation, next-step hints, invalid selected id errors, duplicate generated id errors, and malformed save request handling. `autodemo generate --json --save <variant-id|all>` exposes the behavior. Verification: local focused polish/CLI tests, local `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `23b64483`.
 - WES-137: Headless Variant Generation tracker completed after WES-154, WES-155, WES-156, and WES-166 reached Done. WES-157 is the next product task by milestone order.
-- 2026-07-04 WES-157 pre-task sync: Linear and local `develop` agree Browser Editor is the earliest incomplete milestone after Headless Variant Generation. WES-157 was selected because WES-153 and WES-156 dependencies are complete and a WES-156 readiness note unblocked project/variant loading. WES-157 is in progress on branch `fm/wes-157`.
+- 2026-07-04 WES-157 pre-task sync: Linear and local `develop` agreed Browser Editor was the earliest incomplete milestone after Headless Variant Generation. WES-157 was selected because WES-153 and WES-156 dependencies were complete and a WES-156 readiness note unblocked project/variant loading. WES-157 ran on branch `fm/wes-157`.
 - 2026-07-04 WES-157 design: the first browser editor slice is review-only. `autodemo open --project <project-dir-or-manifest>` starts a local HTTP server, loads projects through `@auto-demo/project`, lists saved/generated variants, and reports validation or empty-variant states in operator-readable language. Browser auto-launch, timeline preview controls, editing, rendering, exports, hosted deployment, and agent wrappers remain deferred.
+- 2026-07-04 WES-157 completion-gate sync: PR #18 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `287b10bb`. WES-157 completion evidence was added to Linear and the issue was moved to Done. WES-158 received a readiness note that the local editor/project-load entry point is available, with WES-170 still owning the preview-fidelity and MVP finishing-control decision before WES-158 implementation.
+- WES-157: Local browser editor project loading completed in PR #18. `autodemo open --project <project-dir-or-manifest>` starts the local review-only editor server, `@auto-demo/editor` loads validated project summaries through `@auto-demo/project`, `/api/project` returns operator-facing success or validation-error JSON, and the static editor lists saved/generated variants or shows empty-variant generation guidance.
+- WES-157 verification: TDD red checks failed first for missing `loadEditorProject()`/`startEditorServer()` exports and unimplemented CLI `open` routing; after implementation, focused editor/CLI tests passed, local `npm run validate` passed, and no-mistakes PR #18 passed GitHub CI `validate` on head `287b10bb`.
 
 ## Update Rules
 
