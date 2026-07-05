@@ -1,6 +1,7 @@
-import { createServer, type Server } from "node:http";
-import { readFile } from "node:fs/promises";
-import { join, normalize, sep } from "node:path";
+import { createServer, type Server, type ServerResponse } from "node:http";
+import { createReadStream } from "node:fs";
+import { realpath, stat } from "node:fs/promises";
+import { isAbsolute, join, normalize, relative, sep } from "node:path";
 import {
   loadProject,
   type ProjectValidationError,
@@ -149,15 +150,14 @@ export async function startEditorServer(options: StartEditorServerOptions): Prom
     }
 
     if (requestUrl.pathname.startsWith("/project-file/")) {
-      const file = await readProjectFile(options.projectPath, requestUrl.pathname);
+      const file = await resolveProjectFile(options.projectPath, requestUrl.pathname);
       if (file === null) {
         response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
         response.end("Not found\n");
         return;
       }
 
-      response.writeHead(200, { "content-type": contentTypeForProjectFile(file.path) });
-      response.end(file.content);
+      streamProjectFile(request.headers.range, file, response);
       return;
     }
 
@@ -200,10 +200,16 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
-async function readProjectFile(
+type ResolvedProjectFile = {
+  path: string;
+  absolutePath: string;
+  size: number;
+};
+
+async function resolveProjectFile(
   projectPath: string,
   requestPath: string,
-): Promise<{ path: string; content: Buffer } | null> {
+): Promise<ResolvedProjectFile | null> {
   const project = await loadEditorProject(projectPath);
   if (!project.ok) {
     return null;
@@ -228,13 +234,120 @@ async function readProjectFile(
       return null;
     }
 
+    const projectRoot = await realpath(project.project.projectDir);
+    const absolutePath = await realpath(join(project.project.projectDir, normalized));
+    const relativeToRoot = relative(projectRoot, absolutePath);
+    if (relativeToRoot === "" || relativeToRoot.startsWith("..") || isAbsolute(relativeToRoot)) {
+      return null;
+    }
+
+    const fileStat = await stat(absolutePath);
+    if (!fileStat.isFile()) {
+      return null;
+    }
+
     return {
       path: normalized,
-      content: await readFile(join(project.project.projectDir, normalized)),
+      absolutePath,
+      size: fileStat.size,
     };
   } catch {
     return null;
   }
+}
+
+function streamProjectFile(
+  rangeHeader: string | undefined,
+  file: ResolvedProjectFile,
+  response: ServerResponse,
+): void {
+  const contentType = contentTypeForProjectFile(file.path);
+  const range = parseByteRange(rangeHeader, file.size);
+
+  if (rangeHeader !== undefined && range === null) {
+    response.writeHead(416, {
+      "content-range": `bytes */${file.size}`,
+      "content-type": "text/plain; charset=utf-8",
+    });
+    response.end("Range not satisfiable\n");
+    return;
+  }
+
+  const start = range?.start ?? 0;
+  const end = range?.end ?? Math.max(0, file.size - 1);
+  const contentLength = file.size === 0 ? 0 : end - start + 1;
+  const headers: Record<string, string> = {
+    "accept-ranges": "bytes",
+    "content-length": String(contentLength),
+    "content-type": contentType,
+  };
+
+  if (range === null || file.size === 0) {
+    response.writeHead(200, headers);
+  } else {
+    response.writeHead(206, {
+      ...headers,
+      "content-range": `bytes ${start}-${end}/${file.size}`,
+    });
+  }
+
+  const stream = createReadStream(file.absolutePath, file.size === 0 ? {} : { start, end });
+  stream.on("error", () => {
+    if (!response.headersSent) {
+      response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      response.end("Not found\n");
+      return;
+    }
+    response.destroy();
+  });
+  stream.pipe(response);
+}
+
+function parseByteRange(
+  rangeHeader: string | undefined,
+  size: number,
+): { start: number; end: number } | null {
+  if (rangeHeader === undefined) {
+    return null;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+  if (match === null) {
+    return null;
+  }
+
+  const [, rawStart, rawEnd] = match;
+  if (rawStart === "" && rawEnd === "") {
+    return null;
+  }
+
+  if (rawStart === "") {
+    const suffixLength = Number(rawEnd);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0 || size === 0) {
+      return null;
+    }
+    return {
+      start: Math.max(0, size - suffixLength),
+      end: size - 1,
+    };
+  }
+
+  const start = Number(rawStart);
+  const requestedEnd = rawEnd === "" ? size - 1 : Number(rawEnd);
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    start < 0 ||
+    requestedEnd < start ||
+    start >= size
+  ) {
+    return null;
+  }
+
+  return {
+    start,
+    end: Math.min(requestedEnd, size - 1),
+  };
 }
 
 function contentTypeForProjectFile(path: string): string {

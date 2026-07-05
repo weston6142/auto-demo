@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
@@ -258,6 +258,37 @@ describe("startEditorServer", () => {
     expect(media.status).toBe(200);
     expect(media.headers.get("content-type")).toBe("video/webm");
     expect(await media.text()).toBe("video");
+  });
+
+  it("does not serve whitelisted project files through symlinks", async () => {
+    const projectDir = await createEditorProject();
+    const secretPath = join(tmpdir(), `auto-demo-editor-secret-${randomUUID()}.txt`);
+    await writeFile(secretPath, "outside-project");
+    await rm(join(projectDir, "raw", "capture.webm"));
+    await symlink(secretPath, join(projectDir, "raw", "capture.webm"));
+    const server = await startEditorServer({ projectPath: projectDir });
+    servers.push(server);
+
+    const response = await fetch(new URL("/project-file/raw/capture.webm", server.url));
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).not.toContain("outside-project");
+  });
+
+  it("serves video range requests as partial project file responses", async () => {
+    const projectDir = await createEditorProject();
+    await writeFile(join(projectDir, "raw", "capture.webm"), "video-bytes");
+    const server = await startEditorServer({ projectPath: projectDir });
+    servers.push(server);
+
+    const response = await fetch(new URL("/project-file/raw/capture.webm", server.url), {
+      headers: { range: "bytes=1-3" },
+    });
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 1-3/11");
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(await response.text()).toBe("ide");
   });
 
   it("returns 404 for unknown routes", async () => {
