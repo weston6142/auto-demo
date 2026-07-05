@@ -64,7 +64,8 @@ Replace the variant-list-only HTML with a compact editor surface:
 
 - project and source summary;
 - variant selector;
-- approximate media preview;
+- approximate media preview backed by a whitelisted `/project-file/` route for
+  source media and metadata;
 - trim, viewport, caption, callout, cursor, click, and style controls;
 - read-only export intent;
 - reset button;
@@ -153,6 +154,7 @@ Expected: commit succeeds on branch `fm/wes-158`.
 ## Self-Review
 
 - Spec coverage: tasks cover full variant data, approximate preview, required
-  controls, reset/local draft behavior, docs, and validation.
+  controls, whitelisted media serving, reset/local draft behavior, docs, and
+  validation.
 - Placeholder scan: no placeholder implementation steps remain.
 - Type consistency: all field names match the current `ProjectVariant` schema.

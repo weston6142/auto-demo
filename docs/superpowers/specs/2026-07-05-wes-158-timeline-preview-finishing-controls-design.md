@@ -68,7 +68,9 @@ owned by the Export And Packaging milestone.
   captions, callouts, style, and export intent.
 - `GET /` serves an editor shell that includes visible control labels for trim,
   viewport, captions, callouts, cursor, clicks, and style.
-- The shell renders a media preview using the project primary media path. The
+- `GET /project-file/<project-relative-path>` serves only whitelisted project
+  media or metadata paths needed by loaded source and variant previews.
+- The shell renders a media preview using the selected variant media path. The
   preview is approximate and must not claim final export parity.
 - Trim controls clamp `timeline.startMs` and `timeline.endMs` inside source
   duration and keep `startMs < endMs`.
@@ -92,10 +94,15 @@ Tests should stay behavior-first:
   not expose a named preset picker.
 - The project API response gives the browser enough media and variant data to
   prepare a schema-backed edited variant.
+- Media serving is verified through the public file route, including malformed
+  project-file URLs.
+- Local draft behavior is verified at the served-shell boundary for timeline
+  clamping, generated caption/callout ids, and invalid style color reset.
 
 DOM event-level tests are not required for this slice because the editor shell
-is static HTML served by Node. Behavior will be verified through public server
-responses and visible shell text rather than private helper functions.
+is static HTML served by Node. Behavior should be verified through public server
+responses, visible shell text, and the served browser script's public draft
+state rather than private helper internals.
 
 ## Deferrals
 
