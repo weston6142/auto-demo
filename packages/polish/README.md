@@ -96,4 +96,4 @@ coordinates, and failed or interrupted source captures without echoing raw event
 payloads, URLs, typed values, or local paths.
 
 Planned work still owns run summary files on disk, rendered previews, exports,
-additional themed presets, and editor controls.
+additional themed presets, and persistence for browser editor draft changes.
