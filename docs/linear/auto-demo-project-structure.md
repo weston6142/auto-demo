@@ -39,6 +39,8 @@ Last updated: 2026-07-04
 - WES-155 deterministic named variant batches implementation plan: `docs/superpowers/plans/2026-07-04-wes-155-deterministic-named-variant-batches.md`
 - WES-156 headless save summary design spec: `docs/superpowers/specs/2026-07-04-wes-156-headless-save-summary-design.md`
 - WES-156 headless save summary implementation plan: `docs/superpowers/plans/2026-07-04-wes-156-headless-save-summary.md`
+- WES-157 local browser editor project loading design spec: `docs/superpowers/specs/2026-07-04-wes-157-local-browser-editor-load-projects-design.md`
+- WES-157 local browser editor project loading implementation plan: `docs/superpowers/plans/2026-07-04-wes-157-local-browser-editor-load-projects.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -101,7 +103,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 ### 6. Browser Editor
 
 - WES-140: Milestone 6: Browser editor - Backlog - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
-- WES-157: Serve local browser editor and load demo projects - Backlog - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
+- WES-157: Serve local browser editor and load demo projects - In Progress - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
 - WES-158: Timeline preview and finishing controls for MVP variants - Backlog - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
 - WES-159: Save browser edits as project variants for export handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
 - WES-170: Open question: decide browser preview fidelity and MVP finishing controls - Backlog - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
@@ -248,6 +250,8 @@ capture-dir/
 - WES-155: Deterministic named variant batch generation completed in PR #16. `@auto-demo/polish` now supports baseline-only batch-shaped dry-run generation with `styles`, `sourceVariantId`, persisted source variant validation, batch metadata, and structured errors for duplicate styles, unsupported styles, invalid counts, missing source variants, invalid projects, and unsupported save/output modes. `autodemo generate` accepts `--styles baseline` and `--source-variant baseline-polish` in JSON dry-run mode. Verification: local focused polish/CLI tests, package typecheck/builds, `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `c61e9da8`.
 - WES-156: Selected/all headless save modes completed in PR #17. `@auto-demo/polish` now supports dry-run, selected save, and save-all JSON summaries with saved paths, skipped variants, reload validation, next-step hints, invalid selected id errors, duplicate generated id errors, and malformed save request handling. `autodemo generate --json --save <variant-id|all>` exposes the behavior. Verification: local focused polish/CLI tests, local `npm run validate`, no-mistakes review/test/document/lint/push/PR, and GitHub CI `validate` passed on head `23b64483`.
 - WES-137: Headless Variant Generation tracker completed after WES-154, WES-155, WES-156, and WES-166 reached Done. WES-157 is the next product task by milestone order.
+- 2026-07-04 WES-157 pre-task sync: Linear and local `develop` agree Browser Editor is the earliest incomplete milestone after Headless Variant Generation. WES-157 was selected because WES-153 and WES-156 dependencies are complete and a WES-156 readiness note unblocked project/variant loading. WES-157 is in progress on branch `fm/wes-157`.
+- 2026-07-04 WES-157 design: the first browser editor slice is review-only. `autodemo open --project <project-dir-or-manifest>` starts a local HTTP server, loads projects through `@auto-demo/project`, lists saved/generated variants, and reports validation or empty-variant states in operator-readable language. Browser auto-launch, timeline preview controls, editing, rendering, exports, hosted deployment, and agent wrappers remain deferred.
 
 ## Update Rules
 

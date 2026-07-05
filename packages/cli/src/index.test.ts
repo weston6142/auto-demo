@@ -160,12 +160,92 @@ describe("runCli", () => {
     });
   });
 
+  it("reports that open requires async execution", () => {
+    const result = runCli(["open"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo open requires async execution.\n",
+    });
+  });
+
   it("prints help and fails for unknown commands", () => {
     const result = runCli(["wat"]);
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("Usage: autodemo <command>");
     expect(result.stderr).toBe("Unknown command: wat\n");
+  });
+});
+
+describe("runCliAsync open", () => {
+  it("starts the local editor and prints its URL", async () => {
+    const projectDir = await createValidProject();
+    const started: unknown[] = [];
+
+    const result = await runCliAsync(["open", "--project", projectDir, "--no-browser"], {
+      now: () => new Date("2026-07-04T12:00:00.000Z"),
+      async runChildCommand() {
+        return { exitCode: 0 };
+      },
+      browserCaptureAdapter: {
+        kind: "browser",
+        async start() {
+          throw new Error("capture should not start for open");
+        },
+      },
+      async startEditorServer(options) {
+        started.push(options);
+        return {
+          url: "http://127.0.0.1:4321/",
+          async close() {},
+        };
+      },
+    });
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "Auto Demo editor: http://127.0.0.1:4321/\n",
+      stderr: "",
+    });
+    expect(started).toEqual([
+      {
+        projectPath: projectDir,
+        host: "127.0.0.1",
+        port: 0,
+      },
+    ]);
+  });
+
+  it("requires a project path", async () => {
+    const result = await runCliAsync(["open", "--no-browser"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo open requires --project <project-dir-or-manifest>.\n",
+    });
+  });
+
+  it("rejects unknown open arguments", async () => {
+    const result = await runCliAsync(["open", "--project", "demo", "--wat"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "Unknown autodemo open option: --wat\n",
+    });
+  });
+
+  it("rejects invalid port values", async () => {
+    const result = await runCliAsync(["open", "--project", "demo", "--port", "wide"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo open --port must be an integer from 0 to 65535.\n",
+    });
   });
 });
 

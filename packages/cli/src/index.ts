@@ -17,6 +17,11 @@ import {
   type HeadlessVariantGenerationError,
   type HeadlessVariantGenerationResult,
 } from "@auto-demo/polish";
+import {
+  startEditorServer,
+  type EditorServer,
+  type StartEditorServerOptions,
+} from "@auto-demo/editor";
 
 export type CliResult = {
   exitCode: number;
@@ -30,6 +35,7 @@ export type CliDependencies = {
   createInterruptWatcher?: () => InterruptWatcher;
   now: () => Date;
   runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
+  startEditorServer?: (options: StartEditorServerOptions) => Promise<EditorServer>;
 };
 
 export type ChildCommandResult = {
@@ -65,7 +71,17 @@ type ParsedGenerateCommand = {
   errors: HeadlessVariantGenerationError[];
 };
 
-const plannedCommands = new Set(["init", "capture", "export", "open"]);
+type ParsedOpenCommand =
+  | {
+      ok: true;
+      options: StartEditorServerOptions;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+const plannedCommands = new Set(["init", "capture", "export"]);
 
 /** Runs synchronous CLI commands. Use `runCliAsync` for async commands. */
 export function runCli(args: string[]): CliResult {
@@ -103,6 +119,14 @@ export function runCli(args: string[]): CliResult {
     };
   }
 
+  if (command === "open") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo open requires async execution.\n",
+    };
+  }
+
   if (plannedCommands.has(command)) {
     return {
       exitCode: 1,
@@ -131,6 +155,10 @@ export async function runCliAsync(
 
   if (command === "generate") {
     return await runGenerateCommand(rest);
+  }
+
+  if (command === "open") {
+    return await runOpenCommand(rest, dependencies);
   }
 
   if (command !== "capture") {
@@ -196,6 +224,25 @@ export async function runCliAsync(
     childResult.exitCode,
     childResult.exitCode === 0 ? "" : `Child command exited with code ${childResult.exitCode}.\n`,
   );
+}
+
+async function runOpenCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
+  const parsed = parseOpenCommand(args);
+  if (!parsed.ok) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${parsed.message}\n`,
+    };
+  }
+
+  const startServer = dependencies.startEditorServer ?? startEditorServer;
+  const server = await startServer(parsed.options);
+  return {
+    exitCode: 0,
+    stdout: `Auto Demo editor: ${server.url}\n`,
+    stderr: "",
+  };
 }
 
 async function runValidateCommand(args: string[]): Promise<CliResult> {
@@ -438,6 +485,84 @@ function generateParseFailure(parsed: ParsedGenerateCommand): HeadlessVariantGen
   };
 }
 
+function parseOpenCommand(args: string[]): ParsedOpenCommand {
+  let projectPath: string | undefined;
+  let host = "127.0.0.1";
+  let port = 0;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--project") {
+      const value = args[index + 1];
+      if (value === undefined || value.startsWith("--")) {
+        return {
+          ok: false,
+          message: "autodemo open requires --project <project-dir-or-manifest>.",
+        };
+      }
+      projectPath = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--host") {
+      const value = args[index + 1];
+      if (value === undefined || value.startsWith("--")) {
+        return { ok: false, message: "autodemo open --host requires a value." };
+      }
+      host = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--port") {
+      const parsedPort = parseOpenPort(args[index + 1]);
+      if (parsedPort === undefined) {
+        return {
+          ok: false,
+          message: "autodemo open --port must be an integer from 0 to 65535.",
+        };
+      }
+      port = parsedPort;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--no-browser") {
+      continue;
+    }
+
+    return { ok: false, message: `Unknown autodemo open option: ${arg}` };
+  }
+
+  if (projectPath === undefined || projectPath.trim().length === 0) {
+    return { ok: false, message: "autodemo open requires --project <project-dir-or-manifest>." };
+  }
+
+  return {
+    ok: true,
+    options: {
+      projectPath,
+      host,
+      port,
+    },
+  };
+}
+
+function parseOpenPort(value: string | undefined): number | undefined {
+  if (value === undefined || !/^\d+$/.test(value)) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (String(parsed) !== value || parsed < 0 || parsed > 65535) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
 async function waitForManualInterrupt(
   interruptWatcher: InterruptWatcher,
 ): Promise<{ kind: "interrupted" }> {
@@ -595,6 +720,7 @@ function defaultDependencies(): CliDependencies {
     createInterruptWatcher: createSigintInterruptWatcher,
     now: () => new Date(),
     runChildCommand: runChildCommandWithInheritedStdio,
+    startEditorServer,
   };
 }
 
