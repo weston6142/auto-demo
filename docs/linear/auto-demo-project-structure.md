@@ -45,6 +45,8 @@ Last updated: 2026-07-05
 - WES-170 browser preview fidelity and finishing controls implementation plan: `docs/superpowers/plans/2026-07-04-wes-170-browser-preview-fidelity-finishing-controls.md`
 - WES-158 timeline preview and finishing controls design spec: `docs/superpowers/specs/2026-07-05-wes-158-timeline-preview-finishing-controls-design.md`
 - WES-158 timeline preview and finishing controls implementation plan: `docs/superpowers/plans/2026-07-05-wes-158-timeline-preview-finishing-controls.md`
+- WES-159 save browser edits design spec: `docs/superpowers/specs/2026-07-05-wes-159-save-browser-edits-design.md`
+- WES-159 save browser edits implementation plan: `docs/superpowers/plans/2026-07-05-wes-159-save-browser-edits.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -63,7 +65,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-158 completion: WES-159, because the Browser Editor preview and local finishing-control surface now produces schema-backed edited variant JSON but persistence of browser edits remains outstanding.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-159 completion: WES-160, because Browser Editor persistence is complete and WES-160 depends on saved browser-edited variants for the agent-facing workflow handoff contract.
 
 ## Issues By Milestone
 
@@ -106,10 +108,10 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 6. Browser Editor
 
-- WES-140: Milestone 6: Browser editor - Backlog - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
+- WES-140: Milestone 6: Browser editor - Done - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
 - WES-157: Serve local browser editor and load demo projects - Done - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
 - WES-158: Timeline preview and finishing controls for MVP variants - Done - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
-- WES-159: Save browser edits as project variants for export handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
+- WES-159: Save browser edits as project variants for export handoff - Done - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
 - WES-170: Open question: decide browser preview fidelity and MVP finishing controls - Done - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
 
 ### 7. Agent Integrations
@@ -263,9 +265,11 @@ capture-dir/
 - 2026-07-04 WES-170 decision: WES-158 should target approximate browser review fidelity, not exact exported-media parity. MVP finishing controls must stay schema-backed: trim boundaries, viewport framing, captions/callouts, cursor/click styling, and direct style fields. Named preset/theme picker UI, exact export parity, rendering, and non-schema editor fields remain deferred.
 - WES-158 readiness update: after WES-170, WES-158 can implement the approximate preview and local editing surface against existing `ProjectVariant` fields, with WES-159 still owning persistence of edited variants.
 - 2026-07-04 WES-170 completion-gate sync: WES-170 decision spec and implementation plan were committed in PR #19, WES-158 acceptance criteria were updated in Linear, WES-158 received a readiness note, local `npm run validate` passed, and no-mistakes passed review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `447e66a8`.
-- 2026-07-05 WES-158 pre-task sync: Linear and local project map agreed WES-158 is the next Browser Editor implementation issue after WES-157 and WES-170. WES-158 was moved to In Progress on branch `fm/wes-158`. Approved scope is a read-only server with approximate browser preview and schema-backed local draft controls for trim, viewport, captions, callouts, cursor/click emphasis, and direct style fields. WES-159 still owns persistence of edited browser variants; exact export parity, named preset picker UI, export rendering, browser auto-launch, and hosted deployment remain deferred.
-- 2026-07-05 WES-158 local implementation note: `@auto-demo/editor` now returns full schema-backed variant summaries, serves whitelisted project media/metadata through `/project-file/`, renders an approximate browser preview, and keeps trim, viewport, caption, callout, cursor/click, and direct style edits in local browser draft state with reset and edited JSON output. WES-159 still owns saving those browser edits.
+- 2026-07-05 WES-158 pre-task sync: Linear and local project map agreed WES-158 is the next Browser Editor implementation issue after WES-157 and WES-170. WES-158 was moved to In Progress on branch `fm/wes-158`. Approved scope is a read-only server with approximate browser preview and schema-backed local draft controls for trim, viewport, captions, callouts, cursor/click emphasis, and direct style fields. At that point WES-159 owned persistence of edited browser variants; exact export parity, named preset picker UI, export rendering, browser auto-launch, and hosted deployment remained deferred.
+- 2026-07-05 WES-158 local implementation note: `@auto-demo/editor` now returns full schema-backed variant summaries, serves whitelisted project media/metadata through `/project-file/`, renders an approximate browser preview, and keeps trim, viewport, caption, callout, cursor/click, and direct style edits in local browser draft state with reset and edited JSON output. At that point WES-159 owned saving those browser edits.
 - 2026-07-05 WES-158 completion-gate sync: PR #20 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `8399ea1e`. No-mistakes fixed draft schema-validity issues, hardened `/project-file/` serving against symlink escapes and large buffered video responses, and synchronized docs. Completion evidence was added to Linear and WES-158 was moved to Done. WES-159 received a readiness note to persist the edited variant JSON/local draft state into schema-valid project files.
+- 2026-07-05 WES-159 local implementation note: `@auto-demo/project` now exposes browser-oriented saved-variant upsert behavior for updating existing variants and saving named copies while preserving generated-save append semantics. `@auto-demo/editor` accepts `POST /api/variants`, validates update/copy saves, writes through project persistence, and refreshes browser save controls from `/api/project` after successful saves.
+- 2026-07-05 WES-159 completion-gate sync: PR #21 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `5a977bc4`. No-mistakes fixed update rollback safety and copy-form preservation across save/re-render flows. Completion evidence was added to WES-159 and WES-140, both issues were moved to Done, and WES-160 received a readiness note to build the agent-facing workflow handoff on saved browser-edited variants.
 
 ## Update Rules
 

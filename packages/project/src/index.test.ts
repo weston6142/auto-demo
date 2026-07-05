@@ -9,6 +9,7 @@ import {
   loadProject,
   savePolishVariant,
   saveProject,
+  upsertSavedVariant,
   validateProject,
   validateProjectManifest,
   type ProjectManifest,
@@ -752,6 +753,199 @@ describe("project filesystem APIs", () => {
     ).rejects.toMatchObject({
       code: "ENOENT",
     });
+  });
+
+  it("replaces an existing saved variant and preserves unrelated variants", async () => {
+    const project = await importValidProject("auto-demo-project-upsert-update-");
+    const first = await savePolishVariant(project, validVariant, {
+      now: new Date("2026-07-03T12:00:00.000Z"),
+    });
+    if (!first.ok) {
+      throw new Error("Expected first variant save to succeed");
+    }
+    const otherVariant: ProjectVariant = {
+      ...validVariant,
+      id: "checkout-wide",
+      displayName: "Checkout Wide",
+      viewport: { ...validVariant.viewport, zoom: 1 },
+    };
+    const withOther = await savePolishVariant(first, otherVariant, {
+      now: new Date("2026-07-03T12:05:00.000Z"),
+    });
+    if (!withOther.ok) {
+      throw new Error("Expected second variant save to succeed");
+    }
+    const replacement: ProjectVariant = {
+      ...validVariant,
+      displayName: "Checkout Tight",
+      timeline: { startMs: 200, endMs: 2300 },
+    };
+
+    const saved = await upsertSavedVariant(
+      withOther,
+      { mode: "update", variant: replacement },
+      { now: new Date("2026-07-05T15:00:00.000Z") },
+    );
+
+    expect(saved).toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: {
+        ...withOther.manifest,
+        variants: [replacement, otherVariant],
+        updatedAt: "2026-07-05T15:00:00.000Z",
+      },
+    });
+    await expect(loadProject(project.projectDir)).resolves.toEqual(saved);
+    expect(
+      JSON.parse(
+        await readFile(join(project.projectDir, "variants", "checkout-focused.json"), "utf8"),
+      ),
+    ).toEqual(replacement);
+    expect(
+      JSON.parse(
+        await readFile(join(project.projectDir, "variants", "checkout-wide.json"), "utf8"),
+      ),
+    ).toEqual(otherVariant);
+  });
+
+  it("leaves the previous saved variant reloadable when an update cannot save the manifest", async () => {
+    const project = await importValidProject("auto-demo-project-upsert-update-failure-");
+    const first = await savePolishVariant(project, validVariant, {
+      now: new Date("2026-07-03T12:00:00.000Z"),
+    });
+    if (!first.ok) {
+      throw new Error("Expected first variant save to succeed");
+    }
+    const variantPath = join(project.projectDir, "variants", "checkout-focused.json");
+    const beforeVariant = await readFile(variantPath, "utf8");
+    const beforeManifest = await readFile(project.manifestPath, "utf8");
+    const replacement: ProjectVariant = {
+      ...validVariant,
+      displayName: "Checkout Tight",
+      timeline: { startMs: 200, endMs: 2300 },
+    };
+
+    await mkdir(`${project.manifestPath}.tmp`);
+    await expect(
+      upsertSavedVariant(
+        first,
+        { mode: "update", variant: replacement },
+        { now: new Date("2026-07-05T15:00:00.000Z") },
+      ),
+    ).rejects.toMatchObject({ code: "EISDIR" });
+    await rm(`${project.manifestPath}.tmp`, { recursive: true });
+
+    expect(await readFile(project.manifestPath, "utf8")).toBe(beforeManifest);
+    expect(await readFile(variantPath, "utf8")).toBe(beforeVariant);
+    await expect(loadProject(project.projectDir)).resolves.toEqual(first);
+  });
+
+  it("saves a named copy without changing the source variant", async () => {
+    const project = await importValidProject("auto-demo-project-upsert-copy-");
+    const first = await savePolishVariant(project, validVariant, {
+      now: new Date("2026-07-03T12:00:00.000Z"),
+    });
+    if (!first.ok) {
+      throw new Error("Expected first variant save to succeed");
+    }
+
+    const saved = await upsertSavedVariant(
+      first,
+      {
+        mode: "copy",
+        variant: validVariant,
+        copyId: "checkout-copy",
+        displayName: "Checkout Copy",
+      },
+      { now: new Date("2026-07-05T15:05:00.000Z") },
+    );
+
+    const expectedCopy: ProjectVariant = {
+      ...validVariant,
+      id: "checkout-copy",
+      displayName: "Checkout Copy",
+    };
+    expect(saved).toEqual({
+      ok: true,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      manifest: {
+        ...first.manifest,
+        variants: [validVariant, expectedCopy],
+        updatedAt: "2026-07-05T15:05:00.000Z",
+      },
+    });
+    expect(
+      JSON.parse(
+        await readFile(join(project.projectDir, "variants", "checkout-focused.json"), "utf8"),
+      ),
+    ).toEqual(validVariant);
+    expect(
+      JSON.parse(
+        await readFile(join(project.projectDir, "variants", "checkout-copy.json"), "utf8"),
+      ),
+    ).toEqual(expectedCopy);
+    await expect(loadProject(project.projectDir)).resolves.toEqual(saved);
+  });
+
+  it("rejects missing update targets without changing saved files", async () => {
+    const project = await importValidProject("auto-demo-project-upsert-missing-update-");
+    const beforeManifest = await readFile(project.manifestPath, "utf8");
+
+    await expect(
+      upsertSavedVariant(project, { mode: "update", variant: validVariant }),
+    ).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Saved Auto Demo project variant cannot update a missing variant.",
+        },
+      ],
+    });
+    expect(await readFile(project.manifestPath, "utf8")).toBe(beforeManifest);
+  });
+
+  it("rejects duplicate copy ids without changing saved files", async () => {
+    const project = await importValidProject("auto-demo-project-upsert-duplicate-copy-");
+    const first = await savePolishVariant(project, validVariant, {
+      now: new Date("2026-07-03T12:00:00.000Z"),
+    });
+    if (!first.ok) {
+      throw new Error("Expected first variant save to succeed");
+    }
+    const beforeManifest = await readFile(project.manifestPath, "utf8");
+    const beforeVariant = await readFile(
+      join(project.projectDir, "variants", "checkout-focused.json"),
+      "utf8",
+    );
+
+    await expect(
+      upsertSavedVariant(first, {
+        mode: "copy",
+        variant: validVariant,
+        copyId: "checkout-focused",
+        displayName: "Duplicate",
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      projectDir: project.projectDir,
+      manifestPath: project.manifestPath,
+      errors: [
+        {
+          code: "invalid_project_manifest",
+          message: "Saved Auto Demo project variant copy id already exists.",
+        },
+      ],
+    });
+    expect(await readFile(project.manifestPath, "utf8")).toBe(beforeManifest);
+    expect(
+      await readFile(join(project.projectDir, "variants", "checkout-focused.json"), "utf8"),
+    ).toBe(beforeVariant);
   });
 
   it("reports a missing saved polish variant file during project validation", async () => {

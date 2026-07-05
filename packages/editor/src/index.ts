@@ -1,10 +1,12 @@
-import { createServer, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createReadStream } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize, relative, sep } from "node:path";
 import {
   loadProject,
+  upsertSavedVariant,
   type ProjectValidationError,
+  type ProjectVariant,
   type ProjectVariantCallout,
   type ProjectVariantCaption,
   type ProjectVariantClickDecision,
@@ -128,6 +130,18 @@ export async function startEditorServer(options: StartEditorServerOptions): Prom
   const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? "/", `http://${host}`);
 
+    if (request.method === "POST" && requestUrl.pathname === "/api/variants") {
+      try {
+        await handleVariantSave(request, response, options.projectPath);
+      } catch {
+        writeJson(response, 500, {
+          ok: false,
+          errors: [{ message: "Variant save failed." }],
+        });
+      }
+      return;
+    }
+
     if (request.method !== "GET") {
       response.writeHead(405, { "content-type": "text/plain; charset=utf-8" });
       response.end("Method not allowed\n");
@@ -176,6 +190,144 @@ export async function startEditorServer(options: StartEditorServerOptions): Prom
     url: `http://${host}:${address.port}/`,
     close: () => closeServer(server),
   };
+}
+
+type VariantSaveRequest =
+  | {
+      mode: "update";
+      variant: ProjectVariant;
+    }
+  | {
+      mode: "copy";
+      variant: ProjectVariant;
+      copyId: string;
+      displayName: string;
+    };
+
+async function handleVariantSave(
+  request: IncomingMessage,
+  response: ServerResponse,
+  projectPath: string,
+): Promise<void> {
+  if (!isJsonRequest(request.headers["content-type"])) {
+    writeJson(response, 415, {
+      ok: false,
+      errors: [{ message: "POST /api/variants accepts application/json requests only." }],
+    });
+    return;
+  }
+
+  const parsed = await readJsonRequest(request);
+  if (!parsed.ok) {
+    writeJson(response, 400, {
+      ok: false,
+      errors: [{ message: "POST /api/variants request body must be valid JSON." }],
+    });
+    return;
+  }
+
+  const saveRequest = normalizeVariantSaveRequest(parsed.value);
+  if (!saveRequest.ok) {
+    writeJson(response, 400, { ok: false, errors: [{ message: saveRequest.message }] });
+    return;
+  }
+
+  const loaded = await loadProject(projectPath);
+  if (!loaded.ok) {
+    writeJson(response, 422, {
+      ok: false,
+      errors: loaded.errors.map(({ message }) => ({ message })),
+    });
+    return;
+  }
+
+  const saved = await upsertSavedVariant(loaded, saveRequest.request);
+  if (!saved.ok) {
+    writeJson(response, 422, {
+      ok: false,
+      errors: saved.errors.map(({ message }) => ({ message })),
+    });
+    return;
+  }
+
+  const reloaded = await loadEditorProject(projectPath);
+  const variantId =
+    saveRequest.request.mode === "copy"
+      ? saveRequest.request.copyId
+      : saveRequest.request.variant.id;
+
+  writeJson(response, 200, {
+    ok: true,
+    mode: saveRequest.request.mode,
+    variantId,
+    variantPath: `variants/${variantId}.json`,
+    validation: { ok: reloaded.ok },
+    message: `Saved ${variantId}.`,
+  });
+}
+
+function isJsonRequest(contentType: string | string[] | undefined): boolean {
+  const value = Array.isArray(contentType) ? contentType[0] : contentType;
+  return value?.toLowerCase().split(";")[0]?.trim() === "application/json";
+}
+
+function readJsonRequest(
+  request: IncomingMessage,
+): Promise<{ ok: true; value: unknown } | { ok: false }> {
+  return new Promise((resolve) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk: string) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      try {
+        resolve({ ok: true, value: JSON.parse(body) as unknown });
+      } catch {
+        resolve({ ok: false });
+      }
+    });
+    request.on("error", () => resolve({ ok: false }));
+  });
+}
+
+function normalizeVariantSaveRequest(
+  value: unknown,
+): { ok: true; request: VariantSaveRequest } | { ok: false; message: string } {
+  if (!isRecord(value) || (value.mode !== "update" && value.mode !== "copy")) {
+    return { ok: false, message: "POST /api/variants mode must be update or copy." };
+  }
+
+  if (!isRecord(value.variant)) {
+    return { ok: false, message: "Auto Demo project variant is invalid." };
+  }
+
+  if (value.mode === "update") {
+    return { ok: true, request: { mode: "update", variant: value.variant as ProjectVariant } };
+  }
+
+  if (typeof value.copyId !== "string" || typeof value.displayName !== "string") {
+    return { ok: false, message: "POST /api/variants copy requires copyId and displayName." };
+  }
+
+  return {
+    ok: true,
+    request: {
+      mode: "copy",
+      variant: value.variant as ProjectVariant,
+      copyId: value.copyId,
+      displayName: value.displayName,
+    },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function writeJson(response: ServerResponse, status: number, value: unknown): void {
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.end(`${JSON.stringify(value)}\n`);
 }
 
 function listen(server: Server, port: number, host: string): Promise<void> {
@@ -426,6 +578,8 @@ function editorHtml(): string {
       let project = null;
       let originalVariant = null;
       let draft = null;
+      let saveStatus = "";
+      let copyForm = null;
 
       function mediaUrl(path) {
         return "/project-file/" + String(path).split("/").map(encodeURIComponent).join("/");
@@ -465,13 +619,33 @@ function editorHtml(): string {
 
       function resetDraft() {
         draft = clone(originalVariant);
-        renderEditor();
+        saveStatus = "";
+        resetCopyForm();
+        renderEditor(false);
       }
 
       function selectVariant(id) {
         originalVariant = project.variants.find((variant) => variant.id === id) || project.variants[0];
         draft = clone(originalVariant);
-        renderEditor();
+        saveStatus = "";
+        resetCopyForm();
+        renderEditor(false);
+      }
+
+      function defaultCopyForm() {
+        return { copyId: draft.id + "-copy", displayName: draft.displayName + " Copy" };
+      }
+
+      function resetCopyForm() {
+        copyForm = defaultCopyForm();
+      }
+
+      function syncCopyFormFromDom() {
+        if (!app.innerHTML.includes('id="copy-id"')) return;
+        copyForm = {
+          copyId: document.querySelector("#copy-id").value,
+          displayName: document.querySelector("#copy-display-name").value
+        };
       }
 
       function addCaption() {
@@ -512,6 +686,52 @@ function editorHtml(): string {
         renderEditor();
       }
 
+      async function refreshProject(selectedVariantId) {
+        const data = await fetch("/api/project").then((response) => response.json());
+        if (!data.ok) {
+          app.innerHTML = "<h2>Project could not be loaded</h2><ul>" +
+            data.errors.map((error) => "<li class=\\"error\\">" + escapeHtml(error.message) + "</li>").join("") +
+            "</ul>";
+          return;
+        }
+
+        project = data.project;
+        if (project.variants.length === 0) {
+          app.innerHTML = "<h2>" + escapeHtml(project.name) + "</h2><p>" +
+            escapeHtml(project.emptyVariantMessage) + "</p>";
+          return;
+        }
+
+        selectVariant(selectedVariantId || project.variants[0].id);
+      }
+
+      async function saveVariant(mode, copyOptions) {
+        if (mode === "copy" && copyOptions === undefined) syncCopyFormFromDom();
+        const copyId = mode === "copy" ? copyOptions?.copyId ?? copyForm.copyId : undefined;
+        const displayName = mode === "copy" ? copyOptions?.displayName ?? copyForm.displayName : undefined;
+        saveStatus = "Saving...";
+        renderEditor();
+        const payload = mode === "copy"
+          ? { mode, variant: draft, copyId, displayName }
+          : { mode: "update", variant: draft };
+        const response = await fetch("/api/variants", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!result.ok) {
+          saveStatus = result.errors.map((error) => error.message).join(" ");
+          renderEditor();
+          return;
+        }
+
+        saveStatus = result.message;
+        await refreshProject(result.variantId);
+        saveStatus = result.message;
+        renderEditor();
+      }
+
       function textRows(kind) {
         const rows = draft[kind].map((entry, index) => {
           const anchor = kind === "callouts"
@@ -529,7 +749,9 @@ function editorHtml(): string {
         return rows || "<p class=\\"muted\\">No " + kind + " yet.</p>";
       }
 
-      function renderEditor() {
+      function renderEditor(preserveCopyForm = true) {
+        if (preserveCopyForm) syncCopyFormFromDom();
+        const nextCopyForm = copyForm ?? defaultCopyForm();
         const duration = project.source.durationMs || 1;
         const left = (draft.timeline.startMs / duration) * 100;
         const width = ((draft.timeline.endMs - draft.timeline.startMs) / duration) * 100;
@@ -553,7 +775,14 @@ function editorHtml(): string {
               "<section><h2>Edited Variant JSON</h2><pre>" + escapeHtml(JSON.stringify(draft, null, 2)) + "</pre></section>" +
             "</section>" +
             "<section class=\\"stack\\">" +
-              "<div class=\\"actions\\"><button class=\\"secondary\\" id=\\"reset\\">Reset Changes</button><span class=\\"muted\\">Draft changes stay local until WES-159 persistence.</span></div>" +
+              "<section class=\\"panel\\"><h3>Save</h3><div class=\\"actions\\">" +
+                "<button id=\\"save-update\\">Save Changes</button>" +
+                "<button class=\\"secondary\\" id=\\"reset\\">Reset Changes</button>" +
+              "</div><div class=\\"grid\\">" +
+                "<label>Copy ID<input id=\\"copy-id\\" value=\\"" + escapeHtml(nextCopyForm.copyId) + "\\"></label>" +
+                "<label>Copy Display Name<input id=\\"copy-display-name\\" value=\\"" + escapeHtml(nextCopyForm.displayName) + "\\"></label>" +
+              "</div><div class=\\"actions\\"><button class=\\"secondary\\" id=\\"save-copy\\">Save As Copy</button>" +
+                "<span class=\\"" + (saveStatus.startsWith("Saved ") || saveStatus === "" || saveStatus === "Saving..." ? "muted" : "error") + "\\">" + escapeHtml(saveStatus) + "</span></div></section>" +
               "<section class=\\"panel\\"><h3>Trim</h3><div class=\\"grid\\">" +
                 "<label>Start ms<input type=\\"number\\" min=\\"0\\" max=\\"" + project.source.durationMs + "\\" value=\\"" + draft.timeline.startMs + "\\" data-update=\\"timeline.startMs\\"></label>" +
                 "<label>End ms<input type=\\"number\\" min=\\"1\\" max=\\"" + project.source.durationMs + "\\" value=\\"" + draft.timeline.endMs + "\\" data-update=\\"timeline.endMs\\"></label>" +
@@ -590,6 +819,10 @@ function editorHtml(): string {
 
         document.querySelector("#variant-select").addEventListener("change", (event) => selectVariant(event.target.value));
         document.querySelector("#reset").addEventListener("click", resetDraft);
+        document.querySelector("#save-update").addEventListener("click", () => saveVariant("update"));
+        document.querySelector("#save-copy").addEventListener("click", () => saveVariant("copy"));
+        document.querySelector("#copy-id").addEventListener("input", syncCopyFormFromDom);
+        document.querySelector("#copy-display-name").addEventListener("input", syncCopyFormFromDom);
         document.querySelector("#add-caption").addEventListener("click", addCaption);
         document.querySelector("#add-callout").addEventListener("click", addCallout);
         document.querySelectorAll("[data-update]").forEach((input) => input.addEventListener("change", (event) => {
@@ -611,25 +844,7 @@ function editorHtml(): string {
         }));
       }
 
-      fetch("/api/project")
-        .then((response) => response.json())
-        .then((data) => {
-          if (!data.ok) {
-            app.innerHTML = "<h2>Project could not be loaded</h2><ul>" +
-              data.errors.map((error) => "<li class=\\"error\\">" + escapeHtml(error.message) + "</li>").join("") +
-              "</ul>";
-            return;
-          }
-
-          project = data.project;
-          if (project.variants.length === 0) {
-            app.innerHTML = "<h2>" + escapeHtml(project.name) + "</h2><p>" +
-              escapeHtml(project.emptyVariantMessage) + "</p>";
-            return;
-          }
-
-          selectVariant(project.variants[0].id);
-        })
+      refreshProject()
         .catch((error) => {
           app.innerHTML = "<h2>Project could not be loaded</h2><p class=\\"error\\">" +
             escapeHtml(error.message) + "</p>";
