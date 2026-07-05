@@ -209,25 +209,25 @@ async function readProjectFile(
     return null;
   }
 
-  const relativePath = decodeURIComponent(requestPath.slice("/project-file/".length));
-  const normalized = normalize(relativePath);
-  if (normalized.startsWith("..") || normalized.includes(`${sep}..${sep}`)) {
-    return null;
-  }
-
-  const allowedPaths = new Set([
-    project.project.source.mediaPath,
-    project.project.source.eventsPath,
-    ...project.project.variants.flatMap((variant) => [
-      variant.source.mediaPath,
-      variant.source.eventsPath,
-    ]),
-  ]);
-  if (!allowedPaths.has(normalized)) {
-    return null;
-  }
-
   try {
+    const relativePath = decodeURIComponent(requestPath.slice("/project-file/".length));
+    const normalized = normalize(relativePath);
+    if (normalized.startsWith("..") || normalized.includes(`${sep}..${sep}`)) {
+      return null;
+    }
+
+    const allowedPaths = new Set([
+      project.project.source.mediaPath,
+      project.project.source.eventsPath,
+      ...project.project.variants.flatMap((variant) => [
+        variant.source.mediaPath,
+        variant.source.eventsPath,
+      ]),
+    ]);
+    if (!allowedPaths.has(normalized)) {
+      return null;
+    }
+
     return {
       path: normalized,
       content: await readFile(join(project.project.projectDir, normalized)),
@@ -303,7 +303,13 @@ function editorHtml(): string {
       })[char]);
       const clone = (value) => JSON.parse(JSON.stringify(value));
       const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value)));
-      const slug = (prefix, count) => prefix + "-" + String(count + 1);
+      const isHexColor = (value) => /^#[0-9a-fA-F]{6}$/.test(String(value));
+      const nextSlug = (prefix, entries) => {
+        const ids = new Set(entries.map((entry) => entry.id));
+        let index = entries.length + 1;
+        while (ids.has(prefix + "-" + String(index))) index += 1;
+        return prefix + "-" + String(index);
+      };
       let project = null;
       let originalVariant = null;
       let draft = null;
@@ -325,11 +331,23 @@ function editorHtml(): string {
         const duration = project.source.durationMs;
         draft.timeline.startMs = Math.round(clamp(draft.timeline.startMs, 0, Math.max(0, duration - 1)));
         draft.timeline.endMs = Math.round(clamp(draft.timeline.endMs, draft.timeline.startMs + 1, duration));
+        draft.captions.forEach(normalizeTextRange);
+        draft.callouts.forEach(normalizeTextRange);
         draft.viewport.focus.x = clamp(draft.viewport.focus.x, 0, 1);
         draft.viewport.focus.y = clamp(draft.viewport.focus.y, 0, 1);
         draft.viewport.zoom = clamp(draft.viewport.zoom, 1, 4);
         draft.style.padding = Math.round(clamp(draft.style.padding, 0, 256));
         draft.style.cornerRadius = Math.round(clamp(draft.style.cornerRadius, 0, 64));
+        if (!isHexColor(draft.style.backgroundColor)) {
+          draft.style.backgroundColor = isHexColor(originalVariant.style.backgroundColor)
+            ? originalVariant.style.backgroundColor
+            : "#000000";
+        }
+      }
+
+      function normalizeTextRange(entry) {
+        entry.startMs = Math.round(clamp(entry.startMs, draft.timeline.startMs, draft.timeline.endMs - 1));
+        entry.endMs = Math.round(clamp(entry.endMs, entry.startMs + 1, draft.timeline.endMs));
       }
 
       function resetDraft() {
@@ -345,7 +363,7 @@ function editorHtml(): string {
 
       function addCaption() {
         draft.captions.push({
-          id: slug("caption", draft.captions.length),
+          id: nextSlug("caption", draft.captions),
           text: "New caption",
           startMs: draft.timeline.startMs,
           endMs: Math.min(draft.timeline.endMs, draft.timeline.startMs + 1000)
@@ -355,7 +373,7 @@ function editorHtml(): string {
 
       function addCallout() {
         draft.callouts.push({
-          id: slug("callout", draft.callouts.length),
+          id: nextSlug("callout", draft.callouts),
           text: "New callout",
           startMs: draft.timeline.startMs,
           endMs: Math.min(draft.timeline.endMs, draft.timeline.startMs + 1000),
@@ -367,9 +385,7 @@ function editorHtml(): string {
       function updateText(kind, index, field, value) {
         const entry = draft[kind][index];
         entry[field] = field === "startMs" || field === "endMs" ? Math.round(Number(value)) : value;
-        if (entry.startMs < draft.timeline.startMs) entry.startMs = draft.timeline.startMs;
-        if (entry.endMs > draft.timeline.endMs) entry.endMs = draft.timeline.endMs;
-        if (entry.startMs >= entry.endMs) entry.endMs = Math.min(draft.timeline.endMs, entry.startMs + 1);
+        normalizeTextRange(entry);
         renderEditor();
       }
 
@@ -444,7 +460,7 @@ function editorHtml(): string {
               "<section class=\\"panel\\"><h3>Clicks</h3><label>Emphasis<select data-update=\\"clicks.emphasis\\"><option value=\\"none\\">none</option><option value=\\"ring\\">ring</option><option value=\\"pulse\\">pulse</option></select></label></section>" +
               "<section class=\\"panel\\"><h3>Style</h3><div class=\\"grid\\">" +
                 "<label>Background<select data-update=\\"style.background\\"><option value=\\"solid\\">solid</option><option value=\\"transparent\\">transparent</option></select></label>" +
-                "<label>Background color<input value=\\"" + escapeHtml(draft.style.backgroundColor) + "\\" data-update=\\"style.backgroundColor\\"></label>" +
+                "<label>Background color<input type=\\"color\\" value=\\"" + escapeHtml(draft.style.backgroundColor) + "\\" data-update=\\"style.backgroundColor\\"></label>" +
                 "<label>Frame<select data-update=\\"style.frame\\"><option value=\\"browser\\">browser</option><option value=\\"none\\">none</option></select></label>" +
                 "<label>Padding<input type=\\"number\\" min=\\"0\\" max=\\"256\\" value=\\"" + draft.style.padding + "\\" data-update=\\"style.padding\\"></label>" +
                 "<label>Corner radius<input type=\\"number\\" min=\\"0\\" max=\\"64\\" value=\\"" + draft.style.cornerRadius + "\\" data-update=\\"style.cornerRadius\\"></label>" +
