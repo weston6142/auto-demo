@@ -6,8 +6,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "prebuild": "npm run build -w @auto-demo/project",
     "build": "tsc -p tsconfig.json",
+    "pretypecheck": "npm run build -w @auto-demo/project",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run build -w @auto-demo/project",
     "test": "vitest run src/index.test.ts"
   },
   "dependencies": {
