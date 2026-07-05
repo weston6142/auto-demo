@@ -22,4 +22,4 @@ autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] 
 
 `--no-browser` is currently a no-op compatibility flag; this slice prints the local URL but does not auto-open a browser.
 
-Timeline preview controls, variant editing, export rendering, browser auto-launch, and hosted deployment are planned follow-up work.
+WES-170 chose approximate browser review fidelity for WES-158. The next editor slice should add schema-backed trim, viewport, caption/callout, cursor/click, and direct style controls while deferring exact export parity, named preset pickers, export rendering, browser auto-launch, and hosted deployment.
