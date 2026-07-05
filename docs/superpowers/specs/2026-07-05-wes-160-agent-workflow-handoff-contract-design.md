@@ -35,7 +35,7 @@ Add an `@auto-demo/agent` workflow API and expose it through a new CLI command:
 autodemo agent run --project <project-dir-or-manifest> --json
 autodemo agent run --project <project-dir-or-manifest> --variant <variant-id> --json
 autodemo agent run --project <project-dir-or-manifest> --generate baseline --source-variant <variant-id> --save <baseline-polish|all> --json
-autodemo agent run --project <project-dir-or-manifest> --open-editor --json
+autodemo agent run --project <project-dir-or-manifest> --open-editor --json [--host 127.0.0.1] [--port 0] [--no-browser]
 ```
 
 The agent package owns the workflow contract and calls existing package APIs:
@@ -132,7 +132,9 @@ implemented contract is the better integration boundary.
 - `--open-editor` starts the existing local editor after project/variant
   selection succeeds. It does not auto-open a browser. The editor URL is
   included in JSON output, and the server intentionally remains alive until the
-  process is stopped.
+  process is stopped. `--host` and `--port` override the editor bind address
+  when editor handoff is requested; `--no-browser` is accepted for compatibility
+  and does not change browser launch behavior.
 - The summary includes selected project, selected variant id, produced artifact
   paths, warnings, and next-step hints suitable for noninteractive agent logs.
 - Expected failures use deterministic error codes and do not echo raw manifest

@@ -25,12 +25,13 @@ The CLI exposes the same contract:
 autodemo agent run --project projects/checkout --json
 autodemo agent run --project projects/checkout --json --variant baseline-polish
 autodemo agent run --project projects/checkout --json --generate baseline --source-variant source-baseline --save all
-autodemo agent run --project projects/checkout --json --open-editor
+autodemo agent run --project projects/checkout --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 ```
 
 For WES-160, generated agent saves are baseline-only and accept only
 `--save baseline-polish` or `--save all`. Custom generated variant ids remain
-outside the MVP agent contract.
+outside the MVP agent contract. `--save` and `--source-variant` are valid only
+with `--generate baseline`.
 
 Successful results include:
 
@@ -45,12 +46,17 @@ Successful results include:
 
 `--open-editor` starts the same local editor used by `autodemo open`, prints the
 handoff URL in JSON, and intentionally keeps the editor server alive until the
-process is stopped. It does not auto-launch a browser.
+process is stopped. `--host` and `--port` override the editor bind address when
+`--open-editor` is used; `--port 0` keeps OS port assignment. `--no-browser` is
+accepted for compatibility and does not auto-launch a browser.
 
 Expected failures return `ok: false` with stable error codes such as
-`missing_project_path`, `unsupported_agent_output`, `invalid_project`,
+`missing_project_path`, `unsupported_agent_command`,
+`unsupported_agent_output`, `unknown_agent_argument`, `invalid_project`,
 `missing_variant`, `variant_not_found`, `unsupported_generation`,
-`generation_failed`, and `editor_unavailable`.
+`generation_failed`, and `editor_unavailable`. The CLI exits `0` after writing a
+successful JSON handoff summary and `1` for expected validation, generation, or
+handoff failures.
 
 Codex and Claude skill wrappers, MCP transport, final media export, and
 interactive/non-JSON workflow output remain follow-up work.

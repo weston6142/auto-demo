@@ -42,7 +42,7 @@ autodemo generate --project <project-dir-or-manifest> --dry-run --json [--styles
 autodemo generate --project <project-dir-or-manifest> --json --save <variant-id|all> [--styles baseline] [--source-variant <source-variant-id>]
 autodemo agent run --project <project-dir-or-manifest> --json [--variant <variant-id>]
 autodemo agent run --project <project-dir-or-manifest> --json --generate baseline --source-variant <source-variant-id> --save <baseline-polish|all>
-autodemo agent run --project <project-dir-or-manifest> --json --open-editor
+autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo export
 autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo validate <capture-dir-or-manifest>
@@ -107,10 +107,10 @@ Run the agent-facing workflow handoff with:
 autodemo agent run --project <project-dir-or-manifest> --json
 autodemo agent run --project <project-dir-or-manifest> --json --variant baseline-polish
 autodemo agent run --project <project-dir-or-manifest> --json --generate baseline --source-variant source-baseline --save all
-autodemo agent run --project <project-dir-or-manifest> --json --open-editor
+autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 ```
 
-The command validates the project, selects an existing saved variant or saves a generated baseline variant, and prints one JSON summary with the project manifest path, selected variant id, variant artifact path, warnings, and next-step hints for agent logs. The WES-160 baseline-only MVP accepts `--save baseline-polish` or `--save all`; arbitrary generated variant ids are not part of this agent contract. `--open-editor` starts the existing local editor, includes its URL in the same JSON output, and keeps the local editor server alive until the process is stopped; it does not auto-launch a browser. The WES-160 agent workflow requires JSON output and returns structured non-secret errors for missing projects, invalid projects, missing variants, unsupported generation requests, generation failures, and unavailable editor handoff. Codex/Claude skill wrappers, MCP transport, and final MP4 export remain planned follow-up work.
+The command validates the project, selects an existing saved variant or saves a generated baseline variant, and prints one JSON summary with the project manifest path, selected variant id, variant artifact path, warnings, and next-step hints for agent logs. The WES-160 baseline-only MVP accepts `--save baseline-polish` or `--save all`; arbitrary generated variant ids are not part of this agent contract, and `--save` or `--source-variant` require `--generate baseline`. `--open-editor` starts the existing local editor, includes its URL in the same JSON output, and keeps the local editor server alive until the process is stopped; `--host` and `--port` override the bind address, while `--no-browser` is accepted as a no-op compatibility flag because the workflow does not auto-launch a browser. The WES-160 agent workflow requires JSON output and returns structured non-secret errors for unknown agent subcommands or arguments, missing projects, invalid projects, missing variants, unsupported generation requests, generation failures, and unavailable editor handoff. Successful handoffs exit `0`; expected validation, generation, or handoff failures exit `1`. Codex/Claude skill wrappers, MCP transport, and final MP4 export remain planned follow-up work.
 
 Open a validated project in the local browser editor with:
 
