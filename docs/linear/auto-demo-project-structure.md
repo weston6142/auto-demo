@@ -65,7 +65,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current in-flight product task: WES-159, which adds local browser update/copy saves for schema-backed edited variants; completion gate evidence is still pending.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-159 completion: WES-160, because Browser Editor persistence is complete and WES-160 depends on saved browser-edited variants for the agent-facing workflow handoff contract.
 
 ## Issues By Milestone
 
@@ -108,10 +108,10 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 ### 6. Browser Editor
 
-- WES-140: Milestone 6: Browser editor - Backlog - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
+- WES-140: Milestone 6: Browser editor - Done - https://linear.app/weston-bushyeager/issue/WES-140/milestone-6-browser-editor
 - WES-157: Serve local browser editor and load demo projects - Done - https://linear.app/weston-bushyeager/issue/WES-157/serve-local-browser-editor-and-load-demo-projects
 - WES-158: Timeline preview and finishing controls for MVP variants - Done - https://linear.app/weston-bushyeager/issue/WES-158/timeline-preview-and-finishing-controls-for-mvp-variants
-- WES-159: Save browser edits as project variants for export handoff - In Progress - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
+- WES-159: Save browser edits as project variants for export handoff - Done - https://linear.app/weston-bushyeager/issue/WES-159/save-browser-edits-as-project-variants-for-export-handoff
 - WES-170: Open question: decide browser preview fidelity and MVP finishing controls - Done - https://linear.app/weston-bushyeager/issue/WES-170/open-question-decide-browser-preview-fidelity-and-mvp-finishing
 
 ### 7. Agent Integrations
@@ -269,6 +269,7 @@ capture-dir/
 - 2026-07-05 WES-158 local implementation note: `@auto-demo/editor` now returns full schema-backed variant summaries, serves whitelisted project media/metadata through `/project-file/`, renders an approximate browser preview, and keeps trim, viewport, caption, callout, cursor/click, and direct style edits in local browser draft state with reset and edited JSON output. At that point WES-159 owned saving those browser edits.
 - 2026-07-05 WES-158 completion-gate sync: PR #20 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `8399ea1e`. No-mistakes fixed draft schema-validity issues, hardened `/project-file/` serving against symlink escapes and large buffered video responses, and synchronized docs. Completion evidence was added to Linear and WES-158 was moved to Done. WES-159 received a readiness note to persist the edited variant JSON/local draft state into schema-valid project files.
 - 2026-07-05 WES-159 local implementation note: `@auto-demo/project` now exposes browser-oriented saved-variant upsert behavior for updating existing variants and saving named copies while preserving generated-save append semantics. `@auto-demo/editor` accepts `POST /api/variants`, validates update/copy saves, writes through project persistence, and refreshes browser save controls from `/api/project` after successful saves.
+- 2026-07-05 WES-159 completion-gate sync: PR #21 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `5a977bc4`. No-mistakes fixed update rollback safety and copy-form preservation across save/re-render flows. Completion evidence was added to WES-159 and WES-140, both issues were moved to Done, and WES-160 received a readiness note to build the agent-facing workflow handoff on saved browser-edited variants.
 
 ## Update Rules
 
