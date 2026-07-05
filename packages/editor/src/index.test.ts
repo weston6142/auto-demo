@@ -122,8 +122,20 @@ describe("loadEditorProject", () => {
           {
             id: "baseline-polish",
             displayName: "Baseline Polish",
+            source: { mediaPath: "raw/capture.webm", eventsPath: "metadata/events.jsonl" },
             timeline: { startMs: 1500, endMs: 2750 },
-            style: { background: "solid", frame: "browser" },
+            viewport: { mode: "contain", focus: { x: 0.75, y: 0.5 }, zoom: 1.35 },
+            cursor: { visible: true, emphasis: "spotlight" },
+            clicks: { emphasis: "ring" },
+            captions: [],
+            callouts: [],
+            style: {
+              background: "solid",
+              backgroundColor: "#0f172a",
+              frame: "browser",
+              padding: 48,
+              cornerRadius: 16,
+            },
             exportIntent: { format: "mp4", quality: "demo", aspectRatio: "16:9" },
           },
         ],
@@ -174,15 +186,38 @@ describe("startEditorServer", () => {
     const project = await fetch(new URL("/api/project", server.url)).then((response) =>
       response.json(),
     );
+    const media = await fetch(new URL("/project-file/raw/capture.webm", server.url));
 
     expect(html).toContain("Auto Demo Editor");
+    expect(html).toContain("Approximate Preview");
+    expect(html).toContain("Trim");
+    expect(html).toContain("Viewport");
+    expect(html).toContain("Captions");
+    expect(html).toContain("Callouts");
+    expect(html).toContain("Cursor");
+    expect(html).toContain("Clicks");
+    expect(html).toContain("Style");
+    expect(html).toContain("Reset Changes");
+    expect(html).toContain("Edited Variant JSON");
+    expect(html).not.toContain("Named Preset");
     expect(project).toMatchObject({
       ok: true,
       project: {
         name: "Checkout flow demo",
-        variants: [{ id: "baseline-polish" }],
+        variants: [
+          {
+            id: "baseline-polish",
+            viewport: { mode: "contain", focus: { x: 0.75, y: 0.5 }, zoom: 1.35 },
+            cursor: { visible: true, emphasis: "spotlight" },
+            clicks: { emphasis: "ring" },
+            style: { backgroundColor: "#0f172a", padding: 48, cornerRadius: 16 },
+          },
+        ],
       },
     });
+    expect(media.status).toBe(200);
+    expect(media.headers.get("content-type")).toBe("video/webm");
+    expect(await media.text()).toBe("video");
   });
 
   it("returns 404 for unknown routes", async () => {
