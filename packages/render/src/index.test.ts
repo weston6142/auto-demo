@@ -526,6 +526,50 @@ writeFileSync(args[args.length - 1], "mp4");
     });
   });
 
+  it("returns structured failures when the renderer throws", async () => {
+    const projectDir = await createProject();
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async () => {
+          throw new Error("renderer exploded at /secret/path");
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      summaryPath: join(projectDir, "exports", "baseline-polish.render.json"),
+      renderer: { command: "renderer", exitCode: 1 },
+      errors: [{ code: "renderer_failure" }],
+    });
+    expect(JSON.stringify(result)).not.toContain("/secret/path");
+  });
+
+  it("returns structured failures when the render summary cannot be written after preflight", async () => {
+    const projectDir = await createProject();
+    const summaryPath = join(projectDir, "exports", "baseline-polish.render.json");
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async (request) => {
+          await writeFile(request.outputPath, "mp4");
+          await mkdir(summaryPath);
+          return { ok: true, command: "fake-renderer", exitCode: 0 };
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      summaryPath,
+      renderer: { command: "fake-renderer", exitCode: 0 },
+      errors: [{ code: "invalid_export_request" }],
+    });
+  });
+
   it("maps supported aspect ratios to preset dimensions", () => {
     expect(MVP_EXPORT_PRESET.dimensionsByAspectRatio).toEqual({
       "16:9": { width: 1280, height: 720 },

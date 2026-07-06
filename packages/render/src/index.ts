@@ -219,11 +219,16 @@ export async function renderSavedVariant(
   const startedAt = now().toISOString();
   const preset = buildPresetSummary(variant);
   const runner = dependencies.runner ?? runFfmpegRenderer;
-  const runnerResult = await runner({
-    inputPath: resolvedInputPath,
-    outputPath,
-    settings: preset.settings,
-  });
+  let runnerResult: RenderRunnerResult;
+  try {
+    runnerResult = await runner({
+      inputPath: resolvedInputPath,
+      outputPath,
+      settings: preset.settings,
+    });
+  } catch {
+    runnerResult = { ok: false, command: "renderer", exitCode: 1 };
+  }
   const endedAt = now().toISOString();
 
   const base = {
@@ -250,16 +255,14 @@ export async function renderSavedVariant(
       ],
       base,
     );
-    await writeRenderSummary(project.projectDir, summaryPath, result);
-    return result;
+    return await writeRenderSummaryOrFailure(project.projectDir, summaryPath, result);
   }
 
   const result: RenderSuccessResult = {
     ok: true,
     ...base,
   };
-  await writeRenderSummary(project.projectDir, summaryPath, result);
-  return result;
+  return await writeRenderSummaryOrFailure(project.projectDir, summaryPath, result);
 }
 
 function selectVariant(
@@ -464,6 +467,42 @@ async function writeRenderSummary(
 ): Promise<void> {
   const summary = toSummary(projectDir, summaryPath, result);
   await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
+}
+
+async function writeRenderSummaryOrFailure(
+  projectDir: string,
+  summaryPath: string,
+  result: RenderSuccessResult | RenderFailureResult,
+): Promise<RenderSavedVariantResult> {
+  try {
+    await writeRenderSummary(projectDir, summaryPath, result);
+    return result;
+  } catch {
+    return failure(
+      [
+        {
+          code: "invalid_export_request",
+          message: "Auto Demo render summary could not be written.",
+        },
+      ],
+      renderResultDetails(result),
+    );
+  }
+}
+
+function renderResultDetails(
+  result: RenderSuccessResult | RenderFailureResult,
+): Omit<RenderFailureResult, "ok" | "errors"> {
+  return {
+    projectManifestPath: result.projectManifestPath,
+    variantId: result.variantId,
+    outputPath: result.outputPath,
+    summaryPath: result.summaryPath,
+    preset: result.preset,
+    startedAt: result.startedAt,
+    endedAt: result.endedAt,
+    renderer: result.renderer,
+  };
 }
 
 function toSummary(
