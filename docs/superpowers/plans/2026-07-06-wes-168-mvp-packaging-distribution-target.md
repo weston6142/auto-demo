@@ -65,7 +65,7 @@ describe("CLI packaging decision documentation", () => {
       "npm run build",
       "npm run setup:browser",
       "ffmpeg",
-      "npm --workspace @auto-demo/cli exec autodemo --",
+      "npm --workspace @auto-demo/cli run autodemo --",
       "wes-164",
       "npm run autodemo --",
     ]) {
@@ -93,7 +93,7 @@ describe("CLI packaging decision documentation", () => {
       "npm run build",
       "npm run setup:browser",
       "ffmpeg",
-      "npm --workspace @auto-demo/cli exec autodemo --",
+      "npm --workspace @auto-demo/cli run autodemo --",
       "wes-164",
       "npm run autodemo --",
     ]) {
@@ -177,7 +177,7 @@ npm run setup:browser
 The current clean-checkout operator-facing command should be:
 
 ```bash
-npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>
+npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
 ```
 
 WES-164 should later provide one repo-root wrapper contract for the same CLI
@@ -221,7 +221,7 @@ The required setup path is `npm install`, `npm run build`, and
 
 The current clean-checkout invocation contract is:
 
-`npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>`
+`npm --workspace @auto-demo/cli run autodemo -- <subcommand...>`
 
 WES-164 owns adding and documenting one repo-root command wrapper for the same
 CLI surface. The intended future wrapper is:
@@ -341,4 +341,4 @@ without assuming machine-specific state.
 
 **2. Placeholder scan:** No TODO/TBD markers remain. Commands, file paths, and expected changes are explicit.
 
-**3. Type consistency:** The plan uses one stable topic name (`WES-168 MVP packaging and distribution target`), one stable current invocation form (`npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>`), and one stable future wrapper note (`npm run autodemo -- <subcommand...>`).
+**3. Type consistency:** The plan uses one stable topic name (`WES-168 MVP packaging and distribution target`), one stable current invocation form (`npm --workspace @auto-demo/cli run autodemo -- <subcommand...>`), and one stable future wrapper note (`npm run autodemo -- <subcommand...>`).

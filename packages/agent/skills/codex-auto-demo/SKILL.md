@@ -15,8 +15,9 @@ the task is to prepare a demo variant through the agent-facing workflow.
 - If the task starts from a browser recording instead of a project, create or
   import the project through the existing Auto Demo capture and project commands
   before using this wrapper.
-- Run commands from a checkout where the `autodemo` CLI is available, or use the
-  package script that exposes the local CLI in that checkout.
+- Run commands from a checkout where the `autodemo` CLI is available. In a
+  clean local checkout before the WES-164 repo-root wrapper lands, use
+  `npm --workspace @auto-demo/cli run autodemo -- <subcommand...>`.
 - Treat `autodemo agent run --project <project-dir-or-manifest> --json` as the
   source of truth. Do not inspect or rewrite Auto Demo project internals to
   duplicate selection, generation, validation, or editor behavior.

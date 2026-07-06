@@ -29,8 +29,8 @@ Current repository evidence narrows the packaging decision:
 - A repo-root `npm exec autodemo -- --help` currently fails by resolving
   `autodemo` from the public registry, which proves the local invocation surface
   is not yet packaged well enough for contributors or agents.
-- A workspace-scoped execution path already exists:
-  `npm --workspace @auto-demo/cli exec autodemo -- ...`. That is functional but
+- A workspace-scoped script execution path already exists:
+  `npm --workspace @auto-demo/cli run autodemo -- ...`. That is functional but
   too awkward to treat as the final MVP operator contract.
 - The balanced MVP design is Mac-first, not multi-platform packaging first.
   Native desktop distribution, hosted deployment, and registry publication are
@@ -60,7 +60,7 @@ Cons:
 
 - Users must work from a clone instead of installing a published package.
 - WES-164 still needs to add a friendlier repo-root command surface because the
-  current workspace-scoped exec command is not acceptable UX.
+  current workspace-scoped package script command is not acceptable UX.
 
 ### Option B: Hybrid Local Package Artifact
 
@@ -118,7 +118,7 @@ More specifically:
   or help command before deep workflow execution.
 - Required execution surface: for WES-168 documentation, the supported
   clean-checkout command is
-  `npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>` after the
+  `npm --workspace @auto-demo/cli run autodemo -- <subcommand...>` after the
   setup path above. WES-164 must later add and document one repo-root wrapper,
   with `npm run autodemo -- <subcommand...>` as the intended contract, without
   depending on a globally published package.
