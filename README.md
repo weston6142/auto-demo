@@ -38,8 +38,14 @@ npm run build
 npm run setup:browser
 ```
 
-WES-164 owns adding and documenting one repo-root wrapper for the existing CLI
-surface. The intended MVP invocation contract is:
+The current clean-checkout invocation contract is:
+
+```bash
+npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>
+```
+
+WES-164 owns adding and documenting one repo-root wrapper for the same CLI
+surface. The intended future wrapper is:
 
 ```bash
 npm run autodemo -- <subcommand...>
@@ -59,6 +65,9 @@ and other standalone distribution artifact work are deferred from the MVP.
 - `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, and repository-owned Codex wrapper artifacts.
 
 ## CLI
+
+Until WES-164 lands the repo-root wrapper, run the logical `autodemo`
+subcommands below through the workspace-scoped invocation above.
 
 ```bash
 autodemo init

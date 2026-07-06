@@ -7,15 +7,7 @@ const cliRoot =
 const repoRoot = basename(process.cwd()) === "cli" ? dirname(dirname(cliRoot)) : process.cwd();
 
 async function readCliDoc(relativePath: string): Promise<string> {
-  try {
-    return await readFile(join(cliRoot, relativePath), "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return "";
-    }
-
-    throw error;
-  }
+  return await readFile(join(cliRoot, relativePath), "utf8");
 }
 
 async function readRootDoc(relativePath: string): Promise<string> {
@@ -23,35 +15,63 @@ async function readRootDoc(relativePath: string): Promise<string> {
 }
 
 function normalizeWhitespace(markdown: string): string {
-  return markdown.replace(/\s+/g, " ");
+  return markdown.toLowerCase().replace(/\s+/g, " ");
 }
 
 describe("CLI packaging decision documentation", () => {
-  it("documents the MVP local-only packaging target and setup contract", async () => {
-    const cliReadme = normalizeWhitespace(await readCliDoc("README.md"));
+  it("documents the root clean-checkout setup and current runnable command", async () => {
     const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
-    const combined = `${cliReadme} ${rootReadme}`;
 
     for (const required of [
       "clean local checkout run path",
-      "macOS",
-      "Node 22",
+      "macos",
+      "node 22",
       "npm 10",
       "npm install",
       "npm run build",
       "npm run setup:browser",
       "ffmpeg",
+      "npm --workspace @auto-demo/cli exec autodemo --",
+      "wes-164",
       "npm run autodemo --",
     ]) {
-      expect(combined).toContain(required);
+      expect(rootReadme).toContain(required);
     }
 
     for (const deferred of [
       "registry publication",
-      "Homebrew",
+      "homebrew",
       "standalone distribution artifact",
     ]) {
-      expect(combined).toContain(deferred);
+      expect(rootReadme).toContain(deferred);
+    }
+  });
+
+  it("documents the CLI package packaging contract directly", async () => {
+    const cliReadme = normalizeWhitespace(await readCliDoc("README.md"));
+
+    for (const required of [
+      "clean local checkout run path",
+      "macos",
+      "node 22",
+      "npm 10",
+      "npm install",
+      "npm run build",
+      "npm run setup:browser",
+      "ffmpeg",
+      "npm --workspace @auto-demo/cli exec autodemo --",
+      "wes-164",
+      "npm run autodemo --",
+    ]) {
+      expect(cliReadme).toContain(required);
+    }
+
+    for (const deferred of [
+      "registry publication",
+      "homebrew",
+      "standalone distribution artifact",
+    ]) {
+      expect(cliReadme).toContain(deferred);
     }
   });
 });

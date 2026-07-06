@@ -26,9 +26,14 @@ npm run build
 npm run setup:browser
 ```
 
-WES-164 owns turning the current workspace-scoped execution path into one
-documented repo-root wrapper for the existing CLI surface. The intended MVP
-operator and agent contract is:
+The current clean-checkout operator and agent contract is:
+
+```bash
+npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>
+```
+
+WES-164 owns turning that into one documented repo-root wrapper for the
+existing CLI surface. The intended future wrapper is:
 
 ```bash
 npm run autodemo -- <subcommand...>

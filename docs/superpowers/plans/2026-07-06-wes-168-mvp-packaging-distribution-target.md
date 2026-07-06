@@ -41,14 +41,7 @@ const cliRoot =
 const repoRoot = basename(process.cwd()) === "cli" ? dirname(dirname(cliRoot)) : process.cwd();
 
 async function readDoc(relativePath: string): Promise<string> {
-  try {
-    return await readFile(join(cliRoot, relativePath), "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return "";
-    }
-    throw error;
-  }
+  return await readFile(join(cliRoot, relativePath), "utf8");
 }
 
 async function readRootDoc(relativePath: string): Promise<string> {
@@ -56,35 +49,63 @@ async function readRootDoc(relativePath: string): Promise<string> {
 }
 
 function normalizeWhitespace(markdown: string): string {
-  return markdown.replace(/\s+/g, " ");
+  return markdown.toLowerCase().replace(/\s+/g, " ");
 }
 
 describe("CLI packaging decision documentation", () => {
-  it("documents the MVP local-only packaging target and setup contract", async () => {
-    const cliReadme = normalizeWhitespace(await readDoc("README.md"));
+  it("documents the root clean-checkout setup and current runnable command", async () => {
     const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
-    const combined = `${cliReadme} ${rootReadme}`;
 
     for (const required of [
       "clean local checkout run path",
-      "macOS",
-      "Node 22",
+      "macos",
+      "node 22",
       "npm 10",
       "npm install",
       "npm run build",
       "npm run setup:browser",
       "ffmpeg",
+      "npm --workspace @auto-demo/cli exec autodemo --",
+      "wes-164",
       "npm run autodemo --",
     ]) {
-      expect(combined).toContain(required);
+      expect(rootReadme).toContain(required);
     }
 
     for (const deferred of [
       "registry publication",
-      "Homebrew",
+      "homebrew",
       "standalone distribution artifact",
     ]) {
-      expect(combined).toContain(deferred);
+      expect(rootReadme).toContain(deferred);
+    }
+  });
+
+  it("documents the CLI package packaging contract directly", async () => {
+    const cliReadme = normalizeWhitespace(await readDoc("README.md"));
+
+    for (const required of [
+      "clean local checkout run path",
+      "macos",
+      "node 22",
+      "npm 10",
+      "npm install",
+      "npm run build",
+      "npm run setup:browser",
+      "ffmpeg",
+      "npm --workspace @auto-demo/cli exec autodemo --",
+      "wes-164",
+      "npm run autodemo --",
+    ]) {
+      expect(cliReadme).toContain(required);
+    }
+
+    for (const deferred of [
+      "registry publication",
+      "homebrew",
+      "standalone distribution artifact",
+    ]) {
+      expect(cliReadme).toContain(deferred);
     }
   });
 });
@@ -153,8 +174,14 @@ npm run setup:browser
 ```
 ````
 
-WES-164 should provide one repo-root wrapper contract for the existing CLI
-subcommands. The intended operator-facing form is:
+The current clean-checkout operator-facing command should be:
+
+```bash
+npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>
+```
+
+WES-164 should later provide one repo-root wrapper contract for the same CLI
+subcommands. The intended future wrapper is:
 
 ```bash
 npm run autodemo -- <subcommand...>
@@ -192,8 +219,12 @@ available on `PATH`.
 The required setup path is `npm install`, `npm run build`, and
 `npm run setup:browser`.
 
-WES-164 owns adding and documenting one repo-root command wrapper for the
-existing CLI surface. The intended MVP invocation contract is:
+The current clean-checkout invocation contract is:
+
+`npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>`
+
+WES-164 owns adding and documenting one repo-root command wrapper for the same
+CLI surface. The intended future wrapper is:
 
 `npm run autodemo -- <subcommand...>`
 
@@ -202,7 +233,8 @@ distribution artifacts are deferred from the MVP.
 ````
 
 Also update the status/CLI sections so they mention that packaging is local-only
-for MVP and WES-164 still owns the repo-root wrapper implementation.
+for MVP, current examples run through the workspace-scoped command surface, and
+WES-164 still owns the repo-root wrapper implementation.
 
 - [ ] **Step 3: Run the focused GREEN check**
 
@@ -293,15 +325,15 @@ git add README.md packages/cli/README.md packages/cli/src/packaging-docs.test.ts
 git commit -m "docs: decide WES-168 packaging target"
 ```
 
-- [ ] **Step 5: Record readiness for firstmate**
+- [ ] **Step 5: Record readiness for post-commit validation**
 
-Append:
+Record `done: WES-168 implementation ready` through the caller's external
+orchestration channel, or write an untracked local-only note inside the
+worktree if a repo-local breadcrumb is needed. Do not commit or depend on a
+user-specific absolute path for this handoff.
 
-```bash
-echo "done: WES-168 implementation ready" >> '/Users/weston.bushyeager/code/personal/firstmate/state/auto-demo-next-ship-d4.status'
-```
-
-Expected: firstmate wakes for the post-commit validation phase.
+Expected: the post-commit validation phase can pick up the readiness signal
+without assuming machine-specific state.
 
 ## Self-Review
 
@@ -309,4 +341,4 @@ Expected: firstmate wakes for the post-commit validation phase.
 
 **2. Placeholder scan:** No TODO/TBD markers remain. Commands, file paths, and expected changes are explicit.
 
-**3. Type consistency:** The plan uses one stable topic name (`WES-168 MVP packaging and distribution target`) and one stable repo-root invocation form (`npm run autodemo -- <subcommand...>`).
+**3. Type consistency:** The plan uses one stable topic name (`WES-168 MVP packaging and distribution target`), one stable current invocation form (`npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>`), and one stable future wrapper note (`npm run autodemo -- <subcommand...>`).

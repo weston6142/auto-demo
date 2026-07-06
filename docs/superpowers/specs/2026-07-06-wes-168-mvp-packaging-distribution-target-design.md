@@ -116,10 +116,12 @@ More specifically:
 - Required setup path: clone the repository, run `npm install`, run
   `npm run build`, run `npm run setup:browser`, and use a repo-root validation
   or help command before deep workflow execution.
-- Required execution surface: WES-164 must provide one repo-root command
-  contract for the existing `autodemo` subcommands. The intended operator and
-  agent-facing form is `npm run autodemo -- <subcommand...>` or an equivalent
-  repo-root wrapper that does not depend on a globally published package.
+- Required execution surface: for WES-168 documentation, the supported
+  clean-checkout command is
+  `npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>` after the
+  setup path above. WES-164 must later add and document one repo-root wrapper,
+  with `npm run autodemo -- <subcommand...>` as the intended contract, without
+  depending on a globally published package.
 - Accepted runnable artifact: the checked-out repository plus built workspace
   outputs and local prerequisites. A tarball, native app, Homebrew formula, or
   registry-published package is not part of the MVP definition of done.
@@ -197,7 +199,8 @@ behavior. They should verify that the root README and CLI package README state:
   and `ffmpeg`);
 - the required setup commands (`npm install`, `npm run build`,
   `npm run setup:browser`);
-- the repo-root execution contract for the existing `autodemo` subcommands; and
+- the current workspace-scoped execution contract for the existing `autodemo`
+  subcommands, plus the future WES-164 repo-root wrapper note; and
 - the explicit deferral of registry publication and standalone distribution
   artifacts.
 
