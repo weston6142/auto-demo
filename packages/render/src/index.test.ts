@@ -268,6 +268,50 @@ writeFileSync(args[args.length - 1], "mp4");
     expect(await readFile(outsideSummaryPath, "utf8")).toBe("outside");
   });
 
+  it("rejects existing non-file output targets before invoking the runner", async () => {
+    const projectDir = await createProject();
+    await mkdir(join(projectDir, "exports", "baseline-polish.mp4"));
+    let called = false;
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async () => {
+          called = true;
+          return { ok: true, command: "fake-renderer", exitCode: 0 };
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_export_request" }],
+    });
+    expect(called).toBe(false);
+  });
+
+  it("rejects existing non-file render summary targets before invoking the runner", async () => {
+    const projectDir = await createProject();
+    await mkdir(join(projectDir, "exports", "baseline-polish.render.json"));
+    let called = false;
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async () => {
+          called = true;
+          return { ok: true, command: "fake-renderer", exitCode: 0 };
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_export_request" }],
+    });
+    expect(called).toBe(false);
+  });
+
   it("returns structured failures for missing variants without invoking the runner", async () => {
     const projectDir = await createProject();
     let called = false;

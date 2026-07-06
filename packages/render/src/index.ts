@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { loadProject, type LoadedProject, type ProjectVariant } from "@auto-demo/project";
 
@@ -211,8 +211,8 @@ export async function renderSavedVariant(
   await mkdir(exportDir, { recursive: true });
   if (
     !(await resolvesInsideProject(resolvedProjectDir, exportDir)) ||
-    !(await outputTargetStaysInsideProject(resolvedProjectDir, outputPath)) ||
-    !(await outputTargetStaysInsideProject(resolvedProjectDir, summaryPath))
+    !(await outputTargetIsWritableFileInsideProject(resolvedProjectDir, outputPath)) ||
+    !(await outputTargetIsWritableFileInsideProject(resolvedProjectDir, summaryPath))
   ) {
     return invalidExportRequest(project.manifestPath, variant.id);
   }
@@ -348,16 +348,33 @@ async function resolvesInsideProject(projectDir: string, path: string): Promise<
   }
 }
 
-async function outputTargetStaysInsideProject(projectDir: string, path: string): Promise<boolean> {
+async function outputTargetIsWritableFileInsideProject(
+  projectDir: string,
+  path: string,
+): Promise<boolean> {
   if (!(await resolvesInsideProject(projectDir, dirname(path)))) {
     return false;
   }
 
   try {
-    return isInsideDirectory(projectDir, await realpath(path));
+    const resolvedPath = await realpath(path);
+    const target = await stat(path);
+    return isInsideDirectory(projectDir, resolvedPath) && target.isFile();
   } catch (error) {
     if (isMissingPathError(error)) {
-      return true;
+      return !(await pathExists(path));
+    }
+    throw error;
+  }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return false;
     }
     throw error;
   }
