@@ -63,3 +63,10 @@ acceptance-critical for the first demo. Claude wrapper parity remains documented
 follow-up scope: it should match the same invocation inputs, command sequence,
 expected artifacts, and failure handling once implemented. MCP transport, final
 media export, and interactive/non-JSON workflow output remain follow-up work.
+
+## Wrapper Artifacts
+
+- Codex skill wrapper: `skills/codex-auto-demo/SKILL.md`
+- Happy-path Codex transcript: `fixtures/codex-happy-path.md`
+- Invalid-project Codex transcript: `fixtures/codex-invalid-project.md`
+- Claude parity requirements: `claude-wrapper-parity.md`
