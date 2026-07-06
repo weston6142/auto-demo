@@ -241,6 +241,35 @@ writeFileSync(args[args.length - 1], "mp4");
     expect(called).toBe(false);
   });
 
+  it("rejects symlinked export directories that resolve inside the project", async () => {
+    const projectDir = await createProject();
+    const redirectedExportsDir = join(projectDir, "metadata", "redirected-exports");
+    const redirectedOutputPath = join(redirectedExportsDir, "baseline-polish.mp4");
+    await mkdir(redirectedExportsDir, { recursive: true });
+    await writeFile(redirectedOutputPath, "protected");
+    await rm(join(projectDir, "exports"), { recursive: true });
+    await symlink(redirectedExportsDir, join(projectDir, "exports"));
+    let called = false;
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async (request) => {
+          called = true;
+          await writeFile(request.outputPath, "mp4");
+          return { ok: true, command: "fake-renderer", exitCode: 0 };
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_export_request" }],
+    });
+    expect(called).toBe(false);
+    expect(await readFile(redirectedOutputPath, "utf8")).toBe("protected");
+  });
+
   it("returns structured failures when the export directory path cannot be created", async () => {
     const setups = [
       async (projectDir: string) => {

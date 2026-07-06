@@ -359,8 +359,12 @@ async function ensureExportDirectoryInsideProject(
 
   try {
     const resolvedExportDir = await realpath(exportDir);
-    const exportDirStat = await stat(exportDir);
-    return isInsideDirectory(projectDir, resolvedExportDir) && exportDirStat.isDirectory();
+    const exportDirStat = await lstat(exportDir);
+    return (
+      isInsideDirectory(projectDir, resolvedExportDir) &&
+      exportDirStat.isDirectory() &&
+      !exportDirStat.isSymbolicLink()
+    );
   } catch {
     return false;
   }
