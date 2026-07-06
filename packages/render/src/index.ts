@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { mkdir, stat, writeFile } from "node:fs/promises";
-import { basename, join, relative } from "node:path";
+import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { loadProject, type LoadedProject, type ProjectVariant } from "@auto-demo/project";
 
 export const MVP_EXPORT_PRESET_KEY = "mp4-demo";
@@ -74,6 +74,10 @@ export type RenderSettings = {
   frameRate: 30;
   audio: "none";
   dimensions: RenderDimensions;
+  timeline: {
+    startMs: number;
+    durationMs: number;
+  };
 };
 
 export type RenderErrorCode =
@@ -182,7 +186,9 @@ export async function renderSavedVariant(
     );
   }
 
-  const inputPath = join(project.projectDir, variant.source.mediaPath);
+  const projectDir = project.projectDir;
+  const resolvedProjectDir = await realpath(projectDir);
+  const inputPath = join(projectDir, variant.source.mediaPath);
   if (!(await isFile(inputPath))) {
     return failure(
       [
@@ -194,16 +200,28 @@ export async function renderSavedVariant(
       { projectManifestPath: project.manifestPath, variantId: variant.id },
     );
   }
+  const resolvedInputPath = await realpath(inputPath);
+  if (!isInsideDirectory(resolvedProjectDir, resolvedInputPath)) {
+    return invalidExportRequest(project.manifestPath, variant.id);
+  }
 
-  const outputPath = join(project.projectDir, "exports", `${variant.id}.mp4`);
-  const summaryPath = join(project.projectDir, "exports", `${variant.id}.render.json`);
-  await mkdir(join(project.projectDir, "exports"), { recursive: true });
+  const exportDir = join(projectDir, "exports");
+  const outputPath = join(exportDir, `${variant.id}.mp4`);
+  const summaryPath = join(exportDir, `${variant.id}.render.json`);
+  await mkdir(exportDir, { recursive: true });
+  if (
+    !(await resolvesInsideProject(resolvedProjectDir, exportDir)) ||
+    !(await outputTargetStaysInsideProject(resolvedProjectDir, outputPath)) ||
+    !(await outputTargetStaysInsideProject(resolvedProjectDir, summaryPath))
+  ) {
+    return invalidExportRequest(project.manifestPath, variant.id);
+  }
 
   const startedAt = now().toISOString();
   const preset = buildPresetSummary(variant);
   const runner = dependencies.runner ?? runFfmpegRenderer;
   const runnerResult = await runner({
-    inputPath,
+    inputPath: resolvedInputPath,
     outputPath,
     settings: preset.settings,
   });
@@ -275,6 +293,10 @@ function buildPresetSummary(variant: ProjectVariant): RenderPresetSummary {
       frameRate: MVP_EXPORT_PRESET.frameRate,
       audio: MVP_EXPORT_PRESET.audio,
       dimensions: MVP_EXPORT_PRESET.dimensionsByAspectRatio[variant.exportIntent.aspectRatio],
+      timeline: {
+        startMs: variant.timeline.startMs,
+        durationMs: variant.timeline.endMs - variant.timeline.startMs,
+      },
     },
   };
 }
@@ -284,6 +306,10 @@ async function runFfmpegRenderer(request: RenderRunnerRequest): Promise<RenderRu
   const command = "ffmpeg";
   const args = [
     "-y",
+    "-ss",
+    formatSeconds(request.settings.timeline.startMs),
+    "-t",
+    formatSeconds(request.settings.timeline.durationMs),
     "-i",
     request.inputPath,
     "-an",
@@ -314,6 +340,53 @@ async function runFfmpegRenderer(request: RenderRunnerRequest): Promise<RenderRu
   });
 }
 
+async function resolvesInsideProject(projectDir: string, path: string): Promise<boolean> {
+  try {
+    return isInsideDirectory(projectDir, await realpath(path));
+  } catch {
+    return false;
+  }
+}
+
+async function outputTargetStaysInsideProject(projectDir: string, path: string): Promise<boolean> {
+  if (!(await resolvesInsideProject(projectDir, dirname(path)))) {
+    return false;
+  }
+
+  try {
+    return isInsideDirectory(projectDir, await realpath(path));
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return true;
+    }
+    throw error;
+  }
+}
+
+function isInsideDirectory(directory: string, path: string): boolean {
+  const relativePath = relative(directory, path);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath))
+  );
+}
+
+function invalidExportRequest(projectManifestPath: string, variantId: string): RenderFailureResult {
+  return failure(
+    [
+      {
+        code: "invalid_export_request",
+        message: "Auto Demo export paths must resolve inside the project.",
+      },
+    ],
+    { projectManifestPath, variantId },
+  );
+}
+
+function formatSeconds(milliseconds: number): string {
+  return String(milliseconds / 1000);
+}
+
 async function isFile(path: string): Promise<boolean> {
   try {
     const file = await stat(path);
@@ -321,6 +394,14 @@ async function isFile(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "ENOENT" || error.code === "ENOTDIR")
+  );
 }
 
 function failure(

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -11,7 +11,11 @@ import {
 } from "./index.js";
 
 async function createProject(
-  options: { variantId?: string; aspectRatio?: "16:9" | "4:3" | "9:16" } = {},
+  options: {
+    variantId?: string;
+    aspectRatio?: "16:9" | "4:3" | "9:16";
+    timeline?: { startMs: number; endMs: number };
+  } = {},
 ): Promise<string> {
   const projectDir = join(tmpdir(), `auto-demo-render-${randomUUID()}`);
   const variantId = options.variantId ?? "baseline-polish";
@@ -19,7 +23,7 @@ async function createProject(
     id: variantId,
     displayName: "Baseline Polish",
     source: { mediaPath: "raw/capture.webm", eventsPath: "metadata/events.jsonl" },
-    timeline: { startMs: 0, endMs: 6000 },
+    timeline: options.timeline ?? { startMs: 0, endMs: 6000 },
     viewport: { mode: "contain", focus: { x: 0.5, y: 0.5 }, zoom: 1 },
     cursor: { visible: true, emphasis: "spotlight" },
     clicks: { emphasis: "ring" },
@@ -117,6 +121,7 @@ describe("renderSavedVariant", () => {
     expect(result.summaryPath).toBe(join(projectDir, "exports", "baseline-polish.render.json"));
     expect(result.preset.key).toBe(MVP_EXPORT_PRESET_KEY);
     expect(result.preset.settings.dimensions).toEqual({ width: 1280, height: 720 });
+    expect(result.preset.settings.timeline).toEqual({ startMs: 0, durationMs: 6000 });
     expect(calls).toHaveLength(1);
 
     const summary = JSON.parse(await readFile(result.summaryPath, "utf8")) as {
@@ -133,6 +138,134 @@ describe("renderSavedVariant", () => {
       outputPath: "exports/baseline-polish.mp4",
       renderer: { command: "fake-renderer", exitCode: 0 },
     });
+  });
+
+  it("passes saved variant timeline trimming to the renderer", async () => {
+    const projectDir = await createProject({ timeline: { startMs: 1250, endMs: 4750 } });
+    const calls: Parameters<RenderRunner>[] = [];
+    const runner: RenderRunner = async (request) => {
+      calls.push([request]);
+      await writeFile(request.outputPath, "mp4");
+      return { ok: true, command: "fake-renderer", exitCode: 0 };
+    };
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      { runner },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(calls[0]?.[0].settings.timeline).toEqual({ startMs: 1250, durationMs: 3500 });
+  });
+
+  it("passes saved variant timeline trimming to the default ffmpeg command", async () => {
+    const projectDir = await createProject({ timeline: { startMs: 1250, endMs: 4750 } });
+    const fakeBinDir = join(tmpdir(), `auto-demo-render-bin-${randomUUID()}`);
+    const argsPath = join(fakeBinDir, "args.json");
+    const ffmpegPath = join(fakeBinDir, "ffmpeg");
+    await mkdir(fakeBinDir, { recursive: true });
+    await writeFile(
+      ffmpegPath,
+      `#!/usr/bin/env node
+const { writeFileSync } = require("node:fs");
+const args = process.argv.slice(2);
+writeFileSync(${JSON.stringify(argsPath)}, JSON.stringify(args));
+writeFileSync(args[args.length - 1], "mp4");
+`,
+    );
+    await chmod(ffmpegPath, 0o755);
+    const previousPath = process.env.PATH;
+    process.env.PATH = `${fakeBinDir}:${previousPath ?? ""}`;
+    try {
+      const result = await renderSavedVariant({
+        projectPath: projectDir,
+        variantId: "baseline-polish",
+      });
+
+      expect(result.ok).toBe(true);
+      const args = JSON.parse(await readFile(argsPath, "utf8")) as string[];
+      expect(args.slice(0, 6)).toEqual(["-y", "-ss", "1.25", "-t", "3.5", "-i"]);
+    } finally {
+      process.env.PATH = previousPath;
+    }
+  });
+
+  it("rejects source media symlinks that resolve outside the project", async () => {
+    const projectDir = await createProject();
+    const outsideDir = join(tmpdir(), `auto-demo-render-outside-${randomUUID()}`);
+    await mkdir(outsideDir, { recursive: true });
+    await rm(join(projectDir, "raw", "capture.webm"));
+    await writeFile(join(outsideDir, "capture.webm"), "outside");
+    await symlink(join(outsideDir, "capture.webm"), join(projectDir, "raw", "capture.webm"));
+    let called = false;
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async () => {
+          called = true;
+          return { ok: true, command: "fake-renderer", exitCode: 0 };
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_export_request" }],
+    });
+    expect(called).toBe(false);
+  });
+
+  it("rejects export directories that resolve outside the project", async () => {
+    const projectDir = await createProject();
+    const outsideDir = join(tmpdir(), `auto-demo-render-outside-${randomUUID()}`);
+    await mkdir(outsideDir, { recursive: true });
+    await rm(join(projectDir, "exports"), { recursive: true });
+    await symlink(outsideDir, join(projectDir, "exports"));
+    let called = false;
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async () => {
+          called = true;
+          return { ok: true, command: "fake-renderer", exitCode: 0 };
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_export_request" }],
+    });
+    expect(called).toBe(false);
+  });
+
+  it("rejects render summary symlinks that resolve outside the project", async () => {
+    const projectDir = await createProject();
+    const outsideDir = join(tmpdir(), `auto-demo-render-outside-${randomUUID()}`);
+    const outsideSummaryPath = join(outsideDir, "summary.json");
+    await mkdir(outsideDir, { recursive: true });
+    await writeFile(outsideSummaryPath, "outside");
+    await symlink(outsideSummaryPath, join(projectDir, "exports", "baseline-polish.render.json"));
+    let called = false;
+
+    const result = await renderSavedVariant(
+      { projectPath: projectDir, variantId: "baseline-polish" },
+      {
+        runner: async () => {
+          called = true;
+          return { ok: true, command: "fake-renderer", exitCode: 0 };
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_export_request" }],
+    });
+    expect(called).toBe(false);
+    expect(await readFile(outsideSummaryPath, "utf8")).toBe("outside");
   });
 
   it("returns structured failures for missing variants without invoking the runner", async () => {
