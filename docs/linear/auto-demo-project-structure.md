@@ -55,6 +55,8 @@ Last updated: 2026-07-06
 - WES-161 Codex skill wrapper implementation plan: `docs/superpowers/plans/2026-07-06-wes-161-codex-skill-wrapper.md`
 - WES-162 MCP MVP decision design spec: `docs/superpowers/specs/2026-07-06-wes-162-mcp-mvp-decision-design.md`
 - WES-162 MCP MVP decision implementation plan: `docs/superpowers/plans/2026-07-06-wes-162-mcp-mvp-decision.md`
+- WES-167 export preset and validation fixture design spec: `docs/superpowers/specs/2026-07-06-wes-167-export-preset-validation-fixture-design.md`
+- WES-167 export preset and validation fixture implementation plan: `docs/superpowers/plans/2026-07-06-wes-167-export-preset-validation-fixture.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -73,7 +75,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-162 completion: WES-163, because MCP is deferred from MVP and Export And Packaging is the next incomplete milestone.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-167 completion: WES-163, because WES-167 removes the export preset and validation fixture ambiguity that blocked MP4 rendering.
 
 ## Issues By Milestone
 
@@ -136,7 +138,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-163: Render saved variants to MP4 artifacts - Backlog - https://linear.app/weston-bushyeager/issue/WES-163/render-saved-variants-to-mp4-artifacts
 - WES-164: Package CLI and browser editor entrypoints for local installation - Backlog - https://linear.app/weston-bushyeager/issue/WES-164/package-cli-and-browser-editor-entrypoints-for-local-installation
 - WES-165: Validate demo-ready export bundle and operator instructions - Backlog - https://linear.app/weston-bushyeager/issue/WES-165/validate-demo-ready-export-bundle-and-operator-instructions
-- WES-167: Open question: choose MVP export preset and validation fixture - Backlog - https://linear.app/weston-bushyeager/issue/WES-167/open-question-choose-mvp-export-preset-and-validation-fixture
+- WES-167: Open question: choose MVP export preset and validation fixture - In Progress - https://linear.app/weston-bushyeager/issue/WES-167/open-question-choose-mvp-export-preset-and-validation-fixture
 - WES-168: Open question: decide MVP packaging and distribution target - Backlog - https://linear.app/weston-bushyeager/issue/WES-168/open-question-decide-mvp-packaging-and-distribution-target
 
 ## Investigation Notes
@@ -275,6 +277,7 @@ capture-dir/
 - 2026-07-06 WES-161 completion-gate sync: PR #24 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `f02ef271`. WES-161 added `packages/agent/skills/codex-auto-demo/SKILL.md`, Codex happy-path and invalid-project transcript fixtures, `packages/agent/claude-wrapper-parity.md`, README links, and behavior-oriented wrapper artifact tests. WES-161 is ready to move to Done; WES-162 is the next Agent Integrations task to decide whether MCP is required for MVP before closing tracker WES-138.
 - 2026-07-06 WES-162 pre-task sync: Linear and local `develop` agree WES-162 is the only incomplete Agent Integrations child after WES-161. WES-162 was moved to In Progress on branch `fm/wes-162-mcp-mvp-decision`. The selected decision is to defer MCP from MVP because the CLI plus Codex wrapper path already supports the first executable agent workflow; future MCP work should wait for export/packaging evidence or a host requirement that cannot be satisfied by stable shell commands.
 - 2026-07-06 WES-162 completion-gate sync: PR #25 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `4c8c9407`. WES-162 records that MCP is deferred from the MVP, documents future inclusion triggers and minimum MCP capability categories, updates public agent docs and wrapper boundaries, and validates the decision with behavior-oriented documentation tests. WES-162 and WES-138 were moved to Done; WES-163 is the next product task because Export And Packaging is now the earliest incomplete milestone.
+- 2026-07-06 WES-167 pre-task sync: the local next-task pointer to WES-163 was stale because live Linear shows WES-167 blocks WES-163 and WES-165. WES-163 was returned to Backlog, WES-167 was moved to In Progress on branch `fm/wes-167-export-preset-decision`, and the selected decision is the `mp4-demo` preset plus `fixtures/export/basic-saved-variant` canonical validation fixture.
 - 2026-07-04 WES-157 completion-gate sync: PR #18 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `287b10bb`. WES-157 completion evidence was added to Linear and the issue was moved to Done. WES-158 received a readiness note that the local editor/project-load entry point is available, with WES-170 still owning the preview-fidelity and MVP finishing-control decision before WES-158 implementation.
 - WES-157: Local browser editor project loading completed in PR #18. `autodemo open --project <project-dir-or-manifest>` starts the local review-only editor server, `@auto-demo/editor` loads validated project summaries through `@auto-demo/project`, `/api/project` returns operator-facing success or validation-error JSON, and the static editor lists saved/generated variants or shows empty-variant generation guidance.
 - WES-157 verification: TDD red checks failed first for missing `loadEditorProject()`/`startEditorServer()` exports and unimplemented CLI `open` routing; after implementation, focused editor/CLI tests passed, local `npm run validate` passed, and no-mistakes PR #18 passed GitHub CI `validate` on head `287b10bb`.
