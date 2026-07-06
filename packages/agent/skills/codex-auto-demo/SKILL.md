@@ -102,7 +102,7 @@ handoff boundary, not as completed MP4 export.
 ## Out Of Scope
 
 - Claude production wrapper implementation.
-- MCP transport or server behavior.
+- MCP transport or server behavior, deferred from the MVP by WES-162.
 - Hosted editor or cloud handoff services.
 - Marketplace distribution or local skill installation automation.
 - Final MP4 export implementation.

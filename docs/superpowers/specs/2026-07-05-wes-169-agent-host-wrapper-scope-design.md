@@ -72,8 +72,8 @@ WES-161 should become:
 - Add host-neutral launch documentation that describes Claude wrapper parity
   requirements and records Claude implementation as follow-up work.
 - Avoid duplicating Auto Demo schema or business logic in wrapper instructions.
-- Keep MCP transport owned by WES-162 and final MP4 export owned by Export And
-  Packaging issues.
+- Keep MCP transport out of MVP scope unless WES-162 selects it, and keep final
+  MP4 export owned by Export And Packaging issues.
 
 ## Alternatives Considered
 
@@ -109,7 +109,8 @@ This is a decision task, so validation is document and tracker oriented:
 ## Deferrals
 
 - Claude production wrapper implementation.
-- MCP transport and any MCP host requirements.
+- MCP transport and any MCP host requirements, later deferred from the MVP by
+  WES-162 until export, packaging, or host-integration evidence requires it.
 - Final MP4 rendering and export bundle generation.
 - Marketplace or hosted distribution for any host wrapper.
 
