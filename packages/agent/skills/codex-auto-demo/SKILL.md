@@ -1,6 +1,6 @@
 ---
 name: codex-auto-demo
-description: Use when Codex needs to run the Auto Demo agent workflow for a validated project, select or generate a saved variant, open the local editor handoff, or prepare the later export handoff.
+description: Use when Codex needs to run the Auto Demo agent workflow for a validated project, select or generate a saved variant, open the local editor handoff, or prepare a local MP4 export handoff.
 ---
 
 # Auto Demo Codex Workflow
@@ -95,9 +95,15 @@ manifest contents into task reports. Use the command output's stable fields.
 ## Export Boundary
 
 The current wrapper stops after a saved variant and optional editor handoff.
-Final MP4 export and demo-ready export bundles are not implemented in this MVP
-wrapper. If JSON `nextSteps` includes `export-variant`, report it as an export
-handoff boundary, not as completed MP4 export.
+If JSON `nextSteps` includes `export-variant`, run the export command only when
+the user asks for an MP4 artifact:
+
+```bash
+autodemo export --project <project-dir-or-manifest> --json [--variant <variant-id>] [--preset mp4-demo]
+```
+
+Report the returned output path and render summary path. Demo-ready export
+bundles remain outside this wrapper.
 
 ## Out Of Scope
 
@@ -105,4 +111,4 @@ handoff boundary, not as completed MP4 export.
 - MCP transport or server behavior, deferred from the MVP by WES-162.
 - Hosted editor or cloud handoff services.
 - Marketplace distribution or local skill installation automation.
-- Final MP4 export implementation.
+- Demo-ready export bundle validation.

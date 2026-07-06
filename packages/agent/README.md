@@ -61,8 +61,10 @@ handoff failures.
 The WES-169 MVP host decision treats a Codex production wrapper as
 acceptance-critical for the first demo. Claude wrapper parity remains documented
 follow-up scope: it should match the same invocation inputs, command sequence,
-expected artifacts, and failure handling once implemented. MCP transport, final
-media export, and interactive/non-JSON workflow output remain follow-up work.
+expected artifacts, and failure handling once implemented. MCP transport,
+demo-ready bundle validation, and interactive/non-JSON workflow output remain
+follow-up work; saved variants can be rendered separately through
+`autodemo export`.
 
 ## Wrapper Artifacts
 
@@ -77,7 +79,7 @@ MCP is deferred from the MVP. The accepted MVP integration path is the CLI plus
 Codex wrapper, using
 `autodemo agent run --project <project-dir-or-manifest> --json` as the stable
 noninteractive handoff. This keeps Agent Integrations focused on the executable
-workflow while Export And Packaging defines the final artifact boundary.
+workflow while Export And Packaging owns rendered artifacts and packaging.
 
 Future MCP work should be opened when the workflow needs persistent
 project/session discovery, editor handoff lifecycle status or stop controls,
@@ -90,4 +92,5 @@ agent workflow run tool for selecting or generating a saved variant, local
 editor launch handoff with explicit lifecycle behavior, artifact inspection for
 project/variant/export paths, and stable non-secret error responses. MCP does
 not introduce a new project schema, new variant-selection rules, hosted
-services, or final MP4 export behavior.
+services, or final MP4 export behavior; local MP4 export stays CLI-owned through
+`autodemo export`.

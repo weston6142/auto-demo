@@ -42,5 +42,6 @@ Codex reads the JSON handoff:
 ```
 
 Codex reports that the project is valid, `baseline-polish` is the selected saved
-variant, `variants/baseline-polish.json` is the variant artifact, and export is
-only a later handoff boundary until MP4 rendering exists.
+variant, `variants/baseline-polish.json` is the variant artifact, and an MP4 is
+created only after a separate successful `autodemo export --project
+projects/checkout --json --variant baseline-polish` run.

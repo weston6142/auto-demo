@@ -9,11 +9,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prebuild": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor",
+    "prebuild": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor && npm run build -w @auto-demo/render",
     "build": "tsc -p tsconfig.json",
-    "pretypecheck": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor",
+    "pretypecheck": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor && npm run build -w @auto-demo/render",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pretest": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor",
+    "pretest": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor && npm run build -w @auto-demo/render",
     "test": "vitest run src/index.test.ts src/defaultBackend.test.ts"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "@auto-demo/capture": "0.0.0",
     "@auto-demo/editor": "0.0.0",
     "@auto-demo/polish": "0.0.0",
-    "@auto-demo/project": "0.0.0"
+    "@auto-demo/project": "0.0.0",
+    "@auto-demo/render": "0.0.0"
   }
 }
