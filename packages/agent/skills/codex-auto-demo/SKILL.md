@@ -84,8 +84,10 @@ autodemo agent run --project <project-dir-or-manifest> --json --open-editor --ho
 Expected failures exit non-zero and still print JSON when `--json` is present.
 Read `errors[].code` and `errors[].message`, then report the stable error code
 and non-secret message. Common codes include `missing_project_path`,
-`invalid_project`, `missing_variant`, `variant_not_found`,
-`unsupported_generation`, `generation_failed`, and `editor_unavailable`.
+`unsupported_agent_command`, `unsupported_agent_output`,
+`unknown_agent_argument`, `invalid_project`, `missing_variant`,
+`variant_not_found`, `unsupported_generation`, `generation_failed`, and
+`editor_unavailable`.
 
 Do not paste secrets, raw event metadata, typed values, credentials, or full
 manifest contents into task reports. Use the command output's stable fields.

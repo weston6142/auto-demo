@@ -53,7 +53,8 @@ evidence that an MP4 file exists.
 Expected failures should be reported from `errors[].code` and
 `errors[].message`. The Claude wrapper should preserve the same stable codes as
 Codex, including `missing_project_path`, `invalid_project`, `missing_variant`,
-`variant_not_found`, `unsupported_generation`, `generation_failed`, and
+`variant_not_found`, `unsupported_agent_command`, `unsupported_agent_output`,
+`unknown_agent_argument`, `unsupported_generation`, `generation_failed`, and
 `editor_unavailable`.
 
 The wrapper should avoid echoing raw manifests, event metadata, source query

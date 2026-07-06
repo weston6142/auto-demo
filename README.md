@@ -31,7 +31,7 @@ npm run setup:browser
 - `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata, the baseline-only MVP style preset contract, and headless dry-run/save batch summaries.
 - `@auto-demo/render`: export and render orchestration boundary.
 - `@auto-demo/editor`: local browser editor server, approximate variant preview, schema-backed local finishing UI, and update/copy saves for browser-edited variants.
-- `@auto-demo/agent`: agent-facing workflow helpers and JSON handoff summaries.
+- `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, and repository-owned Codex wrapper artifacts.
 
 ## CLI
 
