@@ -27,6 +27,12 @@ import {
   type EditorServer,
   type StartEditorServerOptions,
 } from "@auto-demo/editor";
+import {
+  renderSavedVariant as renderSavedVariantDefault,
+  type RenderError,
+  type RenderSavedVariantInput,
+  type RenderSavedVariantResult,
+} from "@auto-demo/render";
 
 export type CliResult = {
   exitCode: number;
@@ -41,6 +47,7 @@ export type CliDependencies = {
   now: () => Date;
   runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
   startEditorServer?: (options: StartEditorServerOptions) => Promise<EditorServer>;
+  renderSavedVariant?: (input: RenderSavedVariantInput) => Promise<RenderSavedVariantResult>;
 };
 
 export type ChildCommandResult = {
@@ -111,7 +118,27 @@ type ParsedAgentCommand =
       errors: AgentWorkflowError[];
     };
 
-const plannedCommands = new Set(["init", "capture", "export"]);
+type ParsedExportCommand =
+  | {
+      ok: true;
+      help: true;
+    }
+  | {
+      ok: true;
+      help: false;
+      projectPath: string;
+      variantId?: string;
+      preset?: string;
+      json: true;
+    }
+  | {
+      ok: false;
+      json: boolean;
+      stderr?: string;
+      errors: RenderError[];
+    };
+
+const plannedCommands = new Set(["init", "capture"]);
 
 /** Runs synchronous CLI commands. Use `runCliAsync` for async commands. */
 export function runCli(args: string[]): CliResult {
@@ -165,6 +192,14 @@ export function runCli(args: string[]): CliResult {
     };
   }
 
+  if (command === "export") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo export requires async execution.\n",
+    };
+  }
+
   if (plannedCommands.has(command)) {
     return {
       exitCode: 1,
@@ -201,6 +236,10 @@ export async function runCliAsync(
 
   if (command === "agent") {
     return await runAgentCommand(rest, dependencies);
+  }
+
+  if (command === "export") {
+    return await runExportCommand(rest, dependencies);
   }
 
   if (command !== "capture") {
@@ -319,6 +358,47 @@ async function runAgentCommand(args: string[], dependencies: CliDependencies): P
       },
     },
   );
+
+  return {
+    exitCode: result.ok ? 0 : 1,
+    stdout: `${JSON.stringify(result, null, 2)}\n`,
+    stderr: "",
+  };
+}
+
+async function runExportCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
+  const parsed = parseExportCommand(args);
+  if (parsed.ok && parsed.help) {
+    return {
+      exitCode: 0,
+      stdout: exportHelpText(),
+      stderr: "",
+    };
+  }
+
+  if (!parsed.ok) {
+    if (!parsed.json && parsed.stderr !== undefined) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: `${parsed.stderr}\n`,
+      };
+    }
+
+    return {
+      exitCode: 1,
+      stdout: `${JSON.stringify(exportParseFailure(parsed.errors), null, 2)}\n`,
+      stderr: "",
+    };
+  }
+
+  const renderSavedVariant = dependencies.renderSavedVariant ?? renderSavedVariantDefault;
+  const result = await renderSavedVariant({
+    projectPath: parsed.projectPath,
+    variantId: parsed.variantId,
+    preset: parsed.preset,
+    now: dependencies.now,
+  });
 
   return {
     exitCode: result.ok ? 0 : 1,
@@ -807,6 +887,116 @@ function generateParseFailure(parsed: ParsedGenerateCommand): HeadlessVariantGen
   };
 }
 
+function parseExportCommand(args: string[]): ParsedExportCommand {
+  if (args.includes("--help") || args.includes("-h")) {
+    return { ok: true, help: true };
+  }
+
+  let projectPath = "";
+  let variantId: string | undefined;
+  let preset: string | undefined;
+  let json = false;
+  const errors: RenderError[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--project") {
+      const value = parseExportOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        projectPath = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--variant") {
+      const value = parseExportOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        variantId = value;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--preset") {
+      const value = parseExportOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        preset = value;
+        if (value !== "mp4-demo") {
+          errors.push({
+            code: "unsupported_preset",
+            message: "autodemo export supports only --preset mp4-demo.",
+          });
+        }
+        index += 1;
+      }
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+
+    errors.push({
+      code: "invalid_export_request",
+      message: `Unknown autodemo export option: ${arg}`,
+    });
+  }
+
+  if (!json) {
+    return {
+      ok: false,
+      json,
+      stderr: "autodemo export currently requires --json output.",
+      errors,
+    };
+  }
+
+  if (projectPath.trim().length === 0) {
+    errors.push({
+      code: "invalid_export_request",
+      message: "autodemo export requires --project <project-dir-or-manifest>.",
+    });
+  }
+
+  if (errors.length > 0) {
+    return {
+      ok: false,
+      json,
+      errors,
+    };
+  }
+
+  return {
+    ok: true,
+    help: false,
+    projectPath,
+    variantId,
+    preset,
+    json: true,
+  };
+}
+
+function parseExportOptionValue(
+  args: string[],
+  index: number,
+  option: string,
+  errors: RenderError[],
+): string | undefined {
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--") || value.trim().length === 0) {
+    errors.push({
+      code: "invalid_export_request",
+      message: `autodemo export ${option} requires a value.`,
+    });
+    return undefined;
+  }
+
+  return value;
+}
+
 function parseOpenCommand(args: string[]): ParsedOpenCommand {
   let projectPath: string | undefined;
   let host = "127.0.0.1";
@@ -1036,6 +1226,13 @@ function parseViewport(input: string | undefined): CaptureViewport | undefined {
   };
 }
 
+function exportParseFailure(errors: RenderError[]): RenderSavedVariantResult {
+  return {
+    ok: false,
+    errors,
+  };
+}
+
 function defaultDependencies(): CliDependencies {
   return {
     browserCaptureAdapter: createPlaywrightBrowserCaptureAdapter(),
@@ -1043,6 +1240,7 @@ function defaultDependencies(): CliDependencies {
     now: () => new Date(),
     runChildCommand: runChildCommandWithInheritedStdio,
     startEditorServer,
+    renderSavedVariant: renderSavedVariantDefault,
   };
 }
 
@@ -1110,6 +1308,20 @@ function agentHelpText(): string {
     "Exit codes:",
     "  0  Agent handoff summary written as JSON",
     "  1  Expected validation, generation, or handoff failure",
+    "",
+  ].join("\n");
+}
+
+function exportHelpText(): string {
+  return [
+    "Usage: autodemo export --project <project-dir-or-manifest> [--variant <variant-id>] [--preset mp4-demo] --json",
+    "",
+    "Options:",
+    "  --project <path>       Auto Demo project directory or autodemo.project.json path",
+    "  --variant <id>         Saved variant id to render",
+    "  --preset mp4-demo      MVP MP4 export preset",
+    "  --json                 Print machine-readable render result",
+    "  -h, --help             Show export help",
     "",
   ].join("\n");
 }

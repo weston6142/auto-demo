@@ -1,8 +1,8 @@
 # @auto-demo/render
 
 Orchestrates rendering saved Auto Demo project variants into export artifacts.
-WES-167 selected the MVP export preset and canonical validation fixture; WES-163
-implements the renderer and CLI export path.
+WES-167 selected the MVP export preset and canonical validation fixture. WES-163
+implements the local renderer API and `autodemo export` CLI path.
 
 ## MVP Export Preset
 
@@ -29,7 +29,7 @@ for "Checkout flow demo" at `https://example.com/checkout`, 1280x720 source
 viewport media, one saved `baseline-polish` variant, and
 `exportIntent: { format: "mp4", quality: "demo", aspectRatio: "16:9" }`.
 
-Expected exported artifacts for that fixture are:
+`renderSavedVariant()` and `autodemo export --project <project> --json` write:
 
 - `exports/baseline-polish.mp4`
 - `exports/baseline-polish.render.json`
@@ -38,6 +38,10 @@ The render summary records the source project manifest path, source variant
 identifier, preset key, render settings, output path, started and ended
 timestamps, duration when available, and non-secret renderer diagnostics on
 failure.
+
+The default local runner shells out to `ffmpeg`, scales and pads the source
+media into the target dimensions, encodes H.264 video, and omits audio. Tests
+and future integrations can inject a runner for deterministic rendering behavior.
 
 ## Failure Contract
 

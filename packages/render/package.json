@@ -8,6 +8,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run src/render-docs.test.ts"
+    "test": "vitest run src/index.test.ts src/render-docs.test.ts"
+  },
+  "dependencies": {
+    "@auto-demo/project": "0.0.0"
   }
 }

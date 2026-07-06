@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata and expose baseline-only headless dry-run, selected-save, and save-all JSON summaries. `autodemo open` now serves a local browser editor that loads validated projects, previews saved variants with approximate browser fidelity, provides schema-backed draft controls for trims, viewport framing, captions, callouts, cursor/click emphasis, and direct style fields, and saves browser edits back as updated or copied project variants. `autodemo agent run` provides the first noninteractive agent handoff summary for selecting or generating saved variants and optionally starting the editor. The MVP export preset is selected as `mp4-demo`: MP4 container, H.264 video, `yuv420p`, 30 frames per second, 1280x720 for 16:9 saved variants, and a repo-owned `fixtures/export/basic-saved-variant` validation fixture. Renderer implementation and the `autodemo export` command remain planned WES-163 work.
+This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata and expose baseline-only headless dry-run, selected-save, and save-all JSON summaries. `autodemo open` now serves a local browser editor that loads validated projects, previews saved variants with approximate browser fidelity, provides schema-backed draft controls for trims, viewport framing, captions, callouts, cursor/click emphasis, and direct style fields, and saves browser edits back as updated or copied project variants. `autodemo agent run` provides the first noninteractive agent handoff summary for selecting or generating saved variants and optionally starting the editor. `@auto-demo/render` and `autodemo export --project <project> --json` render saved variants with the MVP `mp4-demo` preset: MP4 container, H.264 video, `yuv420p`, 30 frames per second, 1280x720 for 16:9 saved variants, and adjacent render summary metadata for the repo-owned `fixtures/export/basic-saved-variant` validation fixture shape.
 
 ## Quick Start
 
@@ -25,11 +25,11 @@ npm run setup:browser
 
 ## Packages
 
-- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, and local editor startup.
+- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, local editor startup, agent workflow handoff, and JSON export routing.
 - `@auto-demo/project`: Auto Demo schema v1 project manifest types, strict validation with accumulated structured errors, MVP polish variant definition and saved-file validation, capture-bundle import into the normalized project layout, and project load/save/generated/browser variant persistence APIs.
 - `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, interaction metadata JSONL capture, temporary capture manifest APIs, capture output paths, and unsupported-backend fallback.
 - `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata, the baseline-only MVP style preset contract, and headless dry-run/save batch summaries.
-- `@auto-demo/render`: export and render orchestration boundary with the WES-167 `mp4-demo` preset and canonical fixture contract documented for WES-163 implementation.
+- `@auto-demo/render`: export and render orchestration for saved variants, including the WES-167 `mp4-demo` preset, local ffmpeg runner boundary, and render summary metadata.
 - `@auto-demo/editor`: local browser editor server, approximate variant preview, schema-backed local finishing UI, and update/copy saves for browser-edited variants.
 - `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, and repository-owned Codex wrapper artifacts.
 
@@ -43,7 +43,7 @@ autodemo generate --project <project-dir-or-manifest> --json --save <variant-id|
 autodemo agent run --project <project-dir-or-manifest> --json [--variant <variant-id>]
 autodemo agent run --project <project-dir-or-manifest> --json --generate baseline --source-variant <source-variant-id> --save <baseline-polish|all>
 autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
-autodemo export
+autodemo export --project <project-dir-or-manifest> --json [--variant baseline-polish] [--preset mp4-demo]
 autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo validate <capture-dir-or-manifest>
 ```
@@ -99,7 +99,7 @@ autodemo generate --project <project-dir-or-manifest> --json --save baseline-pol
 autodemo generate --project <project-dir-or-manifest> --json --save all --source-variant source-baseline
 ```
 
-The command loads a valid Auto Demo project with a persisted source variant, resolves the requested MVP style list, generates one deterministic `baseline` batch summary, and prints machine-readable JSON with the generated id, display name, project/source-variant references, save status, batch metadata, validation errors, and non-secret warnings. Dry-run mode writes nothing and reports skipped variants. Save mode persists either one selected generated variant or all generated variants through `savePolishVariant()`, then reports saved `variants/<variant-id>.json` paths, skipped variants, final validation status, and next-step hints for editor or export workflows. The approved MVP style preset list is baseline-only: stable key `baseline`, display name `Baseline Polish`. `--styles` accepts a comma-separated list, which may contain only `baseline` once in the MVP; `--source-variant` defaults to `baseline-polish`. Saving a generated id that already exists in the project returns a structured `duplicate_variant_id` error, so callers that use a persisted source variant named `baseline-polish` should select a non-colliding source id when they intend to save a new generated `baseline-polish` variant. Unsupported style keys, duplicate style requests, invalid counts, missing source variants, invalid selected save ids, duplicate generated ids, non-JSON output, and malformed save arguments return structured errors. Rendering, exports, run summary files on disk, and additional themed presets remain planned follow-up work; local browser preview and save controls are available through `autodemo open`.
+The command loads a valid Auto Demo project with a persisted source variant, resolves the requested MVP style list, generates one deterministic `baseline` batch summary, and prints machine-readable JSON with the generated id, display name, project/source-variant references, save status, batch metadata, validation errors, and non-secret warnings. Dry-run mode writes nothing and reports skipped variants. Save mode persists either one selected generated variant or all generated variants through `savePolishVariant()`, then reports saved `variants/<variant-id>.json` paths, skipped variants, final validation status, and next-step hints for editor or export workflows. The approved MVP style preset list is baseline-only: stable key `baseline`, display name `Baseline Polish`. `--styles` accepts a comma-separated list, which may contain only `baseline` once in the MVP; `--source-variant` defaults to `baseline-polish`. Saving a generated id that already exists in the project returns a structured `duplicate_variant_id` error, so callers that use a persisted source variant named `baseline-polish` should select a non-colliding source id when they intend to save a new generated `baseline-polish` variant. Unsupported style keys, duplicate style requests, invalid counts, missing source variants, invalid selected save ids, duplicate generated ids, non-JSON output, and malformed save arguments return structured errors. Local browser preview and save controls are available through `autodemo open`, and saved variants can be rendered through `autodemo export`.
 
 Run the agent-facing workflow handoff with:
 
@@ -110,11 +110,17 @@ autodemo agent run --project <project-dir-or-manifest> --json --generate baselin
 autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 ```
 
-The command validates the project, selects an existing saved variant or saves a generated baseline variant, and prints one JSON summary with the project manifest path, selected variant id, variant artifact path, warnings, and next-step hints for agent logs. The WES-160 baseline-only MVP accepts `--save baseline-polish` or `--save all`; arbitrary generated variant ids are not part of this agent contract, and `--save` or `--source-variant` require `--generate baseline`. `--open-editor` starts the existing local editor, includes its URL in the same JSON output, and keeps the local editor server alive until the process is stopped; `--host` and `--port` override the bind address, while `--no-browser` is accepted as a no-op compatibility flag because the workflow does not auto-launch a browser. The WES-160 agent workflow requires JSON output and returns structured non-secret errors for unknown agent subcommands or arguments, missing projects, invalid projects, missing variants, unsupported generation requests, generation failures, and unavailable editor handoff. Successful handoffs exit `0`; expected validation, generation, or handoff failures exit `1`. The WES-169 MVP host decision treats a Codex production wrapper as acceptance-critical for the first demo. Claude wrapper parity is documented follow-up scope, while final MP4 export remains planned follow-up work.
+The command validates the project, selects an existing saved variant or saves a generated baseline variant, and prints one JSON summary with the project manifest path, selected variant id, variant artifact path, warnings, and next-step hints for agent logs. The WES-160 baseline-only MVP accepts `--save baseline-polish` or `--save all`; arbitrary generated variant ids are not part of this agent contract, and `--save` or `--source-variant` require `--generate baseline`. `--open-editor` starts the existing local editor, includes its URL in the same JSON output, and keeps the local editor server alive until the process is stopped; `--host` and `--port` override the bind address, while `--no-browser` is accepted as a no-op compatibility flag because the workflow does not auto-launch a browser. The WES-160 agent workflow requires JSON output and returns structured non-secret errors for unknown agent subcommands or arguments, missing projects, invalid projects, missing variants, unsupported generation requests, generation failures, and unavailable editor handoff. Successful handoffs exit `0`; expected validation, generation, or handoff failures exit `1`. The WES-169 MVP host decision treats a Codex production wrapper as acceptance-critical for the first demo. Claude wrapper parity is documented follow-up scope.
 
 MCP is deferred from the MVP. The current accepted agent path is the CLI plus Codex wrapper: `autodemo agent run --project <project> --json` produces the non-secret JSON handoff that agents consume. Reopen MCP work after export and packaging evidence shows a need for persistent project/session discovery, editor handoff lifecycle control, artifact inspection across multiple outputs, repeated orchestration mistakes that typed tools would prevent, or a host requires MCP instead of shell commands. Future MCP work does not introduce a new project schema, hosted services, or final MP4 export behavior.
 
-## Export Preset Decision
+## Exporting MP4 Artifacts
+
+Render a saved variant with:
+
+```bash
+autodemo export --project <project-dir-or-manifest> --json [--variant baseline-polish] [--preset mp4-demo]
+```
 
 The MVP export preset key is `mp4-demo`. It targets MP4 container, H.264 video,
 `yuv420p`, 30 frames per second, and dimensions derived from
@@ -124,11 +130,19 @@ and `720x1280` for `9:16`. The canonical validation fixture is
 `exports/baseline-polish.mp4` and `exports/baseline-polish.render.json` for the
 saved `baseline-polish` variant.
 
-Exporter failures should report structured non-secret causes for invalid
+The command validates the project, defaults to `baseline-polish` when no
+variant is supplied, invokes the local renderer, writes the MP4 under
+`exports/`, writes adjacent render metadata, and prints a JSON result with the
+manifest path, variant id, output path, summary path, preset settings, timing,
+and sanitized renderer diagnostics.
+
+Exporter failures report structured non-secret causes for invalid
 project input, missing variant selection, missing media or metadata, unsupported
 preset keys, unsupported non-MP4 export intent, and renderer failure. Non-MP4
 formats, hosted rendering, package distribution, curated marketing samples, and
-distinct high-fidelity production presets remain deferred.
+distinct high-fidelity production presets remain deferred. Exact browser preview
+parity, overlay rendering for captions/callouts/cursor emphasis, audio tracks,
+and demo-ready bundle validation remain follow-up work.
 
 Open a validated project in the local browser editor with:
 

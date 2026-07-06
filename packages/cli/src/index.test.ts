@@ -150,13 +150,13 @@ describe("runCli", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("fails clearly for planned but unimplemented non-capture commands", () => {
+  it("reports that export requires async execution", () => {
     const result = runCli(["export"]);
 
     expect(result).toEqual({
       exitCode: 1,
       stdout: "",
-      stderr: "autodemo export is not implemented yet.\n",
+      stderr: "autodemo export requires async execution.\n",
     });
   });
 
@@ -176,6 +176,105 @@ describe("runCli", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("Usage: autodemo <command>");
     expect(result.stderr).toBe("Unknown command: wat\n");
+  });
+});
+
+describe("runCliAsync export", () => {
+  it("renders a saved variant and prints the render summary JSON", async () => {
+    const projectDir = await createValidProject();
+
+    const result = await runCliAsync(["export", "--project", projectDir, "--json"], {
+      now: () => new Date("2026-07-06T12:00:00.000Z"),
+      async runChildCommand() {
+        return { exitCode: 0 };
+      },
+      browserCaptureAdapter: {
+        kind: "browser",
+        async start() {
+          throw new Error("capture should not start for export");
+        },
+      },
+      async renderSavedVariant(input) {
+        return {
+          ok: true,
+          projectManifestPath: `${input.projectPath}/autodemo.project.json`,
+          variantId: input.variantId ?? "baseline-polish",
+          outputPath: `${input.projectPath}/exports/baseline-polish.mp4`,
+          summaryPath: `${input.projectPath}/exports/baseline-polish.render.json`,
+          preset: {
+            key: "mp4-demo",
+            settings: {
+              container: "mp4",
+              videoCodec: "libx264",
+              pixelFormat: "yuv420p",
+              frameRate: 30,
+              audio: "none",
+              dimensions: { width: 1280, height: 720 },
+            },
+          },
+          startedAt: "2026-07-06T12:00:00.000Z",
+          endedAt: "2026-07-06T12:00:01.000Z",
+          renderer: { command: "fake-renderer", exitCode: 0 },
+        };
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      variantId: string;
+      preset: { key: string };
+      outputPath: string;
+      summaryPath: string;
+    };
+    expect(output).toMatchObject({
+      ok: true,
+      variantId: "baseline-polish",
+      preset: { key: "mp4-demo" },
+      outputPath: `${projectDir}/exports/baseline-polish.mp4`,
+      summaryPath: `${projectDir}/exports/baseline-polish.render.json`,
+    });
+  });
+
+  it("requires JSON output for export", async () => {
+    const result = await runCliAsync(["export", "--project", "demo"]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo export currently requires --json output.\n",
+    });
+  });
+
+  it("returns structured JSON for missing export project input", async () => {
+    const result = await runCliAsync(["export", "--json"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_export_request" }],
+    });
+  });
+
+  it("returns structured JSON for unsupported export presets", async () => {
+    const projectDir = await createValidProject();
+    const result = await runCliAsync([
+      "export",
+      "--project",
+      projectDir,
+      "--preset",
+      "gif-demo",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      errors: [{ code: "unsupported_preset" }],
+    });
   });
 });
 
