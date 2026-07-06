@@ -375,9 +375,12 @@ async function outputTargetIsWritableFileInsideProject(
   }
 
   try {
+    const target = await lstat(path);
+    if (!target.isFile()) {
+      return false;
+    }
     const resolvedPath = await realpath(path);
-    const target = await stat(path);
-    return isInsideDirectory(projectDir, resolvedPath) && target.isFile();
+    return isInsideDirectory(projectDir, resolvedPath);
   } catch (error) {
     if (isMissingPathError(error)) {
       return !(await pathExists(path));
