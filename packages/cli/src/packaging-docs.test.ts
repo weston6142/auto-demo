@@ -85,30 +85,26 @@ describe("CLI packaging decision documentation", () => {
     }
   });
 
-  it(
-    "documents a current clean-checkout CLI invocation that reaches the built CLI",
-    async () => {
-      const rootReadme = await readRootDoc("README.md");
-      const documentedInvocation = extractCurrentInvocation(rootReadme);
-      const helpInvocation = documentedInvocation.replace("<subcommand...>", "--help");
-      const [command, ...args] = helpInvocation.split(/\s+/);
-      const build = spawnSync("npm", ["--workspace", "@auto-demo/cli", "run", "build"], {
-        cwd: repoRoot,
-        encoding: "utf8",
-      });
+  it("documents a current clean-checkout CLI invocation that reaches the built CLI", async () => {
+    const rootReadme = await readRootDoc("README.md");
+    const documentedInvocation = extractCurrentInvocation(rootReadme);
+    const helpInvocation = documentedInvocation.replace("<subcommand...>", "--help");
+    const [command, ...args] = helpInvocation.split(/\s+/);
+    const build = spawnSync("npm", ["--workspace", "@auto-demo/cli", "run", "build"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
 
-      expect(build.status, build.stderr).toBe(0);
+    expect(build.status, build.stderr).toBe(0);
 
-      const result = spawnSync(command, args, {
-        cwd: repoRoot,
-        encoding: "utf8",
-      });
+    const result = spawnSync(command, args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
 
-      expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toContain("autodemo");
-      expect(result.stdout).toContain("capture");
-      expect(result.stdout).toContain("export");
-    },
-    20_000,
-  );
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("autodemo");
+    expect(result.stdout).toContain("capture");
+    expect(result.stdout).toContain("export");
+  }, 20_000);
 });
