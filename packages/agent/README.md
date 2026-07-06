@@ -70,3 +70,24 @@ media export, and interactive/non-JSON workflow output remain follow-up work.
 - Happy-path Codex transcript: `fixtures/codex-happy-path.md`
 - Invalid-project Codex transcript: `fixtures/codex-invalid-project.md`
 - Claude parity requirements: `claude-wrapper-parity.md`
+
+## MCP Decision
+
+MCP is deferred from the MVP. The accepted MVP integration path is the CLI plus
+Codex wrapper, using
+`autodemo agent run --project <project-dir-or-manifest> --json` as the stable
+noninteractive handoff. This keeps Agent Integrations focused on the executable
+workflow while Export And Packaging defines the final artifact boundary.
+
+Future MCP work should be opened when the workflow needs persistent
+project/session discovery, editor handoff lifecycle status or stop controls,
+artifact inspection across generated outputs, host integration evidence shows
+repeated CLI orchestration mistakes, or a host requires MCP instead of shell
+commands.
+
+The minimum future MCP capability set is project discovery and validation, an
+agent workflow run tool for selecting or generating a saved variant, local
+editor launch handoff with explicit lifecycle behavior, artifact inspection for
+project/variant/export paths, and stable non-secret error responses. MCP does
+not introduce a new project schema, new variant-selection rules, hosted
+services, or final MP4 export behavior.

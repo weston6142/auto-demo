@@ -53,6 +53,8 @@ Last updated: 2026-07-06
 - WES-169 MVP agent host wrapper scope implementation plan: `docs/superpowers/plans/2026-07-05-wes-169-agent-host-wrapper-scope.md`
 - WES-161 Codex skill wrapper design spec: `docs/superpowers/specs/2026-07-06-wes-161-codex-skill-wrapper-design.md`
 - WES-161 Codex skill wrapper implementation plan: `docs/superpowers/plans/2026-07-06-wes-161-codex-skill-wrapper.md`
+- WES-162 MCP MVP decision design spec: `docs/superpowers/specs/2026-07-06-wes-162-mcp-mvp-decision-design.md`
+- WES-162 MCP MVP decision implementation plan: `docs/superpowers/plans/2026-07-06-wes-162-mcp-mvp-decision.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
 - Linear sync gate implementation plan: `docs/superpowers/plans/2026-06-28-linear-sync-gate-plan.md`
 
@@ -71,7 +73,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-161 completion: WES-162, because the Codex wrapper artifacts are complete and the remaining Agent Integrations decision is whether MCP is required for the MVP.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-162 completion: WES-163, because MCP is deferred from MVP and Export And Packaging is the next incomplete milestone.
 
 ## Issues By Milestone
 
@@ -125,7 +127,7 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-138: Milestone 7: Agent integrations - Backlog - https://linear.app/weston-bushyeager/issue/WES-138/milestone-7-agent-integrations
 - WES-160: Agent-facing workflow CLI and handoff contract - Done - https://linear.app/weston-bushyeager/issue/WES-160/agent-facing-workflow-cli-and-handoff-contract
 - WES-161: Codex and Claude skill wrappers for the demo workflow - Done - https://linear.app/weston-bushyeager/issue/WES-161/codex-and-claude-skill-wrappers-for-the-demo-workflow
-- WES-162: Open question: decide whether MCP is required for MVP - Backlog - https://linear.app/weston-bushyeager/issue/WES-162/open-question-decide-whether-mcp-is-required-for-mvp
+- WES-162: Open question: decide whether MCP is required for MVP - In Progress - https://linear.app/weston-bushyeager/issue/WES-162/open-question-decide-whether-mcp-is-required-for-mvp
 - WES-169: Open question: choose MVP agent host wrapper scope - Done - https://linear.app/weston-bushyeager/issue/WES-169/open-question-choose-mvp-agent-host-wrapper-scope
 
 ### 8. Export And Packaging
@@ -271,6 +273,7 @@ capture-dir/
 - 2026-07-05 WES-169 completion-gate sync: PR #23 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `e2827b96`. WES-169 completion evidence was added to Linear and the issue was moved to Done. WES-161 received a readiness note and updated acceptance criteria for a Codex production wrapper, one happy-path Codex transcript or fixture, one invalid/missing-project failure example, and host-neutral Claude parity documentation. WES-161 is the next product task by milestone order and dependency readiness.
 - 2026-07-06 WES-161 pre-task sync: Linear and local `develop` agree WES-161 is the first incomplete unblocked Agent Integrations issue after WES-169. WES-161 was moved to In Progress on branch `fm/wes-161`. The implementation scope is repository-owned Codex skill instructions for `autodemo agent run --project <project-dir-or-manifest> --json`, one happy-path Codex transcript fixture, one invalid-project failure fixture, host-neutral Claude parity documentation, and behavior-oriented tests over the published wrapper artifacts. Claude production implementation, MCP transport, hosted services, marketplace distribution, and final export implementation remain deferred.
 - 2026-07-06 WES-161 completion-gate sync: PR #24 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `f02ef271`. WES-161 added `packages/agent/skills/codex-auto-demo/SKILL.md`, Codex happy-path and invalid-project transcript fixtures, `packages/agent/claude-wrapper-parity.md`, README links, and behavior-oriented wrapper artifact tests. WES-161 is ready to move to Done; WES-162 is the next Agent Integrations task to decide whether MCP is required for MVP before closing tracker WES-138.
+- 2026-07-06 WES-162 pre-task sync: Linear and local `develop` agree WES-162 is the only incomplete Agent Integrations child after WES-161. WES-162 was moved to In Progress on branch `fm/wes-162-mcp-mvp-decision`. The selected decision is to defer MCP from MVP because the CLI plus Codex wrapper path already supports the first executable agent workflow; future MCP work should wait for export/packaging evidence or a host requirement that cannot be satisfied by stable shell commands.
 - 2026-07-04 WES-157 completion-gate sync: PR #18 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `287b10bb`. WES-157 completion evidence was added to Linear and the issue was moved to Done. WES-158 received a readiness note that the local editor/project-load entry point is available, with WES-170 still owning the preview-fidelity and MVP finishing-control decision before WES-158 implementation.
 - WES-157: Local browser editor project loading completed in PR #18. `autodemo open --project <project-dir-or-manifest>` starts the local review-only editor server, `@auto-demo/editor` loads validated project summaries through `@auto-demo/project`, `/api/project` returns operator-facing success or validation-error JSON, and the static editor lists saved/generated variants or shows empty-variant generation guidance.
 - WES-157 verification: TDD red checks failed first for missing `loadEditorProject()`/`startEditorServer()` exports and unimplemented CLI `open` routing; after implementation, focused editor/CLI tests passed, local `npm run validate` passed, and no-mistakes PR #18 passed GitHub CI `validate` on head `287b10bb`.

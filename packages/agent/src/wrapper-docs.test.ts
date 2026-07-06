@@ -1,12 +1,21 @@
 import { readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const agentRoot =
   basename(process.cwd()) === "agent" ? process.cwd() : join(process.cwd(), "packages", "agent");
+const repoRoot = basename(process.cwd()) === "agent" ? dirname(dirname(agentRoot)) : process.cwd();
 
 async function readAgentDoc(relativePath: string): Promise<string> {
   return await readFile(join(agentRoot, relativePath), "utf8");
+}
+
+async function readRootDoc(relativePath: string): Promise<string> {
+  return await readFile(join(repoRoot, relativePath), "utf8");
+}
+
+function normalizeWhitespace(markdown: string): string {
+  return markdown.replace(/\s+/g, " ");
 }
 
 function jsonBlock(markdown: string, marker: string): unknown {
@@ -81,5 +90,38 @@ describe("agent wrapper documentation", () => {
     ]) {
       expect(parity).toContain(required);
     }
+  });
+
+  it("documents the MVP MCP decision and future trigger criteria", async () => {
+    const rootReadme = await readRootDoc("README.md");
+    const agentReadme = await readAgentDoc("README.md");
+    const normalizedRootReadme = normalizeWhitespace(rootReadme);
+    const normalizedAgentReadme = normalizeWhitespace(agentReadme);
+    const combined = `${normalizedRootReadme} ${normalizedAgentReadme}`;
+
+    expect(combined).toContain("MCP is deferred from the MVP");
+    expect(combined).toContain("CLI plus Codex wrapper");
+
+    for (const futureTrigger of [
+      "persistent project/session discovery",
+      "editor handoff lifecycle",
+      "artifact inspection",
+      "host requires MCP",
+    ]) {
+      expect(combined).toContain(futureTrigger);
+    }
+
+    for (const futureCapability of [
+      "project discovery and validation",
+      "agent workflow run",
+      "local editor launch handoff",
+      "stable non-secret error responses",
+    ]) {
+      expect(normalizedAgentReadme).toContain(futureCapability);
+    }
+
+    expect(combined).toContain("does not introduce a new project schema");
+    expect(combined).toContain("hosted services");
+    expect(combined).toContain("final MP4 export");
   });
 });
