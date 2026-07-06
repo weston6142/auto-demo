@@ -29,7 +29,7 @@ npm run setup:browser
 The current clean-checkout operator and agent contract is:
 
 ```bash
-npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>
+npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
 ```
 
 WES-164 owns turning that into one documented repo-root wrapper for the

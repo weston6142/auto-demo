@@ -41,7 +41,7 @@ npm run setup:browser
 The current clean-checkout invocation contract is:
 
 ```bash
-npm --workspace @auto-demo/cli exec autodemo -- <subcommand...>
+npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
 ```
 
 WES-164 owns adding and documenting one repo-root wrapper for the same CLI

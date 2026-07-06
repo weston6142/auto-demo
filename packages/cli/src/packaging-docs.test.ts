@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -18,6 +19,15 @@ function normalizeWhitespace(markdown: string): string {
   return markdown.toLowerCase().replace(/\s+/g, " ");
 }
 
+function extractCurrentInvocation(markdown: string): string {
+  const match = markdown.match(
+    /current clean-checkout invocation contract is:\s*```bash\s*(?<command>[^`]+?)\s*```/i,
+  );
+
+  expect(match?.groups?.command).toBeDefined();
+  return match?.groups?.command.trim() ?? "";
+}
+
 describe("CLI packaging decision documentation", () => {
   it("documents the root clean-checkout setup and current runnable command", async () => {
     const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
@@ -31,7 +41,7 @@ describe("CLI packaging decision documentation", () => {
       "npm run build",
       "npm run setup:browser",
       "ffmpeg",
-      "npm --workspace @auto-demo/cli exec autodemo --",
+      "npm --workspace @auto-demo/cli run autodemo --",
       "wes-164",
       "npm run autodemo --",
     ]) {
@@ -59,7 +69,7 @@ describe("CLI packaging decision documentation", () => {
       "npm run build",
       "npm run setup:browser",
       "ffmpeg",
-      "npm --workspace @auto-demo/cli exec autodemo --",
+      "npm --workspace @auto-demo/cli run autodemo --",
       "wes-164",
       "npm run autodemo --",
     ]) {
@@ -74,4 +84,31 @@ describe("CLI packaging decision documentation", () => {
       expect(cliReadme).toContain(deferred);
     }
   });
+
+  it(
+    "documents a current clean-checkout CLI invocation that reaches the built CLI",
+    async () => {
+      const rootReadme = await readRootDoc("README.md");
+      const documentedInvocation = extractCurrentInvocation(rootReadme);
+      const helpInvocation = documentedInvocation.replace("<subcommand...>", "--help");
+      const [command, ...args] = helpInvocation.split(/\s+/);
+      const build = spawnSync("npm", ["--workspace", "@auto-demo/cli", "run", "build"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+      });
+
+      expect(build.status, build.stderr).toBe(0);
+
+      const result = spawnSync(command, args, {
+        cwd: repoRoot,
+        encoding: "utf8",
+      });
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain("autodemo");
+      expect(result.stdout).toContain("capture");
+      expect(result.stdout).toContain("export");
+    },
+    20_000,
+  );
 });
