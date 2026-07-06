@@ -190,7 +190,9 @@ Tests stay behavior-first:
 - Final MP4 rendering and export bundle generation.
 - Codex skill wrapper files and Claude parity documentation, owned by WES-161
   after the WES-169 host-scope decision.
-- MCP transport or server behavior, owned by WES-162 after the MVP decision.
+- MCP transport or server behavior, deferred by the WES-162 MVP decision until
+  export, packaging, or host-integration evidence shows a need beyond the CLI
+  and Codex wrapper handoff.
 - Agent-driven capture orchestration beyond the existing `autodemo capture`
   command.
 - Non-JSON or interactive agent workflow output.

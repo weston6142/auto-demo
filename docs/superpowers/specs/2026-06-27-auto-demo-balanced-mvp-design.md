@@ -108,7 +108,7 @@ Serve a local browser editor for project review and finishing: timeline, zoom/cr
 
 ### 7. Agent Integrations
 
-Expose the core workflow to agents. Start with a CLI and one production Codex skill wrapper, with Claude wrapper parity documented as follow-up scope. Add MCP after the command and project contracts stabilize, unless early integration requires long-running tool state.
+Expose the core workflow to agents. Start with a CLI and one production Codex skill wrapper, with Claude wrapper parity documented as follow-up scope. WES-162 later deferred MCP from the MVP; reopen it only after export and packaging evidence or a host requirement shows the CLI plus Codex wrapper path is insufficient.
 
 ### 8. Export And Packaging
 
@@ -124,7 +124,9 @@ The MVP should use separable modules with explicit contracts:
 - `variants`: creates and stores named variant definitions and rendered outputs.
 - `render`: turns project plus edit decisions into MP4 or other output formats.
 - `editor`: local web server and browser UI for manual finishing.
-- `agent`: CLI/skill/MCP-facing wrapper around capture and generation commands.
+- `agent`: CLI and skill wrapper around capture and generation commands, with
+  future MCP transport deferred until the MVP workflow proves it needs a typed
+  server surface.
 
 The CLI should call these modules rather than embedding workflow logic directly. The editor should read and write the same project format used by headless generation.
 
@@ -181,7 +183,9 @@ Visual/render verification should use small deterministic fixtures where possibl
 
 - Whether the first capture runtime targets macOS only or supports multiple platforms immediately.
 - Whether the initial browser capture path should use Playwright/CDP, OS-level screen capture, or both.
-- Whether MCP belongs in the MVP implementation or follows after the CLI and Codex skill wrapper prove stable.
+- WES-162 answered the MCP question by deferring it from the MVP until export,
+  packaging, or host-integration evidence shows a need beyond stable CLI and
+  Codex wrapper handoff.
 - Exact project file extension and folder layout.
 - Initial rendering engine choice.
 
