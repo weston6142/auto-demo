@@ -8,6 +8,10 @@ artifacts without duplicating Auto Demo business logic.
 
 The Claude wrapper should invoke the same WES-160 command as the Codex wrapper:
 
+In a clean local checkout before the WES-164 repo-root wrapper lands, the same
+logical command is reached with
+`npm --workspace @auto-demo/cli run autodemo -- agent run ...`.
+
 ```bash
 autodemo agent run --project <project-dir-or-manifest> --json
 ```

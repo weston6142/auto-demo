@@ -1,6 +1,7 @@
 # Contributing
 
-Auto Demo uses npm workspaces and TypeScript.
+Auto Demo uses npm workspaces and TypeScript. The MVP clean-checkout path is
+macOS with Node 22.x, npm 10, Playwright Chromium, and `ffmpeg` on `PATH`.
 
 ## Setup
 
@@ -13,6 +14,13 @@ For capture development or browser smoke tests, install Playwright's Chromium br
 
 ```bash
 npm run setup:browser
+```
+
+Until the repo-root `npm run autodemo -- <subcommand...>` wrapper lands, run the
+local CLI from a clean checkout with:
+
+```bash
+npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
 ```
 
 ## Local Checks

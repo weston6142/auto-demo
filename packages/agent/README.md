@@ -21,6 +21,9 @@ const result = await runAgentWorkflow({
 
 The CLI exposes the same contract:
 
+In a clean local checkout before the WES-164 repo-root wrapper lands, run these
+logical subcommands through `npm --workspace @auto-demo/cli run autodemo --`.
+
 ```bash
 autodemo agent run --project projects/checkout --json
 autodemo agent run --project projects/checkout --json --variant baseline-polish

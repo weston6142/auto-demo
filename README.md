@@ -23,9 +23,40 @@ To use `autodemo capture` or run browser smoke tests on a fresh machine, install
 npm run setup:browser
 ```
 
+## MVP Packaging Target
+
+WES-168 selects a **clean local checkout run path** as the packaging target for
+the balanced MVP. The supported environment is macOS with Node 22.x, npm 10,
+Playwright Chromium installed through `npm run setup:browser`, and `ffmpeg`
+available on `PATH`.
+
+The required setup path is:
+
+```bash
+npm install
+npm run build
+npm run setup:browser
+```
+
+The current clean-checkout invocation contract is:
+
+```bash
+npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
+```
+
+WES-164 owns adding and documenting one repo-root wrapper for the same CLI
+surface. The intended future wrapper is:
+
+```bash
+npm run autodemo -- <subcommand...>
+```
+
+Registry publication, Homebrew, native installers, bundled standalone tarballs,
+and other standalone distribution artifact work are deferred from the MVP.
+
 ## Packages
 
-- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, local editor startup, agent workflow handoff, and JSON export routing.
+- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, local editor startup, agent workflow handoff, JSON export routing, and the package-local clean-checkout packaging contract for WES-164.
 - `@auto-demo/project`: Auto Demo schema v1 project manifest types, strict validation with accumulated structured errors, MVP polish variant definition and saved-file validation, capture-bundle import into the normalized project layout, and project load/save/generated/browser variant persistence APIs.
 - `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, interaction metadata JSONL capture, temporary capture manifest APIs, capture output paths, and unsupported-backend fallback.
 - `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata, the baseline-only MVP style preset contract, and headless dry-run/save batch summaries.
@@ -34,6 +65,9 @@ npm run setup:browser
 - `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, and repository-owned Codex wrapper artifacts.
 
 ## CLI
+
+Until WES-164 lands the repo-root wrapper, run the logical `autodemo`
+subcommands below through the workspace-scoped invocation above.
 
 ```bash
 autodemo init
