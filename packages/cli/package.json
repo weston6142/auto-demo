@@ -14,7 +14,7 @@
     "autodemo": "node dist/index.js",
     "pretypecheck": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor && npm run build -w @auto-demo/render",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pretest": "npm run build -w @auto-demo/agent && npm run build -w @auto-demo/polish && npm run build -w @auto-demo/editor && npm run build -w @auto-demo/render",
+    "pretest": "npm run build",
     "test": "vitest run src/index.test.ts src/defaultBackend.test.ts src/packaging-docs.test.ts"
   },
   "dependencies": {

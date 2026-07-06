@@ -90,12 +90,6 @@ describe("CLI packaging decision documentation", () => {
     const documentedInvocation = extractCurrentInvocation(rootReadme);
     const helpInvocation = documentedInvocation.replace("<subcommand...>", "--help");
     const [command, ...args] = helpInvocation.split(/\s+/);
-    const build = spawnSync("npm", ["--workspace", "@auto-demo/cli", "run", "build"], {
-      cwd: repoRoot,
-      encoding: "utf8",
-    });
-
-    expect(build.status, build.stderr).toBe(0);
 
     const result = spawnSync(command, args, {
       cwd: repoRoot,
