@@ -26,8 +26,9 @@ The existing repo context gives the constraints:
 - WES-156 can save generated headless variants for editor review.
 - WES-166 decided the MVP preset list is baseline-only and browser editor preset
   picking should be hidden until more approved presets exist.
-- WES-167 has not yet chosen export presets or validation fixtures, so exact
-  exported-media parity would add a new blocker to WES-158.
+- WES-167 later selected the `mp4-demo` export preset and
+  `fixtures/export/basic-saved-variant` validation fixture, but exact
+  exported-media parity still depends on WES-163 rendering work.
 
 ## Decision
 

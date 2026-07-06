@@ -127,8 +127,8 @@ saved `baseline-polish` variant.
 Exporter failures should report structured non-secret causes for invalid
 project input, missing variant selection, missing media or metadata, unsupported
 preset keys, unsupported non-MP4 export intent, and renderer failure. Non-MP4
-formats, hosted rendering, and distinct high-fidelity production presets remain
-deferred.
+formats, hosted rendering, package distribution, curated marketing samples, and
+distinct high-fidelity production presets remain deferred.
 
 Open a validated project in the local browser editor with:
 
