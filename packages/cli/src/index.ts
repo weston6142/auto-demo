@@ -40,7 +40,7 @@ export type CliResult = {
   stderr: string;
 };
 
-/** Dependencies that let tests or future integrations run capture without the default backend/process hooks. */
+/** Dependencies that let tests or future integrations run CLI workflows without default process hooks. */
 export type CliDependencies = {
   browserCaptureAdapter: BrowserCaptureAdapter;
   createInterruptWatcher?: () => InterruptWatcher;
@@ -215,7 +215,7 @@ export function runCli(args: string[]): CliResult {
   };
 }
 
-/** Runs the CLI, including browser capture and capture bundle validation. */
+/** Runs the CLI, including async capture, validation, generation, agent, editor, and export commands. */
 export async function runCliAsync(
   args: string[],
   dependencies: CliDependencies = defaultDependencies(),

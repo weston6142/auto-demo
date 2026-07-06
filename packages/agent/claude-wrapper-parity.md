@@ -45,8 +45,9 @@ variant-file parsing, credentials, hosted services, or MCP transport.
 - Optional editor URL with `long-lived-local-server` lifecycle.
 - Non-secret warnings and next-step hints.
 
-The wrapper should treat `export-variant` as a future export handoff hint, not as
-evidence that an MP4 file exists.
+The wrapper should treat `export-variant` as an export handoff hint. An MP4 file
+exists only after a separate successful `autodemo export --project
+<project-dir-or-manifest> --json [--variant <variant-id>]` run.
 
 ## Failure Handling
 
@@ -66,6 +67,8 @@ strings, typed values, credentials, or secret-bearing local paths.
 - MCP transport.
 - Hosted services.
 - marketplace distribution.
-- final export implementation.
+- final export implementation inside the wrapper; use `autodemo export`
+  separately for local MP4 rendering.
+- demo-ready export bundle validation.
 - Schema reimplementation or direct project mutation outside the WES-160
   command.

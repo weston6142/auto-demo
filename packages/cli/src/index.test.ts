@@ -210,6 +210,7 @@ describe("runCliAsync export", () => {
               frameRate: 30,
               audio: "none",
               dimensions: { width: 1280, height: 720 },
+              timeline: { startMs: 1500, durationMs: 1250 },
             },
           },
           startedAt: "2026-07-06T12:00:00.000Z",
