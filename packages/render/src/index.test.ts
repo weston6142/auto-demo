@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -355,6 +355,46 @@ writeFileSync(args[args.length - 1], "mp4");
       const protectedPath = join(projectDir, testCase.targetPath);
       const originalContents = await readFile(protectedPath, "utf8");
       await symlink(protectedPath, join(projectDir, "exports", testCase.linkPath));
+      let called = false;
+
+      const result = await renderSavedVariant(
+        { projectPath: projectDir, variantId: "baseline-polish" },
+        {
+          runner: async () => {
+            called = true;
+            return { ok: true, command: `fake-renderer-${testCase.name}`, exitCode: 0 };
+          },
+        },
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        errors: [{ code: "invalid_export_request" }],
+      });
+      expect(called).toBe(false);
+      expect(await readFile(protectedPath, "utf8")).toBe(originalContents);
+    }
+  });
+
+  it("rejects hard-linked export output and summary targets before invoking the runner", async () => {
+    const cases = [
+      {
+        name: "output",
+        linkPath: "baseline-polish.mp4",
+        targetPath: join("metadata", "events.jsonl"),
+      },
+      {
+        name: "summary",
+        linkPath: "baseline-polish.render.json",
+        targetPath: "autodemo.project.json",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const projectDir = await createProject();
+      const protectedPath = join(projectDir, testCase.targetPath);
+      const originalContents = await readFile(protectedPath, "utf8");
+      await link(protectedPath, join(projectDir, "exports", testCase.linkPath));
       let called = false;
 
       const result = await renderSavedVariant(

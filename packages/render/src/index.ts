@@ -380,7 +380,7 @@ async function outputTargetIsWritableFileInsideProject(
 
   try {
     const target = await lstat(path);
-    if (!target.isFile()) {
+    if (!target.isFile() || target.nlink > 1) {
       return false;
     }
     const resolvedPath = await realpath(path);
