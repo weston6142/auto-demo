@@ -241,6 +241,45 @@ writeFileSync(args[args.length - 1], "mp4");
     expect(called).toBe(false);
   });
 
+  it("returns structured failures when the export directory path cannot be created", async () => {
+    const setups = [
+      async (projectDir: string) => {
+        await writeFile(join(projectDir, "exports"), "not a directory");
+      },
+      async (projectDir: string) => {
+        const targetPath = join(projectDir, "metadata", "export-target");
+        await writeFile(targetPath, "not a directory");
+        await symlink(targetPath, join(projectDir, "exports"));
+      },
+      async (projectDir: string) => {
+        await symlink(join(projectDir, "missing-export-target"), join(projectDir, "exports"));
+      },
+    ];
+
+    for (const setup of setups) {
+      const projectDir = await createProject();
+      await rm(join(projectDir, "exports"), { recursive: true });
+      await setup(projectDir);
+      let called = false;
+
+      const result = await renderSavedVariant(
+        { projectPath: projectDir, variantId: "baseline-polish" },
+        {
+          runner: async () => {
+            called = true;
+            return { ok: true, command: "fake-renderer", exitCode: 0 };
+          },
+        },
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        errors: [{ code: "invalid_export_request" }],
+      });
+      expect(called).toBe(false);
+    }
+  });
+
   it("rejects render summary symlinks that resolve outside the project", async () => {
     const projectDir = await createProject();
     const outsideDir = join(tmpdir(), `auto-demo-render-outside-${randomUUID()}`);

@@ -208,9 +208,8 @@ export async function renderSavedVariant(
   const exportDir = join(projectDir, "exports");
   const outputPath = join(exportDir, `${variant.id}.mp4`);
   const summaryPath = join(exportDir, `${variant.id}.render.json`);
-  await mkdir(exportDir, { recursive: true });
   if (
-    !(await resolvesInsideProject(resolvedProjectDir, exportDir)) ||
+    !(await ensureExportDirectoryInsideProject(resolvedProjectDir, exportDir)) ||
     !(await outputTargetIsWritableFileInsideProject(resolvedProjectDir, outputPath)) ||
     !(await outputTargetIsWritableFileInsideProject(resolvedProjectDir, summaryPath))
   ) {
@@ -343,6 +342,25 @@ async function runFfmpegRenderer(request: RenderRunnerRequest): Promise<RenderRu
 async function resolvesInsideProject(projectDir: string, path: string): Promise<boolean> {
   try {
     return isInsideDirectory(projectDir, await realpath(path));
+  } catch {
+    return false;
+  }
+}
+
+async function ensureExportDirectoryInsideProject(
+  projectDir: string,
+  exportDir: string,
+): Promise<boolean> {
+  try {
+    await mkdir(exportDir, { recursive: true });
+  } catch {
+    return false;
+  }
+
+  try {
+    const resolvedExportDir = await realpath(exportDir);
+    const exportDirStat = await stat(exportDir);
+    return isInsideDirectory(projectDir, resolvedExportDir) && exportDirStat.isDirectory();
   } catch {
     return false;
   }
