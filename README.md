@@ -27,8 +27,8 @@ npm run setup:browser
 
 WES-168 selects a **clean local checkout run path** as the packaging target for
 the balanced MVP. The supported environment is macOS with Node 22.x, npm 10,
-Playwright Chromium installed through `npm run setup:browser`, and `ffmpeg`
-available on `PATH`.
+Playwright Chromium installed through `npm run setup:browser`, and `ffmpeg` plus
+`ffprobe` available on `PATH`.
 
 The required setup path is:
 

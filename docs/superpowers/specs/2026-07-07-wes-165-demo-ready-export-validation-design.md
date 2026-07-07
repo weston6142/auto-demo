@@ -51,7 +51,7 @@ Add the fixture and a root script such as `npm run validate:demo-ready` backed b
 a small Node script. The script copies the fixture to a temp directory before
 exporting so repository fixtures stay clean. It checks that the CLI JSON reports
 success, the MP4 exists and is non-empty, the render summary exists, and
-`ffprobe` can inspect the MP4 when available.
+`ffprobe` can inspect the MP4.
 
 Pros:
 
@@ -62,7 +62,7 @@ Pros:
 
 Cons:
 
-- Requires `ffmpeg` for the real validation command.
+- Requires `ffmpeg` and `ffprobe` for the real validation command.
 - Adds one small maintenance script.
 
 ### Option B: Documentation-Only Checklist
@@ -177,7 +177,8 @@ watch them fail because the fixture and command are missing, then add the fixtur
 script, and docs.
 
 Run focused tests first, then `npm run validate`, then run
-`npm run validate:demo-ready` locally where ffmpeg is available.
+`npm run validate:demo-ready` locally where `ffmpeg` and `ffprobe` are
+available.
 
 ## Explicit Deferrals
 

@@ -66,9 +66,10 @@ The WES-169 MVP host decision treats a Codex production wrapper as
 acceptance-critical for the first demo. Claude wrapper parity remains documented
 follow-up scope: it should match the same invocation inputs, command sequence,
 expected artifacts, and failure handling once implemented. MCP transport,
-demo-ready bundle validation, and interactive/non-JSON workflow output remain
-follow-up work; saved variants can be rendered separately through
-`autodemo export`.
+interactive/non-JSON workflow output, and Claude production wrapper execution
+remain follow-up work. Demo-ready export validation is covered by
+`npm run validate:demo-ready`, and saved variants can be rendered separately
+through `autodemo export`.
 
 ## Wrapper Artifacts
 

@@ -16,7 +16,7 @@ Supported environment:
 - Node 22.x
 - npm 10
 - Playwright Chromium installed through `npm run setup:browser`
-- `ffmpeg` available on `PATH`
+- `ffmpeg` and `ffprobe` available on `PATH`
 
 Expected repo-root setup flow:
 
