@@ -176,6 +176,39 @@ distinct high-fidelity production presets remain deferred. Exact browser preview
 parity, overlay rendering for captions/callouts/cursor emphasis, audio tracks,
 and demo-ready bundle validation remain follow-up work.
 
+## Demo-Ready Export Validation
+
+After a clean local checkout setup:
+
+```bash
+npm install
+npm run build
+npm run setup:browser
+```
+
+make sure `ffmpeg` and `ffprobe` are available on `PATH`, then run:
+
+```bash
+npm run validate:demo-ready
+```
+
+The validation copies `fixtures/export/basic-saved-variant` to a temporary
+working directory before running `npm run autodemo -- export --project <copy>
+--json`, so committed fixture files stay unchanged. A passing run creates and
+inspects:
+
+- `exports/baseline-polish.mp4`
+- `exports/baseline-polish.render.json`
+
+The validation bundle includes the synthetic fixture source media, source
+metadata, saved `baseline-polish` variant metadata, MP4 artifact, render summary,
+and these operator instructions. The fixture is synthetic and non-secret; it is
+not marketing sample content.
+
+Known MVP limitations: local-only checkout packaging, MP4-only export, no audio
+track, no rendered captions/callouts/cursor overlays, approximate browser preview
+rather than exact export parity, and no hosted or registry distribution.
+
 Open a validated project in the local browser editor with:
 
 ```bash
@@ -195,6 +228,7 @@ npm test
 npm run build
 npm run format:check
 npm run validate
+npm run validate:demo-ready
 npm run test:smoke
 ```
 

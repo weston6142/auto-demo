@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "name": "Checkout flow demo",
+  "createdAt": "2026-07-07T00:00:00.000Z",
+  "updatedAt": "2026-07-07T00:00:00.000Z",
+  "sourceCapture": {
+    "kind": "browser",
+    "status": "completed",
+    "source": {
+      "kind": "browser",
+      "url": "https://example.com/checkout"
+    },
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "timing": {
+      "startedAt": "2026-07-07T00:00:00.000Z",
+      "endedAt": "2026-07-07T00:00:06.000Z",
+      "durationMs": 6000
+    },
+    "adapter": {
+      "kind": "browser",
+      "backend": "playwright"
+    },
+    "tools": {
+      "capturePackage": "0.0.0",
+      "playwright": "1.61.1"
+    },
+    "manifestPath": "metadata/capture.manifest.json"
+  },
+  "media": {
+    "primary": {
+      "kind": "viewport",
+      "path": "raw/capture.webm",
+      "contentType": "video/webm"
+    }
+  },
+  "metadata": {
+    "events": {
+      "path": "metadata/events.jsonl",
+      "contentType": "application/x-ndjson"
+    }
+  },
+  "variants": [
+    {
+      "id": "baseline-polish",
+      "displayName": "Baseline Polish",
+      "source": {
+        "mediaPath": "raw/capture.webm",
+        "eventsPath": "metadata/events.jsonl"
+      },
+      "timeline": {
+        "startMs": 0,
+        "endMs": 6000
+      },
+      "viewport": {
+        "mode": "contain",
+        "focus": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "zoom": 1
+      },
+      "cursor": {
+        "visible": true,
+        "emphasis": "spotlight"
+      },
+      "clicks": {
+        "emphasis": "ring"
+      },
+      "captions": [],
+      "callouts": [],
+      "style": {
+        "background": "solid",
+        "backgroundColor": "#0f172a",
+        "frame": "browser",
+        "padding": 48,
+        "cornerRadius": 16
+      },
+      "exportIntent": {
+        "format": "mp4",
+        "quality": "demo",
+        "aspectRatio": "16:9"
+      }
+    }
+  ],
+  "previews": [],
+  "exports": []
+}

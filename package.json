@@ -15,6 +15,7 @@
     "test:smoke": "npm --workspace @auto-demo/capture run test:smoke",
     "setup:browser": "npm --workspace @auto-demo/capture run setup:browser --",
     "autodemo": "node packages/cli/dist/index.js",
+    "validate:demo-ready": "node scripts/validate-demo-ready-export.mjs",
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write .",
