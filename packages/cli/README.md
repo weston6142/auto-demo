@@ -32,7 +32,7 @@ The current clean-checkout operator and agent contract is:
 npm run autodemo -- <subcommand...>
 ```
 
-WES-164 owns this repo-root wrapper contract for the existing CLI surface.
+WES-164 provides this repo-root wrapper contract for the existing CLI surface.
 
 The package-local fallback remains available for direct CLI workspace
 diagnostics:
