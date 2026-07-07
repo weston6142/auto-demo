@@ -29,7 +29,15 @@ for "Checkout flow demo" at `https://example.com/checkout`, 1280x720 source
 viewport media, one saved `baseline-polish` variant, and
 `exportIntent: { format: "mp4", quality: "demo", aspectRatio: "16:9" }`.
 
-`renderSavedVariant()` and `autodemo export --project <project> --json` write:
+`renderSavedVariant()` and the repo-root clean-checkout wrapper write the export
+artifacts:
+
+```bash
+npm run autodemo -- export --project <project> --json
+```
+
+The logical CLI subcommand is `autodemo export --project <project> --json`.
+Both paths write:
 
 - `exports/baseline-polish.mp4`
 - `exports/baseline-polish.render.json`

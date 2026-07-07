@@ -15,9 +15,15 @@ The editor provides the local Browser Editor slices from WES-157, WES-158, and W
 - Unsupported methods return `405`; unknown paths return `404`.
 - Valid projects show source metadata, saved/generated variants, an approximate preview, local draft controls for trim, viewport, captions, callouts, cursor/click emphasis, and direct style fields, and save controls for updating the selected variant or saving a named copy.
 - Invalid projects show stable operator-readable validation errors.
-- Projects without saved variants point operators to `autodemo generate --project <project> --json --save all`.
+- Projects without saved variants point operators to `npm run autodemo -- generate --project <project> --json --save all`.
 
-Run the editor through the CLI:
+Run the editor through the repo-root clean-checkout wrapper:
+
+```bash
+npm run autodemo -- open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
+```
+
+The logical CLI subcommand is:
 
 ```bash
 autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
@@ -25,4 +31,4 @@ autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] 
 
 `--no-browser` is currently a no-op compatibility flag; this slice prints the local URL but does not auto-open a browser.
 
-The preview intentionally uses approximate browser review fidelity. Successful update/copy saves refresh from `/api/project` so the saved variant is immediately selectable. Agent handoffs can start the same local editor through `autodemo agent run --project <project-dir-or-manifest> --open-editor --json`. Saved variants can be rendered through `autodemo export --project <project-dir-or-manifest> --json`. Exact browser/export parity, named preset pickers, browser auto-launch, autosave, hosted sync, and hosted deployment remain deferred.
+The preview intentionally uses approximate browser review fidelity. Successful update/copy saves refresh from `/api/project` so the saved variant is immediately selectable. Agent handoffs can start the same local editor through `npm run autodemo -- agent run --project <project-dir-or-manifest> --open-editor --json`. Saved variants can be rendered through `npm run autodemo -- export --project <project-dir-or-manifest> --json`. Exact browser/export parity, named preset pickers, browser auto-launch, autosave, hosted sync, and hosted deployment remain deferred.

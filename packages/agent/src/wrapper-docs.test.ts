@@ -33,6 +33,8 @@ describe("agent wrapper documentation", () => {
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
 
+    expect(skill).toContain("npm run autodemo -- <subcommand...>");
+    expect(skill).toContain("npm --workspace @auto-demo/cli run autodemo -- <subcommand...>");
     expect(skill).toContain("autodemo agent run --project <project-dir-or-manifest> --json");
     expect(skill).toContain("--variant <variant-id>");
     expect(skill).toContain("--generate baseline");
@@ -41,6 +43,18 @@ describe("agent wrapper documentation", () => {
     expect(skill).toContain("--open-editor");
     expect(skill).toContain("Do not inspect or rewrite Auto Demo project internals");
     expect(skill).toContain("MP4 export");
+  });
+
+  it("documents the repo-root clean-checkout wrapper in agent-facing docs", async () => {
+    const rootAgents = await readRootDoc("AGENTS.md");
+    const agentReadme = await readAgentDoc("README.md");
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const parity = await readAgentDoc("claude-wrapper-parity.md");
+    const combined = [rootAgents, agentReadme, skill, parity].join("\n");
+
+    expect(combined).toContain("npm run autodemo -- <subcommand...>");
+    expect(combined).toContain("npm --workspace @auto-demo/cli run autodemo -- <subcommand...>");
+    expect(combined).not.toContain("before the WES-164 repo-root wrapper lands");
   });
 
   it("includes a happy-path Codex transcript with parseable JSON output", async () => {

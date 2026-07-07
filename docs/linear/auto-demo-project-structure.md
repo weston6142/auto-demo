@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Project
 
@@ -59,6 +59,8 @@ Last updated: 2026-07-06
 - WES-167 export preset and validation fixture implementation plan: `docs/superpowers/plans/2026-07-06-wes-167-export-preset-validation-fixture.md`
 - WES-168 MVP packaging and distribution target design spec: `docs/superpowers/specs/2026-07-06-wes-168-mvp-packaging-distribution-target-design.md`
 - WES-168 MVP packaging and distribution target implementation plan: `docs/superpowers/plans/2026-07-06-wes-168-mvp-packaging-distribution-target.md`
+- WES-164 local entrypoints design spec: `docs/superpowers/specs/2026-07-06-wes-164-local-entrypoints-design.md`
+- WES-164 local entrypoints implementation plan: `docs/superpowers/plans/2026-07-06-wes-164-local-entrypoints.md`
 - WES-163 MP4 render artifacts design spec: `docs/superpowers/specs/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts-design.md`
 - WES-163 MP4 render artifacts implementation plan: `docs/superpowers/plans/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
@@ -79,7 +81,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-168 completion: WES-164, because the packaging target decision narrows the clean-checkout command surface and validation path before WES-165.
+Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task after WES-164 completion: WES-165, because it validates the clean-checkout run path and demo-ready operator instructions.
 
 ## Issues By Milestone
 
@@ -140,10 +142,10 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 
 - WES-139: Milestone 8: Export and packaging - Backlog - https://linear.app/weston-bushyeager/issue/WES-139/milestone-8-export-and-packaging
 - WES-163: Render saved variants to MP4 artifacts - Done - https://linear.app/weston-bushyeager/issue/WES-163/render-saved-variants-to-mp4-artifacts
-- WES-164: Package CLI and browser editor entrypoints for local installation - Backlog - https://linear.app/weston-bushyeager/issue/WES-164/package-cli-and-browser-editor-entrypoints-for-local-installation
+- WES-164: Package CLI and browser editor entrypoints for local installation - Done - https://linear.app/weston-bushyeager/issue/WES-164/package-cli-and-browser-editor-entrypoints-for-local-installation
 - WES-165: Validate demo-ready export bundle and operator instructions - Backlog - https://linear.app/weston-bushyeager/issue/WES-165/validate-demo-ready-export-bundle-and-operator-instructions
 - WES-167: Open question: choose MVP export preset and validation fixture - Done - https://linear.app/weston-bushyeager/issue/WES-167/open-question-choose-mvp-export-preset-and-validation-fixture
-- WES-168: Open question: decide MVP packaging and distribution target - In Progress - https://linear.app/weston-bushyeager/issue/WES-168/open-question-decide-mvp-packaging-and-distribution-target
+- WES-168: Open question: decide MVP packaging and distribution target - Done - https://linear.app/weston-bushyeager/issue/WES-168/open-question-decide-mvp-packaging-and-distribution-target
 
 ## Investigation Notes
 
@@ -286,6 +288,10 @@ capture-dir/
 - 2026-07-06 WES-163 pre-task sync: Linear and the local map agree WES-163 is the first incomplete unblocked Export And Packaging implementation issue after WES-167. WES-163 was moved to In Progress on branch `fm/wes-163-mp4-render`. The selected scope is local MP4 rendering for saved variants through `@auto-demo/render` and `autodemo export --project <project-dir-or-manifest> --json`, using `mp4-demo`, `exports/<variant-id>.mp4`, and `exports/<variant-id>.render.json`; hosted/batch rendering, non-MP4, overlays/audio, exact preview parity, packaging, and WES-165 demo validation remain deferred.
 - 2026-07-06 WES-163 completion-gate sync: PR #27 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `00da8620`. `@auto-demo/render` now exports the `mp4-demo` preset and `renderSavedVariant()`, renders saved variants through a local ffmpeg runner, trims output to `variant.timeline`, writes `exports/<variant-id>.mp4` plus `exports/<variant-id>.render.json`, and preserves structured non-secret JSON failures for invalid projects, missing variants/media, unsupported presets/intents, renderer failures, path collisions, symlink escapes, hard-linked export targets, runner throws, and summary write failures. `autodemo export --project <project-dir-or-manifest> --json [--variant <id>] [--preset mp4-demo]` exposes the behavior. WES-165 is unblocked on MP4 generation but remains blocked by WES-164 packaging; WES-168 is the next product task to decide packaging target before WES-164.
 - 2026-07-06 WES-168 pre-task sync: Linear and local repo evidence agree WES-168 is the next unblocked Export And Packaging task after WES-163 because WES-165 still depends on WES-164 and WES-164 needs an explicit packaging target. WES-168 was moved to In Progress on branch `fm/auto-demo-next-ship-d4`. Repo-root `npm exec autodemo -- --help` currently falls through to the public registry, while `npm --workspace @auto-demo/cli run autodemo -- --help` works; the selected MVP target is a clean local checkout run path on macOS with Node 22.x, npm 10, Playwright Chromium setup, and `ffmpeg`, not a published package or standalone distribution artifact.
+- 2026-07-06 WES-168 completion sync: Linear shows WES-168 as Done with PR #28 evidence. The clean local checkout target is now the accepted packaging decision, so WES-164 is unblocked to implement the repo-root wrapper and clean-checkout docs before WES-165 validates the demo-ready bundle.
+- 2026-07-06 WES-164 pre-task sync: Linear and local project map agreed WES-164 is the first incomplete unblocked Export And Packaging implementation issue after WES-168. WES-164 was moved to In Progress on branch `fm/wes-164`. Approved scope is the repo-root `npm run autodemo -- <subcommand...>` wrapper, current clean-checkout docs for CLI/editor/export/agent commands, and behavior tests that verify public command output. Registry publication, Homebrew, standalone artifacts, and WES-165 end-to-end demo validation remain deferred.
+- 2026-07-06 WES-164 local implementation note: root `package.json` now exposes `npm run autodemo -- <subcommand...>` by running the built CLI at `packages/cli/dist/index.js`. Root README, CLI README, and CONTRIBUTING now document the root wrapper as the current clean-checkout contract while retaining the workspace-scoped CLI command as a package-local diagnostic fallback. Packaging docs tests verify the documented wrapper reaches CLI help and `export --help`.
+- 2026-07-06 WES-164 completion-gate sync: PR #29 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `c2cb7010`. No-mistakes fixed stale agent wrapper docs, the README package summary, and editor/render wrapper documentation so the agent/editor/export surfaces all point to `npm run autodemo -- <subcommand...>` with the workspace-scoped command retained only as a diagnostic fallback. WES-164 completion unblocks WES-165 to validate the documented clean-checkout setup, canonical `fixtures/export/basic-saved-variant`, `npm run autodemo -- export --project <project> --json`, and operator instructions.
 - 2026-07-04 WES-157 completion-gate sync: PR #18 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `287b10bb`. WES-157 completion evidence was added to Linear and the issue was moved to Done. WES-158 received a readiness note that the local editor/project-load entry point is available, with WES-170 still owning the preview-fidelity and MVP finishing-control decision before WES-158 implementation.
 - WES-157: Local browser editor project loading completed in PR #18. `autodemo open --project <project-dir-or-manifest>` starts the local review-only editor server, `@auto-demo/editor` loads validated project summaries through `@auto-demo/project`, `/api/project` returns operator-facing success or validation-error JSON, and the static editor lists saved/generated variants or shows empty-variant generation guidance.
 - WES-157 verification: TDD red checks failed first for missing `loadEditorProject()`/`startEditorServer()` exports and unimplemented CLI `open` routing; after implementation, focused editor/CLI tests passed, local `npm run validate` passed, and no-mistakes PR #18 passed GitHub CI `validate` on head `287b10bb`.
