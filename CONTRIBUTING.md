@@ -16,8 +16,13 @@ For capture development or browser smoke tests, install Playwright's Chromium br
 npm run setup:browser
 ```
 
-Until the repo-root `npm run autodemo -- <subcommand...>` wrapper lands, run the
-local CLI from a clean checkout with:
+After setup and build, run the local CLI from a clean checkout with:
+
+```bash
+npm run autodemo -- <subcommand...>
+```
+
+When debugging the CLI workspace directly, the package-local fallback is:
 
 ```bash
 npm --workspace @auto-demo/cli run autodemo -- <subcommand...>

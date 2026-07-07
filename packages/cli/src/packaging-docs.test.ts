@@ -88,6 +88,7 @@ describe("CLI packaging decision documentation", () => {
   it("documents a current clean-checkout CLI invocation that reaches the built CLI", async () => {
     const rootReadme = await readRootDoc("README.md");
     const documentedInvocation = extractCurrentInvocation(rootReadme);
+    expect(documentedInvocation).toBe("npm run autodemo -- <subcommand...>");
     const helpInvocation = documentedInvocation.replace("<subcommand...>", "--help");
     const [command, ...args] = helpInvocation.split(/\s+/);
 
@@ -100,5 +101,16 @@ describe("CLI packaging decision documentation", () => {
     expect(result.stdout).toContain("autodemo");
     expect(result.stdout).toContain("capture");
     expect(result.stdout).toContain("export");
+  }, 20_000);
+
+  it("routes export help through the repo-root autodemo wrapper", () => {
+    const result = spawnSync("npm", ["run", "autodemo", "--", "export", "--help"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("Usage: autodemo export");
+    expect(result.stdout).toContain("--preset mp4-demo");
   }, 20_000);
 });

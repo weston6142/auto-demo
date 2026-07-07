@@ -41,14 +41,13 @@ npm run setup:browser
 The current clean-checkout invocation contract is:
 
 ```bash
-npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
+npm run autodemo -- <subcommand...>
 ```
 
-WES-164 owns adding and documenting one repo-root wrapper for the same CLI
-surface. The intended future wrapper is:
+The package-local fallback remains available for diagnostics:
 
 ```bash
-npm run autodemo -- <subcommand...>
+npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
 ```
 
 Registry publication, Homebrew, native installers, bundled standalone tarballs,
@@ -66,8 +65,7 @@ and other standalone distribution artifact work are deferred from the MVP.
 
 ## CLI
 
-Until WES-164 lands the repo-root wrapper, run the logical `autodemo`
-subcommands below through the workspace-scoped invocation above.
+Run the logical `autodemo` subcommands below through the repo-root wrapper:
 
 ```bash
 autodemo init
@@ -201,6 +199,10 @@ npm run test:smoke
 ```
 
 Run `npm run setup:browser` before `npm run test:smoke` when Playwright's Chromium browser is not already installed.
+Use `npm run autodemo -- <subcommand...>` from the repo root after
+`npm run build` to exercise the local CLI. The package-local fallback
+`npm --workspace @auto-demo/cli run autodemo -- <subcommand...>` is available
+when debugging the CLI workspace directly.
 
 Tests should verify behavior and user-facing outputs rather than implementation details.
 
