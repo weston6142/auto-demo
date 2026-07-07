@@ -79,7 +79,6 @@ payloads, typed values, or arbitrary renderer output.
 
 Non-MP4 formats, hosted rendering, batch rendering infrastructure, package
 distribution, curated marketing samples, and distinct high-fidelity production
-presets are deferred until after the first local MP4 export path is validated.
-Exact browser preview parity, rendered overlays for captions/callouts/cursor or
-click emphasis, audio tracks, and demo-ready bundle validation remain follow-up
-work.
+presets remain deferred beyond the first local MP4 export validation path. Exact
+browser preview parity, rendered overlays for captions/callouts/cursor or click
+emphasis, and audio tracks remain follow-up work.
