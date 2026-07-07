@@ -174,7 +174,7 @@ preset keys, unsupported non-MP4 export intent, and renderer failure. Non-MP4
 formats, hosted rendering, package distribution, curated marketing samples, and
 distinct high-fidelity production presets remain deferred. Exact browser preview
 parity, overlay rendering for captions/callouts/cursor emphasis, audio tracks,
-and demo-ready bundle validation remain follow-up work.
+and curated launch-ready bundle content remain follow-up work.
 
 ## Demo-Ready Export Validation
 
