@@ -1,0 +1,41 @@
+{
+  "id": "baseline-polish",
+  "displayName": "Baseline Polish",
+  "source": {
+    "mediaPath": "raw/capture.webm",
+    "eventsPath": "metadata/events.jsonl"
+  },
+  "timeline": {
+    "startMs": 0,
+    "endMs": 6000
+  },
+  "viewport": {
+    "mode": "contain",
+    "focus": {
+      "x": 0.5,
+      "y": 0.5
+    },
+    "zoom": 1
+  },
+  "cursor": {
+    "visible": true,
+    "emphasis": "spotlight"
+  },
+  "clicks": {
+    "emphasis": "ring"
+  },
+  "captions": [],
+  "callouts": [],
+  "style": {
+    "background": "solid",
+    "backgroundColor": "#0f172a",
+    "frame": "browser",
+    "padding": 48,
+    "cornerRadius": 16
+  },
+  "exportIntent": {
+    "format": "mp4",
+    "quality": "demo",
+    "aspectRatio": "16:9"
+  }
+}

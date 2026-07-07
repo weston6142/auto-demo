@@ -51,6 +51,21 @@ The default local runner shells out to `ffmpeg`, scales and pads the source
 media into the target dimensions, encodes H.264 video, and omits audio. Tests
 and future integrations can inject a runner for deterministic rendering behavior.
 
+## Demo-Ready Validation
+
+Run the WES-165 operator validation from the repository root:
+
+```bash
+npm run validate:demo-ready
+```
+
+The command requires `ffmpeg` and `ffprobe` on `PATH`, copies
+`fixtures/export/basic-saved-variant`, runs the repo-root wrapper export command,
+and verifies `exports/baseline-polish.mp4` plus
+`exports/baseline-polish.render.json`. The fixture is synthetic, local-only, and
+MP4-only; audio tracks, rendered captions/callouts/cursor overlays, hosted
+rendering, and registry distribution remain deferred.
+
 ## Failure Contract
 
 Export work should fail with structured, non-secret errors for invalid project
@@ -64,7 +79,6 @@ payloads, typed values, or arbitrary renderer output.
 
 Non-MP4 formats, hosted rendering, batch rendering infrastructure, package
 distribution, curated marketing samples, and distinct high-fidelity production
-presets are deferred until after the first local MP4 export path is validated.
-Exact browser preview parity, rendered overlays for captions/callouts/cursor or
-click emphasis, audio tracks, and demo-ready bundle validation remain follow-up
-work.
+presets remain deferred beyond the first local MP4 export validation path. Exact
+browser preview parity, rendered overlays for captions/callouts/cursor or click
+emphasis, and audio tracks remain follow-up work.

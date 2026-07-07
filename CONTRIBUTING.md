@@ -1,7 +1,8 @@
 # Contributing
 
 Auto Demo uses npm workspaces and TypeScript. The MVP clean-checkout path is
-macOS with Node 22.x, npm 10, Playwright Chromium, and `ffmpeg` on `PATH`.
+macOS with Node 22.x, npm 10, Playwright Chromium, and `ffmpeg` plus `ffprobe`
+on `PATH`.
 
 ## Setup
 
@@ -36,9 +37,11 @@ npm run lint
 npm test
 npm run build
 npm run format:check
+npm run validate:demo-ready
 ```
 
-Run `npm run validate` before opening a pull request.
+Run `npm run validate` before opening a pull request. Run
+`npm run validate:demo-ready` for export bundle or operator-instruction changes.
 
 ## Testing Guidance
 

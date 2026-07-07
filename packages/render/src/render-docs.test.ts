@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { loadProject } from "@auto-demo/project";
 import { describe, expect, it } from "vitest";
 
 const renderRoot =
@@ -15,8 +16,12 @@ async function readRootDoc(relativePath: string): Promise<string> {
   return await readFile(join(repoRoot, relativePath), "utf8");
 }
 
+async function readFixtureProject() {
+  return await loadProject(join(repoRoot, "fixtures", "export", "basic-saved-variant"));
+}
+
 function normalizeWhitespace(markdown: string): string {
-  return markdown.replace(/\s+/g, " ");
+  return markdown.replace(/`/g, "").replace(/\s+/g, " ");
 }
 
 describe("render export decision documentation", () => {
@@ -58,6 +63,66 @@ describe("render export decision documentation", () => {
       "distinct high-fidelity production presets",
     ]) {
       expect(combined).toContain(deferral);
+    }
+  });
+
+  it("ships the canonical demo-ready saved-variant fixture", async () => {
+    const loaded = await readFixtureProject();
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) {
+      throw new Error(loaded.errors.map((error) => error.message).join("\n"));
+    }
+
+    expect(loaded.manifest.name).toBe("Checkout flow demo");
+    expect(loaded.manifest.sourceCapture.source).toEqual({
+      kind: "browser",
+      url: "https://example.com/checkout",
+    });
+    expect(loaded.manifest.media.primary.path).toBe("raw/capture.webm");
+    expect(loaded.manifest.metadata.events.path).toBe("metadata/events.jsonl");
+
+    const variant = loaded.manifest.variants.find(
+      (candidate) => candidate.id === "baseline-polish",
+    );
+    expect(variant).toBeDefined();
+    expect(variant?.displayName).toBe("Baseline Polish");
+    expect(variant?.source).toEqual({
+      mediaPath: "raw/capture.webm",
+      eventsPath: "metadata/events.jsonl",
+    });
+    expect(variant?.exportIntent).toEqual({
+      format: "mp4",
+      quality: "demo",
+      aspectRatio: "16:9",
+    });
+
+    const media = await stat(join(loaded.projectDir, "raw", "capture.webm"));
+    expect(media.size).toBeGreaterThan(0);
+    expect(await readdir(join(loaded.projectDir, "exports"))).toEqual([".gitkeep"]);
+  });
+
+  it("documents the repeatable demo-ready export validation command", async () => {
+    const renderReadme = normalizeWhitespace(await readRenderDoc("README.md"));
+    const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
+    const combined = `${renderReadme} ${rootReadme}`;
+
+    for (const required of [
+      "npm run validate:demo-ready",
+      "npm install",
+      "npm run build",
+      "npm run setup:browser",
+      "ffmpeg",
+      "ffprobe",
+      "copies fixtures/export/basic-saved-variant",
+      "exports/baseline-polish.mp4",
+      "exports/baseline-polish.render.json",
+      "synthetic fixture",
+      "MP4-only",
+      "no audio track",
+      "no rendered captions",
+      "local-only checkout",
+    ]) {
+      expect(combined).toContain(required);
     }
   });
 });

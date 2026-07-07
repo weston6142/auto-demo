@@ -1,0 +1,2 @@
+{"id":"event-1","sequence":1,"type":"navigation","timestampMs":0,"viewport":{"width":1280,"height":720},"data":{"url":"https://example.com/checkout"}}
+{"id":"event-2","sequence":2,"type":"click","timestampMs":1200,"viewport":{"width":1280,"height":720},"data":{"x":640,"y":360}}
