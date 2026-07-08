@@ -782,7 +782,7 @@ function parseAgentPlanCommand(args: string[]): ParsedAgentPlanCommand {
     }
 
     errors.push({
-      code: "unsupported_plan_mode",
+      code: "unknown_agent_argument",
       message: `Unknown agent plan argument: ${arg}`,
     });
   }
@@ -835,7 +835,7 @@ function parseAgentPlanOptionValue(
   const value = args[index + 1];
   if (value === undefined || value.startsWith("--")) {
     errors.push({
-      code: option === "--mode" ? "unsupported_plan_mode" : "missing_script",
+      code: agentPlanMissingValueCode(option),
       message: `Missing value for agent plan argument: ${option}`,
     });
     return undefined;
@@ -844,12 +844,25 @@ function parseAgentPlanOptionValue(
   return value;
 }
 
+function agentPlanMissingValueCode(option: string): WalkthroughPlanError["code"] {
+  if (option === "--url") {
+    return "missing_target_url";
+  }
+
+  if (option === "--mode") {
+    return "unsupported_plan_mode";
+  }
+
+  return "missing_script";
+}
+
 function sortWalkthroughPlanErrors(errors: WalkthroughPlanError[]): WalkthroughPlanError[] {
   const order: Record<WalkthroughPlanError["code"], number> = {
     missing_target_url: 1,
     invalid_target_url: 2,
     missing_script: 3,
     unsupported_plan_mode: 4,
+    unknown_agent_argument: 5,
   };
   return [...errors].sort((left, right) => order[left.code] - order[right.code]);
 }

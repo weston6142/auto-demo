@@ -146,7 +146,11 @@ export type WalkthroughPlan = {
 };
 
 export type WalkthroughPlanErrorCode =
-  "missing_target_url" | "invalid_target_url" | "missing_script" | "unsupported_plan_mode";
+  | "missing_target_url"
+  | "invalid_target_url"
+  | "missing_script"
+  | "unsupported_plan_mode"
+  | "unknown_agent_argument";
 
 export type WalkthroughPlanError = {
   code: WalkthroughPlanErrorCode;

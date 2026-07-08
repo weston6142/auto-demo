@@ -603,6 +603,47 @@ describe("runCliAsync agent", () => {
       { code: "unsupported_plan_mode", message: expect.any(String) },
     ]);
   });
+
+  it("reports a missing walkthrough plan URL value as missing_target_url", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "--script",
+      "Click Get started",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toContainEqual({
+      code: "missing_target_url",
+      message: expect.any(String),
+    });
+  });
+
+  it("reports unknown walkthrough plan arguments distinctly from mode validation", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com",
+      "--script",
+      "Click Get started",
+      "--wat",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([
+      { code: "unknown_agent_argument", message: expect.any(String) },
+    ]);
+  });
 });
 
 describe("runCliAsync generate", () => {
