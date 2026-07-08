@@ -138,4 +138,27 @@ describe("agent wrapper documentation", () => {
     expect(combined).toContain("hosted services");
     expect(combined).toContain("final MP4 export");
   });
+
+  it("publishes walkthrough plan fixtures for simple and ambiguous scripts", async () => {
+    const simple = JSON.parse(await readAgentDoc("fixtures/walkthrough-plan-simple.json")) as {
+      ok: boolean;
+      plan: { state: string; steps: Array<{ action: string }>; questions: unknown[] };
+    };
+    const ambiguous = JSON.parse(
+      await readAgentDoc("fixtures/walkthrough-plan-ambiguous.json"),
+    ) as {
+      ok: boolean;
+      plan: { state: string; steps: Array<{ action: string }>; questions: unknown[] };
+    };
+
+    expect(simple.ok).toBe(true);
+    expect(simple.plan.state).toBe("draft");
+    expect(simple.plan.steps.map((step) => step.action)).toEqual(["navigate", "click", "assert"]);
+    expect(simple.plan.questions).toEqual([]);
+
+    expect(ambiguous.ok).toBe(true);
+    expect(ambiguous.plan.state).toBe("needs-clarification");
+    expect(ambiguous.plan.steps.map((step) => step.action)).toContain("question");
+    expect(ambiguous.plan.questions.length).toBeGreaterThan(0);
+  });
 });

@@ -63,6 +63,8 @@ Last updated: 2026-07-07
 - WES-164 local entrypoints implementation plan: `docs/superpowers/plans/2026-07-06-wes-164-local-entrypoints.md`
 - WES-165 demo-ready export validation design spec: `docs/superpowers/specs/2026-07-07-wes-165-demo-ready-export-validation-design.md`
 - WES-165 demo-ready export validation implementation plan: `docs/superpowers/plans/2026-07-07-wes-165-demo-ready-export-validation.md`
+- WES-181 script intake walkthrough plan contract design spec: `docs/superpowers/specs/2026-07-07-wes-181-script-intake-walkthrough-plan-contract-design.md`
+- WES-181 script intake walkthrough plan contract implementation plan: `docs/superpowers/plans/2026-07-07-wes-181-script-intake-walkthrough-plan-contract.md`
 - WES-163 MP4 render artifacts design spec: `docs/superpowers/specs/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts-design.md`
 - WES-163 MP4 render artifacts implementation plan: `docs/superpowers/plans/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
@@ -83,7 +85,7 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone with incomplete issues. Within that milestone, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task: none in the Auto Demo Balanced MVP map; all listed milestone children are complete after WES-165.
+Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task: WES-181, because the post-MVP script-to-recorded-demo workflow starts with the walkthrough plan contract before validation, approval, execution, and project handoff.
 
 ## Issues By Milestone
 
@@ -148,6 +150,17 @@ Prefer the earliest milestone with incomplete issues. Within that milestone, pre
 - WES-165: Validate demo-ready export bundle and operator instructions - Done - https://linear.app/weston-bushyeager/issue/WES-165/validate-demo-ready-export-bundle-and-operator-instructions
 - WES-167: Open question: choose MVP export preset and validation fixture - Done - https://linear.app/weston-bushyeager/issue/WES-167/open-question-choose-mvp-export-preset-and-validation-fixture
 - WES-168: Open question: decide MVP packaging and distribution target - Done - https://linear.app/weston-bushyeager/issue/WES-168/open-question-decide-mvp-packaging-and-distribution-target
+
+### 9. Script-To-Recorded-Demo Workflow
+
+Linear has not assigned these issues to project milestones yet. Treat this group as the next post-MVP workflow after the balanced MVP milestone children.
+
+- WES-176: Script-to-recorded-demo workflow tracker - Backlog - https://linear.app/weston-bushyeager/issue/WES-176/script-to-recorded-demo-workflow-tracker
+- WES-181: Script intake and walkthrough plan contract - Backlog - https://linear.app/weston-bushyeager/issue/WES-181/script-intake-and-walkthrough-plan-contract
+- WES-178: Validate mode for rehearsing user demo scripts - Backlog - https://linear.app/weston-bushyeager/issue/WES-178/validate-mode-for-rehearsing-user-demo-scripts
+- WES-177: Reviewable demo plan approval workflow - Backlog - https://linear.app/weston-bushyeager/issue/WES-177/reviewable-demo-plan-approval-workflow
+- WES-179: Execute approved demo script under browser capture - Backlog - https://linear.app/weston-bushyeager/issue/WES-179/execute-approved-demo-script-under-browser-capture
+- WES-180: Capture-to-project handoff for executed demo scripts - Backlog - https://linear.app/weston-bushyeager/issue/WES-180/capture-to-project-handoff-for-executed-demo-scripts
 
 ## Investigation Notes
 
@@ -296,6 +309,9 @@ capture-dir/
 - 2026-07-06 WES-164 completion-gate sync: PR #29 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `c2cb7010`. No-mistakes fixed stale agent wrapper docs, the README package summary, and editor/render wrapper documentation so the agent/editor/export surfaces all point to `npm run autodemo -- <subcommand...>` with the workspace-scoped command retained only as a diagnostic fallback. WES-164 completion unblocks WES-165 to validate the documented clean-checkout setup, canonical `fixtures/export/basic-saved-variant`, `npm run autodemo -- export --project <project> --json`, and operator instructions.
 - 2026-07-07 WES-165 pre-task sync: Linear and the project map agree WES-165 is the last non-tracker Export And Packaging issue. WES-165 was moved to In Progress on branch `fm/wes-165-demo-ready-export-validation`. The selected scope is the canonical `fixtures/export/basic-saved-variant` project fixture, `npm run validate:demo-ready` operator validation command, expected `exports/baseline-polish.mp4` and `exports/baseline-polish.render.json` artifact checks, and concise MVP limitations; marketing assets, hosted rendering, non-MP4, audio, overlays, and package publication remain deferred.
 - 2026-07-07 WES-165 completion-gate sync: PR #30 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `b4acdcca`. WES-165 added the canonical `fixtures/export/basic-saved-variant` project fixture, `npm run validate:demo-ready`, ffmpeg/ffprobe inspection of `exports/baseline-polish.mp4`, render summary verification for `exports/baseline-polish.render.json`, and operator docs for setup, expected bundle files, and MVP limitations. No-mistakes fixed MP4 contract validation and stale validation-deferral wording. WES-165 and WES-139 were moved to Done; all listed Auto Demo Balanced MVP milestone children are complete.
+- 2026-07-07 pre-task sync for next post-MVP work: Linear shows new Backlog issues WES-176 through WES-181 in the Auto Demo Balanced MVP project, all without Linear milestones. WES-176 is a tracker for the script-to-recorded-demo workflow. The first shippable child is WES-181 because later validation, review/approval, execution, and capture-to-project handoff need a stable walkthrough plan contract. The sync-auditor contract was run inline because the available multi-agent tool requires explicit user authorization before spawning subagents.
+- 2026-07-07 WES-181 readiness: ready for brainstorming. The expected outcome is concrete: define a structured plan shape and lifecycle for target URL plus natural-language script steps, represent resolved browser actions and unresolved questions, make best-guess versus validate-first mode explicit, keep transcript-safe non-secret logging fields, and include fixtures for a simple click-through script and an ambiguous script needing clarification. Credentials automation, arbitrary OS apps, destructive production actions, validation execution, approval workflow, recording execution, and project handoff remain downstream work.
+- 2026-07-07 WES-181 local implementation note: `@auto-demo/agent` now exports `createWalkthroughPlan()` and walkthrough plan types. `autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json` emits deterministic JSON with draft or needs-clarification state, resolved navigate/click/type/wait/assert steps, unresolved questions for ambiguous instructions, public typed-value redaction, and stable planning errors. Fixture docs cover simple and ambiguous scripts.
 - 2026-07-04 WES-157 completion-gate sync: PR #18 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `287b10bb`. WES-157 completion evidence was added to Linear and the issue was moved to Done. WES-158 received a readiness note that the local editor/project-load entry point is available, with WES-170 still owning the preview-fidelity and MVP finishing-control decision before WES-158 implementation.
 - WES-157: Local browser editor project loading completed in PR #18. `autodemo open --project <project-dir-or-manifest>` starts the local review-only editor server, `@auto-demo/editor` loads validated project summaries through `@auto-demo/project`, `/api/project` returns operator-facing success or validation-error JSON, and the static editor lists saved/generated variants or shows empty-variant generation guidance.
 - WES-157 verification: TDD red checks failed first for missing `loadEditorProject()`/`startEditorServer()` exports and unimplemented CLI `open` routing; after implementation, focused editor/CLI tests passed, local `npm run validate` passed, and no-mistakes PR #18 passed GitHub CI `validate` on head `287b10bb`.

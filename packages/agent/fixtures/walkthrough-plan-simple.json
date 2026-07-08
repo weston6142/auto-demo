@@ -1,0 +1,57 @@
+{
+  "ok": true,
+  "plan": {
+    "id": "plan-fixture-simple",
+    "target": {
+      "kind": "browser",
+      "url": "https://example.com/signup"
+    },
+    "mode": "validate-first",
+    "state": "draft",
+    "source": {
+      "script": "Go to https://example.com/signup. Click Get started. Verify the pricing page appears.",
+      "parser": "deterministic-v1"
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "order": 1,
+        "action": "navigate",
+        "resolution": "resolved",
+        "sourceText": "Go to https://example.com/signup.",
+        "public": {
+          "summary": "Go to https://example.com/signup."
+        }
+      },
+      {
+        "id": "step-2",
+        "order": 2,
+        "action": "click",
+        "resolution": "resolved",
+        "sourceText": "Click Get started.",
+        "public": {
+          "summary": "Click Get started."
+        }
+      },
+      {
+        "id": "step-3",
+        "order": 3,
+        "action": "assert",
+        "resolution": "resolved",
+        "sourceText": "Verify the pricing page appears.",
+        "public": {
+          "summary": "Verify the pricing page appears."
+        }
+      }
+    ],
+    "questions": [],
+    "approvals": {
+      "required": true,
+      "approved": false
+    },
+    "execution": {
+      "status": "not-started"
+    },
+    "warnings": []
+  }
+}

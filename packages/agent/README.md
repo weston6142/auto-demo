@@ -71,6 +71,43 @@ remain follow-up work. Demo-ready export validation is covered by
 `npm run validate:demo-ready`, and saved variants can be rendered separately
 through `autodemo export`.
 
+## Walkthrough Plan Intake
+
+`createWalkthroughPlan()` is the WES-181 intake contract for user-described
+browser demo scripts. It accepts a target URL, natural-language script text, and
+a mode of `validate-first` or `best-guess`, then returns deterministic
+JSON-ready plan data for later validation, review, execution, and project
+handoff.
+
+```ts
+import { createWalkthroughPlan } from "@auto-demo/agent";
+
+const result = createWalkthroughPlan({
+  targetUrl: "https://example.com/signup",
+  script: "Go to the signup page. Click Get started. Verify pricing appears.",
+  mode: "validate-first",
+});
+```
+
+The CLI exposes the same first contract:
+
+```bash
+autodemo agent plan --url https://example.com/signup --script "Click Get started" --mode validate-first --json
+```
+
+The deterministic parser recognizes simple browser-oriented steps such as
+navigate, click, type, wait, and assert. Ambiguous instructions are preserved as
+unresolved questions instead of being treated as executable actions. Public type
+step summaries redact typed values, and expected failures use stable error codes
+such as `missing_target_url`, `invalid_target_url`, `missing_script`,
+`unsupported_plan_mode`, `unsupported_agent_output`, and
+`unknown_agent_argument`.
+
+WES-181 intentionally does not validate page state, approve plans, execute
+browser actions, automate credentials, operate arbitrary OS apps, perform
+destructive production actions, record captures, or create projects. Those
+behaviors remain assigned to the downstream script workflow issues.
+
 ## Wrapper Artifacts
 
 - Codex skill wrapper: `skills/codex-auto-demo/SKILL.md`

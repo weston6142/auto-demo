@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { generateHeadlessVariants, type HeadlessVariantGenerationResult } from "@auto-demo/polish";
 import {
   loadProject,
@@ -89,6 +90,79 @@ export type AgentWorkflowResult = AgentWorkflowSummary | AgentWorkflowFailure;
 
 export type AgentWorkflowGenerationResult = HeadlessVariantGenerationResult;
 
+export type WalkthroughPlanMode = "validate-first" | "best-guess";
+export type WalkthroughPlanState = "draft" | "needs-clarification" | "approved" | "executed";
+export type WalkthroughPlanStepAction =
+  "navigate" | "click" | "type" | "wait" | "assert" | "question";
+export type WalkthroughPlanStepResolution = "resolved" | "unresolved";
+
+export type WalkthroughPlanInput = {
+  targetUrl: string;
+  script: string;
+  mode?: WalkthroughPlanMode;
+};
+
+export type WalkthroughPlanQuestion = {
+  id: string;
+  stepId: string;
+  prompt: string;
+  reason: "unrecognized_step";
+};
+
+export type WalkthroughPlanStep = {
+  id: string;
+  order: number;
+  action: WalkthroughPlanStepAction;
+  resolution: WalkthroughPlanStepResolution;
+  sourceText: string;
+  public: {
+    summary: string;
+  };
+  questionId?: string;
+};
+
+export type WalkthroughPlan = {
+  id: string;
+  target: {
+    kind: "browser";
+    url: string;
+  };
+  mode: WalkthroughPlanMode;
+  state: WalkthroughPlanState;
+  source: {
+    script: string;
+    parser: "deterministic-v1";
+  };
+  steps: WalkthroughPlanStep[];
+  questions: WalkthroughPlanQuestion[];
+  approvals: {
+    required: true;
+    approved: false;
+  };
+  execution: {
+    status: "not-started";
+  };
+  warnings: Array<{ code: string; message: string }>;
+};
+
+export type WalkthroughPlanErrorCode =
+  "missing_target_url" | "invalid_target_url" | "missing_script" | "unsupported_plan_mode";
+
+export type WalkthroughPlanError = {
+  code: WalkthroughPlanErrorCode;
+  message: string;
+};
+
+export type WalkthroughPlanResult =
+  | {
+      ok: true;
+      plan: WalkthroughPlan;
+    }
+  | {
+      ok: false;
+      errors: WalkthroughPlanError[];
+    };
+
 export type AgentWorkflowDependencies = {
   loadProject?: typeof loadProject;
   generateHeadlessVariants?: typeof generateHeadlessVariants;
@@ -99,6 +173,104 @@ export type AgentWorkflowDependencies = {
 };
 
 const activeEditorHandoffs = new Set<() => Promise<void>>();
+
+export function createWalkthroughPlan(input: WalkthroughPlanInput): WalkthroughPlanResult {
+  const mode = input.mode ?? "validate-first";
+  const errors: WalkthroughPlanError[] = [];
+  const targetUrl = input.targetUrl.trim();
+  const script = input.script.trim();
+
+  if (targetUrl.length === 0) {
+    errors.push({
+      code: "missing_target_url",
+      message: "Walkthrough plan requires --url <target-url>.",
+    });
+  } else if (!isHttpUrl(targetUrl)) {
+    errors.push({
+      code: "invalid_target_url",
+      message: "Walkthrough plan target URL must be an absolute http(s) URL.",
+    });
+  }
+
+  if (script.length === 0) {
+    errors.push({
+      code: "missing_script",
+      message: "Walkthrough plan requires non-empty script text.",
+    });
+  }
+
+  if (!isWalkthroughPlanMode(mode)) {
+    errors.push({
+      code: "unsupported_plan_mode",
+      message: "Walkthrough plan mode must be validate-first or best-guess.",
+    });
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  const normalizedSteps = splitScript(script);
+  const questions: WalkthroughPlanQuestion[] = [];
+  const steps = normalizedSteps.map((stepText, index): WalkthroughPlanStep => {
+    const stepId = `step-${index + 1}`;
+    const normalized = normalizeStep(stepText);
+    if (normalized.action !== "question") {
+      return {
+        id: stepId,
+        order: index + 1,
+        action: normalized.action,
+        resolution: "resolved",
+        sourceText: stepText,
+        public: { summary: normalized.summary },
+      };
+    }
+
+    const question: WalkthroughPlanQuestion = {
+      id: `question-${index + 1}`,
+      stepId,
+      prompt: `Clarify how to perform: ${stepText}`,
+      reason: "unrecognized_step",
+    };
+    questions.push(question);
+    return {
+      id: stepId,
+      order: index + 1,
+      action: "question",
+      resolution: "unresolved",
+      sourceText: stepText,
+      public: { summary: question.prompt },
+      questionId: question.id,
+    };
+  });
+
+  return {
+    ok: true,
+    plan: {
+      id: planId(targetUrl, script, mode),
+      target: { kind: "browser", url: targetUrl },
+      mode,
+      state: questions.length === 0 ? "draft" : "needs-clarification",
+      source: {
+        script,
+        parser: "deterministic-v1",
+      },
+      steps,
+      questions,
+      approvals: { required: true, approved: false },
+      execution: { status: "not-started" },
+      warnings:
+        mode === "best-guess"
+          ? [
+              {
+                code: "best_guess_mode",
+                message: "Best-guess mode may proceed without validation; review before execution.",
+              },
+            ]
+          : [],
+    },
+  };
+}
 
 export async function runAgentWorkflow(
   options: AgentWorkflowOptions,
@@ -295,4 +467,88 @@ function failure(projectPath: string, ...errors: AgentWorkflowError[]): AgentWor
     project: { projectPath },
     errors,
   };
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isWalkthroughPlanMode(value: string): value is WalkthroughPlanMode {
+  return value === "validate-first" || value === "best-guess";
+}
+
+function planId(targetUrl: string, script: string, mode: WalkthroughPlanMode): string {
+  const hash = createHash("sha256")
+    .update(`${targetUrl}\n${mode}\n${script}`)
+    .digest("hex")
+    .slice(0, 12);
+  return `plan-${hash}`;
+}
+
+function splitScript(script: string): string[] {
+  const urls: string[] = [];
+  const protectedScript = script.replace(/https?:\/\/\S+/g, (url) => {
+    const trailing = url.match(/[.!?]$/)?.[0] ?? "";
+    const cleanUrl = trailing.length > 0 ? url.slice(0, -1) : url;
+    const token = `__URL_${urls.length}__`;
+    urls.push(cleanUrl);
+    return `${token}${trailing}`;
+  });
+  const matches = protectedScript.match(/[^.!?\n]+[.!?]?/g) ?? [];
+  return matches
+    .map((step) =>
+      step.trim().replace(/__URL_(\d+)__/g, (_, index: string) => urls[Number(index)] ?? ""),
+    )
+    .filter((step) => step.length > 0);
+}
+
+function normalizeStep(stepText: string): {
+  action: WalkthroughPlanStepAction;
+  summary: string;
+} {
+  if (/^(go to|navigate to)\s+/i.test(stepText) || /^https?:\/\//i.test(stepText)) {
+    return { action: "navigate", summary: stepText };
+  }
+
+  if (/^open\s+/i.test(stepText)) {
+    return { action: "navigate", summary: stepText };
+  }
+
+  if (/^click\s+/i.test(stepText)) {
+    return { action: "click", summary: stepText };
+  }
+
+  if (/^(type|enter|fill)\s+/i.test(stepText)) {
+    return { action: "type", summary: redactTypedValue(stepText) };
+  }
+
+  if (/^wait\s+/i.test(stepText)) {
+    return { action: "wait", summary: stepText };
+  }
+
+  if (/^(see|verify|assert|check)\s+/i.test(stepText)) {
+    return { action: "assert", summary: stepText };
+  }
+
+  return { action: "question", summary: stepText };
+}
+
+function redactTypedValue(stepText: string): string {
+  const typedInto = stepText.match(/^(type|enter|fill)\s+(.+?)\s+into\s+(.+)$/i);
+  if (typedInto !== null) {
+    return `${capitalize(typedInto[1])} [redacted] into ${typedInto[3]}`;
+  }
+
+  return stepText.replace(/^(type|enter|fill)\s+.+$/i, (_, verb: string) => {
+    return `${capitalize(verb)} [redacted]`;
+  });
+}
+
+function capitalize(value: string): string {
+  return `${value.slice(0, 1).toUpperCase()}${value.slice(1).toLowerCase()}`;
 }

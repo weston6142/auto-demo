@@ -539,6 +539,70 @@ describe("runCliAsync agent", () => {
       expect(output.errors.length).toBeGreaterThan(0);
     }
   });
+
+  it("prints a walkthrough plan as JSON", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com/signup",
+      "--script",
+      "Go to https://example.com/signup. Click Get started.",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      plan: { state: string; mode: string; steps: Array<{ action: string }> };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.plan.state).toBe("draft");
+    expect(output.plan.mode).toBe("validate-first");
+    expect(output.plan.steps.map((step) => step.action)).toEqual(["navigate", "click"]);
+  });
+
+  it("requires JSON output for walkthrough planning", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com",
+      "--script",
+      "Click Get started",
+    ]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo agent plan currently requires --json output.\n",
+    });
+  });
+
+  it("returns structured JSON errors for invalid walkthrough plan input", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "notaurl",
+      "--script",
+      "",
+      "--mode",
+      "fast",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([
+      { code: "invalid_target_url", message: expect.any(String) },
+      { code: "missing_script", message: expect.any(String) },
+      { code: "unsupported_plan_mode", message: expect.any(String) },
+    ]);
+  });
 });
 
 describe("runCliAsync generate", () => {
