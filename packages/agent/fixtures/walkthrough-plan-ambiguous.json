@@ -1,7 +1,7 @@
 {
   "ok": true,
   "plan": {
-    "id": "plan-fixture-ambiguous",
+    "id": "plan-e3425b4221ad",
     "target": {
       "kind": "browser",
       "url": "https://example.com"

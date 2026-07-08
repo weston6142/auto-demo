@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createWalkthroughPlan } from "./index.js";
 
 const agentRoot =
   basename(process.cwd()) === "agent" ? process.cwd() : join(process.cwd(), "packages", "agent");
@@ -142,14 +143,43 @@ describe("agent wrapper documentation", () => {
   it("publishes walkthrough plan fixtures for simple and ambiguous scripts", async () => {
     const simple = JSON.parse(await readAgentDoc("fixtures/walkthrough-plan-simple.json")) as {
       ok: boolean;
-      plan: { state: string; steps: Array<{ action: string }>; questions: unknown[] };
+      plan: {
+        state: string;
+        target: { url: string };
+        mode: "validate-first" | "best-guess";
+        source: { script: string };
+        steps: Array<{ action: string }>;
+        questions: unknown[];
+      };
     };
     const ambiguous = JSON.parse(
       await readAgentDoc("fixtures/walkthrough-plan-ambiguous.json"),
     ) as {
       ok: boolean;
-      plan: { state: string; steps: Array<{ action: string }>; questions: unknown[] };
+      plan: {
+        state: string;
+        target: { url: string };
+        mode: "validate-first" | "best-guess";
+        source: { script: string };
+        steps: Array<{ action: string }>;
+        questions: unknown[];
+      };
     };
+
+    expect(simple).toEqual(
+      createWalkthroughPlan({
+        targetUrl: simple.plan.target.url,
+        script: simple.plan.source.script,
+        mode: simple.plan.mode,
+      }),
+    );
+    expect(ambiguous).toEqual(
+      createWalkthroughPlan({
+        targetUrl: ambiguous.plan.target.url,
+        script: ambiguous.plan.source.script,
+        mode: ambiguous.plan.mode,
+      }),
+    );
 
     expect(simple.ok).toBe(true);
     expect(simple.plan.state).toBe("draft");

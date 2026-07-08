@@ -1,7 +1,7 @@
 {
   "ok": true,
   "plan": {
-    "id": "plan-fixture-simple",
+    "id": "plan-e35d556ba92f",
     "target": {
       "kind": "browser",
       "url": "https://example.com/signup"
