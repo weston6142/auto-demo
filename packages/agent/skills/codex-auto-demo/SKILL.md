@@ -1,12 +1,13 @@
 ---
 name: codex-auto-demo
-description: Use when Codex needs to run the Auto Demo agent workflow for a validated project, select or generate a saved variant, open the local editor handoff, or prepare a local MP4 export handoff.
+description: Use when Codex needs to run the Auto Demo agent workflow for a validated project, create a walkthrough plan from a browser demo script, select or generate a saved variant, open the local editor handoff, or prepare a local MP4 export handoff.
 ---
 
 # Auto Demo Codex Workflow
 
 Use this skill when working in an Auto Demo repository or project directory and
-the task is to prepare a demo variant through the agent-facing workflow.
+the task is to prepare a demo variant through the agent-facing workflow or turn
+a browser demo script into a walkthrough plan.
 
 ## Prerequisites
 
@@ -22,6 +23,9 @@ the task is to prepare a demo variant through the agent-facing workflow.
 - Treat `autodemo agent run --project <project-dir-or-manifest> --json` as the
   source of truth. Do not inspect or rewrite Auto Demo project internals to
   duplicate selection, generation, validation, or editor behavior.
+- Treat `autodemo agent plan --url <target-url> --script <script-text> --json`
+  as the source of truth for script intake. Do not invent browser validation,
+  approval, execution, capture, or project-handoff behavior in this wrapper.
 
 ## Primary Command
 
@@ -32,6 +36,22 @@ autodemo agent run --project <project-dir-or-manifest> --json
 The command validates the project, selects a saved variant, and prints one JSON
 handoff summary for agent logs. Parse the JSON result and report the selected
 variant id, variant path, project manifest path, warnings, and next-step hints.
+
+## Walkthrough Plan Intake
+
+When the user provides a target browser URL and natural-language demo script,
+create a plan before validation or capture work:
+
+```bash
+autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
+```
+
+Parse the JSON result and report the plan id, state, resolved step actions,
+unresolved questions, warnings, and approval/execution placeholders. Public type
+step summaries redact typed values. `--mode` defaults to `validate-first`;
+`best-guess` adds a review warning. This command does not validate page state,
+approve plans, execute browser actions, record captures, automate credentials,
+perform destructive production actions, or create Auto Demo projects.
 
 ## Variant Selection
 
@@ -85,11 +105,13 @@ autodemo agent run --project <project-dir-or-manifest> --json --open-editor --ho
 
 Expected failures exit non-zero and still print JSON when `--json` is present.
 Read `errors[].code` and `errors[].message`, then report the stable error code
-and non-secret message. Common codes include `missing_project_path`,
+and non-secret message. Common workflow codes include `missing_project_path`,
 `unsupported_agent_command`, `unsupported_agent_output`,
 `unknown_agent_argument`, `invalid_project`, `missing_variant`,
 `variant_not_found`, `unsupported_generation`, `generation_failed`, and
-`editor_unavailable`.
+`editor_unavailable`. Common planning codes include `missing_target_url`,
+`invalid_target_url`, `missing_script`, `unsupported_plan_mode`, and
+`unknown_agent_argument`.
 
 Do not paste secrets, raw event metadata, typed values, credentials, or full
 manifest contents into task reports. Use the command output's stable fields.
@@ -114,3 +136,6 @@ bundles remain outside this wrapper.
 - Hosted editor or cloud handoff services.
 - Marketplace distribution or local skill installation automation.
 - Demo-ready export bundle validation.
+- Browser validation, plan approval, script execution, capture-to-project
+  handoff, credentials automation, arbitrary OS apps, and destructive production
+  actions for walkthrough plans.
