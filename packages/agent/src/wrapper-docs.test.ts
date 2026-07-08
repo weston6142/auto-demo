@@ -30,6 +30,13 @@ function jsonBlock(markdown: string, marker: string): unknown {
   return JSON.parse(markdown.slice(jsonStart, blockEnd));
 }
 
+function section(markdown: string, heading: string): string {
+  const start = markdown.indexOf(heading);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const nextHeading = markdown.indexOf("\n## ", start + heading.length);
+  return markdown.slice(start, nextHeading === -1 ? undefined : nextHeading);
+}
+
 describe("agent wrapper documentation", () => {
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
@@ -190,5 +197,21 @@ describe("agent wrapper documentation", () => {
     expect(ambiguous.plan.state).toBe("needs-clarification");
     expect(ambiguous.plan.steps.map((step) => step.action)).toContain("question");
     expect(ambiguous.plan.questions.length).toBeGreaterThan(0);
+  });
+
+  it("documents only structured error codes emitted by walkthrough plan intake", async () => {
+    const agentReadme = await readAgentDoc("README.md");
+    const planIntake = section(agentReadme, "## Walkthrough Plan Intake");
+
+    for (const code of [
+      "missing_target_url",
+      "invalid_target_url",
+      "missing_script",
+      "unsupported_plan_mode",
+      "unknown_agent_argument",
+    ]) {
+      expect(planIntake).toContain(code);
+    }
+    expect(planIntake).not.toContain("unsupported_agent_output");
   });
 });

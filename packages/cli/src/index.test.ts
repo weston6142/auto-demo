@@ -563,6 +563,28 @@ describe("runCliAsync agent", () => {
     expect(output.plan.steps.map((step) => step.action)).toEqual(["navigate", "click"]);
   });
 
+  it("redacts typed values from public walkthrough plan steps", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com/login",
+      "--script",
+      "Type hunter2 into the password field.",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      plan: { source: { script: string }; steps: Array<{ sourceText: string }> };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.plan.source.script).toBe("Type hunter2 into the password field.");
+    expect(output.plan.steps[0]?.sourceText).toBe("Type [redacted] into the password field.");
+  });
+
   it("requires JSON output for walkthrough planning", async () => {
     const result = await runCliAsync([
       "agent",

@@ -67,7 +67,7 @@ Successful output:
 }
 ```
 
-Expected failures return `ok: false` with stable error codes such as `missing_target_url`, `invalid_target_url`, `missing_script`, `unsupported_plan_mode`, `unsupported_agent_output`, and `unknown_agent_argument`.
+Expected failures return `ok: false` with stable error codes such as `missing_target_url`, `invalid_target_url`, `missing_script`, `unsupported_plan_mode`, and `unknown_agent_argument`.
 
 ## Testing
 

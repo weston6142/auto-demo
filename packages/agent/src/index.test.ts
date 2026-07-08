@@ -350,6 +350,9 @@ describe("createWalkthroughPlan", () => {
       resolution: "resolved",
       public: { summary: "Type [redacted] into the password field." },
     });
+    expect(result.ok && result.plan.steps[0]?.sourceText).toBe(
+      "Type [redacted] into the password field.",
+    );
   });
 
   it("returns stable errors for invalid intake input", () => {

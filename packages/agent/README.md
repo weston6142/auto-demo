@@ -100,8 +100,7 @@ navigate, click, type, wait, and assert. Ambiguous instructions are preserved as
 unresolved questions instead of being treated as executable actions. Public type
 step summaries redact typed values, and expected failures use stable error codes
 such as `missing_target_url`, `invalid_target_url`, `missing_script`,
-`unsupported_plan_mode`, `unsupported_agent_output`, and
-`unknown_agent_argument`.
+`unsupported_plan_mode`, and `unknown_agent_argument`.
 
 WES-181 intentionally does not validate page state, approve plans, execute
 browser actions, automate credentials, operate arbitrary OS apps, perform

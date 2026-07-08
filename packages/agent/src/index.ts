@@ -225,7 +225,7 @@ export function createWalkthroughPlan(input: WalkthroughPlanInput): WalkthroughP
         order: index + 1,
         action: normalized.action,
         resolution: "resolved",
-        sourceText: stepText,
+        sourceText: normalized.action === "type" ? normalized.summary : stepText,
         public: { summary: normalized.summary },
       };
     }
