@@ -539,6 +539,130 @@ describe("runCliAsync agent", () => {
       expect(output.errors.length).toBeGreaterThan(0);
     }
   });
+
+  it("prints a walkthrough plan as JSON", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com/signup",
+      "--script",
+      "Go to https://example.com/signup. Click Get started.",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      plan: { state: string; mode: string; steps: Array<{ action: string }> };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.plan.state).toBe("draft");
+    expect(output.plan.mode).toBe("validate-first");
+    expect(output.plan.steps.map((step) => step.action)).toEqual(["navigate", "click"]);
+  });
+
+  it("redacts typed values from public walkthrough plan steps", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com/login",
+      "--script",
+      "Type hunter2 into the password field.",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      plan: { source: { script: string }; steps: Array<{ sourceText: string }> };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.plan.source.script).toBe("Type hunter2 into the password field.");
+    expect(output.plan.steps[0]?.sourceText).toBe("Type [redacted] into the password field.");
+  });
+
+  it("requires JSON output for walkthrough planning", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com",
+      "--script",
+      "Click Get started",
+    ]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo agent plan currently requires --json output.\n",
+    });
+  });
+
+  it("returns structured JSON errors for invalid walkthrough plan input", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "notaurl",
+      "--script",
+      "",
+      "--mode",
+      "fast",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([
+      { code: "invalid_target_url", message: expect.any(String) },
+      { code: "missing_script", message: expect.any(String) },
+      { code: "unsupported_plan_mode", message: expect.any(String) },
+    ]);
+  });
+
+  it("reports a missing walkthrough plan URL value as missing_target_url", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "--script",
+      "Click Get started",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([{ code: "missing_target_url", message: expect.any(String) }]);
+  });
+
+  it("reports unknown walkthrough plan arguments distinctly from mode validation", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--url",
+      "https://example.com",
+      "--script",
+      "Click Get started",
+      "--wat",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(false);
+    expect(output.errors).toEqual([
+      { code: "unknown_agent_argument", message: expect.any(String) },
+    ]);
+  });
 });
 
 describe("runCliAsync generate", () => {

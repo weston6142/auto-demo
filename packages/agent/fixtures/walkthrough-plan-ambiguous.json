@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "plan": {
+    "id": "plan-e3425b4221ad",
+    "target": {
+      "kind": "browser",
+      "url": "https://example.com"
+    },
+    "mode": "validate-first",
+    "state": "needs-clarification",
+    "source": {
+      "script": "Open the dashboard. Pick the best option.",
+      "parser": "deterministic-v1"
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "order": 1,
+        "action": "navigate",
+        "resolution": "resolved",
+        "sourceText": "Open the dashboard.",
+        "public": {
+          "summary": "Open the dashboard."
+        }
+      },
+      {
+        "id": "step-2",
+        "order": 2,
+        "action": "question",
+        "resolution": "unresolved",
+        "sourceText": "Pick the best option.",
+        "public": {
+          "summary": "Clarify how to perform: Pick the best option."
+        },
+        "questionId": "question-2"
+      }
+    ],
+    "questions": [
+      {
+        "id": "question-2",
+        "stepId": "step-2",
+        "prompt": "Clarify how to perform: Pick the best option.",
+        "reason": "unrecognized_step"
+      }
+    ],
+    "approvals": {
+      "required": true,
+      "approved": false
+    },
+    "execution": {
+      "status": "not-started"
+    },
+    "warnings": []
+  }
+}

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createWalkthroughPlan } from "./index.js";
 
 const agentRoot =
   basename(process.cwd()) === "agent" ? process.cwd() : join(process.cwd(), "packages", "agent");
@@ -27,6 +28,13 @@ function jsonBlock(markdown: string, marker: string): unknown {
   const blockEnd = markdown.indexOf("```", jsonStart);
   expect(blockEnd).toBeGreaterThan(jsonStart);
   return JSON.parse(markdown.slice(jsonStart, blockEnd));
+}
+
+function section(markdown: string, heading: string): string {
+  const start = markdown.indexOf(heading);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const nextHeading = markdown.indexOf("\n## ", start + heading.length);
+  return markdown.slice(start, nextHeading === -1 ? undefined : nextHeading);
 }
 
 describe("agent wrapper documentation", () => {
@@ -137,5 +145,73 @@ describe("agent wrapper documentation", () => {
     expect(combined).toContain("does not introduce a new project schema");
     expect(combined).toContain("hosted services");
     expect(combined).toContain("final MP4 export");
+  });
+
+  it("publishes walkthrough plan fixtures for simple and ambiguous scripts", async () => {
+    const simple = JSON.parse(await readAgentDoc("fixtures/walkthrough-plan-simple.json")) as {
+      ok: boolean;
+      plan: {
+        state: string;
+        target: { url: string };
+        mode: "validate-first" | "best-guess";
+        source: { script: string };
+        steps: Array<{ action: string }>;
+        questions: unknown[];
+      };
+    };
+    const ambiguous = JSON.parse(
+      await readAgentDoc("fixtures/walkthrough-plan-ambiguous.json"),
+    ) as {
+      ok: boolean;
+      plan: {
+        state: string;
+        target: { url: string };
+        mode: "validate-first" | "best-guess";
+        source: { script: string };
+        steps: Array<{ action: string }>;
+        questions: unknown[];
+      };
+    };
+
+    expect(simple).toEqual(
+      createWalkthroughPlan({
+        targetUrl: simple.plan.target.url,
+        script: simple.plan.source.script,
+        mode: simple.plan.mode,
+      }),
+    );
+    expect(ambiguous).toEqual(
+      createWalkthroughPlan({
+        targetUrl: ambiguous.plan.target.url,
+        script: ambiguous.plan.source.script,
+        mode: ambiguous.plan.mode,
+      }),
+    );
+
+    expect(simple.ok).toBe(true);
+    expect(simple.plan.state).toBe("draft");
+    expect(simple.plan.steps.map((step) => step.action)).toEqual(["navigate", "click", "assert"]);
+    expect(simple.plan.questions).toEqual([]);
+
+    expect(ambiguous.ok).toBe(true);
+    expect(ambiguous.plan.state).toBe("needs-clarification");
+    expect(ambiguous.plan.steps.map((step) => step.action)).toContain("question");
+    expect(ambiguous.plan.questions.length).toBeGreaterThan(0);
+  });
+
+  it("documents only structured error codes emitted by walkthrough plan intake", async () => {
+    const agentReadme = await readAgentDoc("README.md");
+    const planIntake = section(agentReadme, "## Walkthrough Plan Intake");
+
+    for (const code of [
+      "missing_target_url",
+      "invalid_target_url",
+      "missing_script",
+      "unsupported_plan_mode",
+      "unknown_agent_argument",
+    ]) {
+      expect(planIntake).toContain(code);
+    }
+    expect(planIntake).not.toContain("unsupported_agent_output");
   });
 });

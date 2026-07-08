@@ -3,7 +3,11 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runAgentWorkflow, type AgentWorkflowGenerationResult } from "./index.js";
+import {
+  createWalkthroughPlan,
+  runAgentWorkflow,
+  type AgentWorkflowGenerationResult,
+} from "./index.js";
 
 async function createValidProject(
   options: {
@@ -283,6 +287,95 @@ describe("runAgentWorkflow", () => {
         {
           code: "unsupported_generation",
           message: "autodemo agent run supports only --save baseline-polish or --save all.",
+        },
+      ],
+    });
+  });
+});
+
+describe("createWalkthroughPlan", () => {
+  it("creates a draft walkthrough plan for a simple click-through script", () => {
+    const result = createWalkthroughPlan({
+      targetUrl: "https://example.com/signup",
+      script:
+        "Go to https://example.com/signup. Click Get started. Verify the pricing page appears.",
+      mode: "validate-first",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        target: { kind: "browser", url: "https://example.com/signup" },
+        mode: "validate-first",
+        state: "draft",
+        approvals: { required: true, approved: false },
+        execution: { status: "not-started" },
+        questions: [],
+      },
+    });
+    expect(result.ok && result.plan.steps.map((step) => step.action)).toEqual([
+      "navigate",
+      "click",
+      "assert",
+    ]);
+  });
+
+  it("keeps ambiguous script text as an unresolved user question", () => {
+    const result = createWalkthroughPlan({
+      targetUrl: "https://example.com",
+      script: "Open the dashboard. Pick the best option.",
+      mode: "validate-first",
+    });
+
+    expect(result.ok && result.plan.state).toBe("needs-clarification");
+    expect(result.ok && result.plan.questions).toEqual([
+      {
+        id: "question-2",
+        stepId: "step-2",
+        prompt: "Clarify how to perform: Pick the best option.",
+        reason: "unrecognized_step",
+      },
+    ]);
+  });
+
+  it("redacts typed values from public action details", () => {
+    const result = createWalkthroughPlan({
+      targetUrl: "https://example.com/login",
+      script: "Type hunter2 into the password field.",
+      mode: "best-guess",
+    });
+
+    expect(result.ok && result.plan.steps[0]).toMatchObject({
+      action: "type",
+      resolution: "resolved",
+      public: { summary: "Type [redacted] into the password field." },
+    });
+    expect(result.ok && result.plan.steps[0]?.sourceText).toBe(
+      "Type [redacted] into the password field.",
+    );
+  });
+
+  it("returns stable errors for invalid intake input", () => {
+    const result = createWalkthroughPlan({
+      targetUrl: "not a url",
+      script: "   ",
+      mode: "fast" as "validate-first",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid_target_url",
+          message: "Walkthrough plan target URL must be an absolute http(s) URL.",
+        },
+        {
+          code: "missing_script",
+          message: "Walkthrough plan requires non-empty script text.",
+        },
+        {
+          code: "unsupported_plan_mode",
+          message: "Walkthrough plan mode must be validate-first or best-guess.",
         },
       ],
     });

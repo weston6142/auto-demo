@@ -1,8 +1,8 @@
 # @auto-demo/cli
 
 Provides the `autodemo` command and the repo-local command surface for capture,
-generation, local editor handoff, agent workflow orchestration, validation, and
-export.
+generation, local editor handoff, agent workflow orchestration, walkthrough
+plan intake, validation, and export.
 
 ## MVP Packaging Target
 
@@ -47,8 +47,28 @@ The logical `autodemo` subcommands stay the same:
 - `generate`
 - `open`
 - `agent run`
+- `agent plan`
 - `export`
 - `validate`
+
+## Agent Plan Intake
+
+`autodemo agent plan` turns a target browser URL and natural-language demo
+script into deterministic JSON-ready walkthrough plan data:
+
+```bash
+npm run autodemo -- agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
+```
+
+The command currently requires `--json`. `--mode` defaults to `validate-first`;
+`best-guess` preserves the same plan shape and adds a warning for review. Plans
+contain draft or needs-clarification state, resolved navigate, click, type,
+wait, and assert steps, unresolved questions for ambiguous instructions,
+approval and execution placeholders, and public redaction for typed values.
+
+The intake contract does not validate page state, approve plans, execute browser
+actions, record captures, automate credentials, perform destructive production
+actions, or create Auto Demo projects.
 
 ## Deferrals
 
