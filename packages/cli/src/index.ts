@@ -798,7 +798,8 @@ function parseAgentPlanCommand(args: string[]): ParsedAgentPlanCommand {
 
   const validation = createWalkthroughPlan({ targetUrl, script, mode });
   if (!validation.ok) {
-    errors.push(...validation.errors);
+    const parseErrorCodes = new Set(errors.map((error) => error.code));
+    errors.push(...validation.errors.filter((error) => !parseErrorCodes.has(error.code)));
   }
 
   if (errors.length > 0) {

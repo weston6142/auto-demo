@@ -618,10 +618,7 @@ describe("runCliAsync agent", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("");
     expect(output.ok).toBe(false);
-    expect(output.errors).toContainEqual({
-      code: "missing_target_url",
-      message: expect.any(String),
-    });
+    expect(output.errors).toEqual([{ code: "missing_target_url", message: expect.any(String) }]);
   });
 
   it("reports unknown walkthrough plan arguments distinctly from mode validation", async () => {
