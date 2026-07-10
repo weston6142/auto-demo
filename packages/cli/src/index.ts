@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import {
+  createPlaywrightValidationRunner,
   createWalkthroughPlan,
+  isWalkthroughPlan,
   runAgentWorkflow,
+  validateWalkthroughPlan,
   type AgentWorkflowError,
   type AgentWorkflowSaveTarget,
+  type WalkthroughPlan,
   type WalkthroughPlanError,
   type WalkthroughPlanMode,
+  type WalkthroughValidationBrowserRunner,
+  type WalkthroughValidationError,
 } from "@auto-demo/agent";
 import {
   createPlaywrightBrowserCaptureAdapter,
@@ -36,6 +43,7 @@ import {
   type RenderSavedVariantInput,
   type RenderSavedVariantResult,
 } from "@auto-demo/render";
+import { runAgentReviewCommand } from "./agentReviewCommands.js";
 
 export type CliResult = {
   exitCode: number;
@@ -46,6 +54,7 @@ export type CliResult = {
 /** Dependencies that let tests or future integrations run CLI workflows without default process hooks. */
 export type CliDependencies = {
   browserCaptureAdapter: BrowserCaptureAdapter;
+  createValidationRunner?: () => WalkthroughValidationBrowserRunner;
   createInterruptWatcher?: () => InterruptWatcher;
   now: () => Date;
   runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
@@ -133,6 +142,35 @@ type ParsedAgentPlanCommand =
       json: boolean;
       stderr?: string;
       errors: WalkthroughPlanError[];
+    };
+
+type AgentValidateErrorCode =
+  | WalkthroughPlanError["code"]
+  | WalkthroughValidationError["code"]
+  | "missing_plan_file"
+  | "invalid_plan_json"
+  | "missing_validate_input"
+  | "conflicting_validate_input";
+
+type AgentValidateError = {
+  code: AgentValidateErrorCode;
+  message: string;
+};
+
+type ParsedAgentValidateCommand =
+  | {
+      ok: true;
+      json: true;
+      planPath?: string;
+      targetUrl?: string;
+      script?: string;
+      mode: WalkthroughPlanMode;
+    }
+  | {
+      ok: false;
+      json: boolean;
+      stderr?: string;
+      errors: AgentValidateError[];
     };
 
 type ParsedExportCommand =
@@ -325,6 +363,18 @@ export async function runCliAsync(
 }
 
 async function runAgentCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
+  if (args[0] === "review" || args[0] === "refine" || args[0] === "approve") {
+    return await runAgentReviewCommand(args[0], args.slice(1), {
+      now: dependencies.now,
+      createValidationRunner:
+        dependencies.createValidationRunner ?? createPlaywrightValidationRunner,
+    });
+  }
+
+  if (args[0] === "validate") {
+    return await runAgentValidateCommand(args.slice(1), dependencies);
+  }
+
   if (args[0] === "plan") {
     return runAgentPlanCommand(args.slice(1));
   }
@@ -383,6 +433,51 @@ async function runAgentCommand(args: string[], dependencies: CliDependencies): P
   return {
     exitCode: result.ok ? 0 : 1,
     stdout: `${JSON.stringify(result, null, 2)}\n`,
+    stderr: "",
+  };
+}
+
+async function runAgentValidateCommand(
+  args: string[],
+  dependencies: CliDependencies,
+): Promise<CliResult> {
+  const parsed = parseAgentValidateCommand(args);
+  if (!parsed.ok) {
+    if (!parsed.json) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: `${parsed.stderr ?? "Invalid agent validate command."}\n`,
+      };
+    }
+    return jsonFailure(parsed.errors);
+  }
+
+  const planResult =
+    parsed.planPath === undefined
+      ? createWalkthroughPlan({
+          targetUrl: parsed.targetUrl ?? "",
+          script: parsed.script ?? "",
+          mode: parsed.mode,
+        })
+      : await readPlanFile(parsed.planPath);
+  if (!planResult.ok) {
+    return jsonFailure(planResult.errors);
+  }
+
+  const createRunner = dependencies.createValidationRunner ?? createPlaywrightValidationRunner;
+  const validation = await validateWalkthroughPlan(
+    planResult.plan,
+    { now: dependencies.now },
+    { browser: createRunner() },
+  );
+  if (!validation.ok) {
+    return jsonFailure(validation.errors);
+  }
+
+  return {
+    exitCode: 0,
+    stdout: `${JSON.stringify(validation, null, 2)}\n`,
     stderr: "",
   };
 }
@@ -807,6 +902,157 @@ function parseAgentPlanCommand(args: string[]): ParsedAgentPlanCommand {
   }
 
   return { ok: true, targetUrl, script, mode };
+}
+
+function parseAgentValidateCommand(args: string[]): ParsedAgentValidateCommand {
+  let json = false;
+  let planPath: string | undefined;
+  let targetUrl: string | undefined;
+  let script: string | undefined;
+  let mode: WalkthroughPlanMode = "validate-first";
+  let modeSeen = false;
+  const errors: AgentValidateError[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "--plan" || arg === "--url" || arg === "--script" || arg === "--mode") {
+      const value = parseAgentValidateOptionValue(args, index, arg, errors);
+      if (value !== undefined) {
+        index += 1;
+        if (arg === "--plan") planPath = value;
+        if (arg === "--url") targetUrl = value;
+        if (arg === "--script") script = value;
+        if (arg === "--mode") {
+          modeSeen = true;
+          if (value === "validate-first" || value === "best-guess") {
+            mode = value;
+          } else {
+            errors.push({
+              code: "unsupported_plan_mode",
+              message: "Walkthrough validation mode must be validate-first or best-guess.",
+            });
+          }
+        }
+      }
+      continue;
+    }
+    errors.push({
+      code: "unknown_agent_argument",
+      message: `Unknown agent validate argument: ${arg}`,
+    });
+  }
+
+  if (!json) {
+    return {
+      ok: false,
+      json: false,
+      stderr: "autodemo agent validate currently requires --json output.",
+      errors,
+    };
+  }
+
+  if (planPath === undefined && (targetUrl === undefined || script === undefined)) {
+    errors.push({
+      code: "missing_validate_input",
+      message:
+        "autodemo agent validate requires --plan <file> or --url <target-url> --script <script-text>.",
+    });
+  }
+
+  if (planPath !== undefined && (targetUrl !== undefined || script !== undefined || modeSeen)) {
+    errors.push({
+      code: "conflicting_validate_input",
+      message:
+        "autodemo agent validate accepts either --plan <file> or URL/script options, not both.",
+    });
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, json, errors };
+  }
+
+  return { ok: true, json: true, planPath, targetUrl, script, mode };
+}
+
+function parseAgentValidateOptionValue(
+  args: string[],
+  index: number,
+  option: string,
+  errors: AgentValidateError[],
+): string | undefined {
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    errors.push({
+      code: "unknown_agent_argument",
+      message: `Missing value for agent validate argument: ${option}`,
+    });
+    return undefined;
+  }
+  return value;
+}
+
+async function readPlanFile(
+  path: string,
+): Promise<{ ok: true; plan: WalkthroughPlan } | { ok: false; errors: AgentValidateError[] }> {
+  let raw: string;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "missing_plan_file",
+          message: "Walkthrough validation plan file was not found.",
+        },
+      ],
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "invalid_plan_json",
+          message: "Walkthrough validation plan file must contain JSON.",
+        },
+      ],
+    };
+  }
+
+  const plan =
+    typeof parsed === "object" && parsed !== null && "plan" in parsed
+      ? (parsed as { plan?: unknown }).plan
+      : parsed;
+  if (!isWalkthroughPlan(plan)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "invalid_plan",
+          message: "Walkthrough validation plan file must contain a walkthrough plan.",
+        },
+      ],
+    };
+  }
+
+  return { ok: true, plan };
+}
+
+function jsonFailure(errors: Array<{ code: string; message: string }>): CliResult {
+  return {
+    exitCode: 1,
+    stdout: `${JSON.stringify({ ok: false, errors }, null, 2)}\n`,
+    stderr: "",
+  };
 }
 
 function parseAgentOptionValue(
@@ -1459,6 +1705,13 @@ function helpText(): string {
     "  open       Open the local editor",
     "  validate   Validate a capture bundle",
     "",
+    "Agent walkthrough validation:",
+    "  autodemo agent validate --plan <plan-json-file> --json",
+    "  autodemo agent validate --url <target-url> --script <script-text> --json",
+    "  autodemo agent review --plan <plan-json-file> --json",
+    "  autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json",
+    "  autodemo agent approve --plan <plan-json-file> --json",
+    "",
   ].join("\n");
 }
 
@@ -1467,6 +1720,11 @@ function agentHelpText(): string {
     "Usage:",
     "  autodemo agent run --project <project-dir-or-manifest> --json",
     "  autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json",
+    "  autodemo agent validate --plan <plan-json-file> --json",
+    "  autodemo agent validate --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json",
+    "  autodemo agent review --plan <plan-json-file> --json",
+    "  autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json",
+    "  autodemo agent approve --plan <plan-json-file> --json",
     "",
     "Run options:",
     "  --variant <variant-id>       Select an existing saved variant",
@@ -1479,9 +1737,12 @@ function agentHelpText(): string {
     "  --no-browser                 Accepted for compatibility; no browser auto-launch",
     "",
     "Plan options:",
+    "  --plan <plan-json-file>      Walkthrough plan JSON produced by agent plan",
     "  --url <target-url>           Browser URL for the walkthrough",
     "  --script <script-text>       Natural-language browser demo script",
     "  --mode <mode>                validate-first or best-guess; defaults to validate-first",
+    "  --refinements <file>         Structured refinement array for agent refine",
+    "  --allow-best-guess-bypass    Explicitly approve an unvalidated best-guess plan",
     "",
     "Exit codes:",
     "  0  Agent handoff or walkthrough plan written as JSON",

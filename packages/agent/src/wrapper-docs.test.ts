@@ -1,7 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createWalkthroughPlan } from "./index.js";
+import {
+  createWalkthroughPlan,
+  reviewWalkthroughPlan,
+  verifyWalkthroughPlanApproval,
+  type WalkthroughPlan,
+  type WalkthroughPlanReview,
+} from "./index.js";
 
 const agentRoot =
   basename(process.cwd()) === "agent" ? process.cwd() : join(process.cwd(), "packages", "agent");
@@ -213,5 +219,69 @@ describe("agent wrapper documentation", () => {
       expect(planIntake).toContain(code);
     }
     expect(planIntake).not.toContain("unsupported_agent_output");
+  });
+
+  it("documents validate mode blockers and WES-177 handoff", async () => {
+    const agentReadme = await readAgentDoc("README.md");
+    const validateMode = section(agentReadme, "## Walkthrough Validate Mode");
+
+    for (const required of [
+      "npm run autodemo -- agent validate --plan <plan-json-file> --json",
+      "npm run autodemo -- agent validate --url <target-url> --script <script-text> --json",
+      "multiple_matching_elements",
+      "missing_element",
+      "unresolved_plan_question",
+      "typed value redacted",
+      "WES-177",
+    ]) {
+      expect(validateMode).toContain(required);
+    }
+  });
+
+  it("documents conversational refinement and explicit plan approval", async () => {
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const parity = await readAgentDoc("claude-wrapper-parity.md");
+    const approvalFixture = await readAgentDoc("fixtures/codex-walkthrough-review-approval.md");
+    const refinementFixture = await readAgentDoc("fixtures/codex-walkthrough-refinement.md");
+
+    for (const required of [
+      "autodemo agent review --plan <plan-json-file> --json",
+      "autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json",
+      "autodemo agent approve --plan <plan-json-file> --json",
+      "Ask for explicit approval",
+      "Do not edit walkthrough plan JSON directly",
+      "--allow-best-guess-bypass",
+    ]) {
+      expect(skill).toContain(required);
+    }
+    expect(parity).toContain("review, refinement, and approval");
+    expect(parity).toContain("explicit user confirmation");
+
+    const approvalArtifact = jsonBlock(approvalFixture, "Approved plan artifact") as {
+      ok: true;
+      plan: WalkthroughPlan;
+    };
+    expect(approvalArtifact).toMatchObject({
+      ok: true,
+      plan: {
+        state: "approved",
+        approvals: { approved: true, basis: "validated" },
+      },
+    });
+    expect(verifyWalkthroughPlanApproval(approvalArtifact.plan)).toEqual({ ok: true });
+
+    const refinementArtifact = jsonBlock(refinementFixture, "Revalidated plan artifact") as {
+      ok: true;
+      plan: WalkthroughPlan;
+      review: WalkthroughPlanReview;
+    };
+    expect(refinementArtifact).toMatchObject({
+      ok: true,
+      plan: { state: "validated", validation: { status: "ready" } },
+    });
+    expect(reviewWalkthroughPlan(refinementArtifact.plan)).toEqual({
+      ok: true,
+      review: refinementArtifact.review,
+    });
   });
 });

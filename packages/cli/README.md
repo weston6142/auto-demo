@@ -48,6 +48,7 @@ The logical `autodemo` subcommands stay the same:
 - `open`
 - `agent run`
 - `agent plan`
+- `agent validate`
 - `export`
 - `validate`
 
@@ -69,6 +70,52 @@ approval and execution placeholders, and public redaction for typed values.
 The intake contract does not validate page state, approve plans, execute browser
 actions, record captures, automate credentials, perform destructive production
 actions, or create Auto Demo projects.
+
+## Agent Walkthrough Validation
+
+`autodemo agent validate` rehearses a walkthrough plan against browser page
+state without recording a capture or creating an Auto Demo project:
+
+```bash
+npm run autodemo -- agent validate --plan <plan-json-file> --json
+npm run autodemo -- agent validate --url <target-url> --script <script-text> --json
+```
+
+The command prints JSON with the validated plan, step checks, and every blocker
+that can be discovered safely. A blocked plan is still a successful command
+result because the annotated plan is the requested artifact. Invalid input,
+unreadable or malformed plan files, browser setup failures, and navigation
+failures return structured errors and exit `1`. User-facing blocker resolution
+is deferred to WES-177's review workflow.
+
+The two input forms are mutually exclusive. Validate mode also refuses
+credential-bearing target URLs and blocks potentially destructive actions or
+credential-like field input instead of exercising them in the browser.
+
+## Agent Walkthrough Review And Approval
+
+Agent hosts review, refine, and approve structured plan artifacts through JSON
+commands:
+
+```bash
+npm run autodemo -- agent review --plan <plan-json-file> --json
+npm run autodemo -- agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json
+npm run autodemo -- agent approve --plan <plan-json-file> --json
+```
+
+Review returns a transcript-safe ordered summary and approval eligibility.
+Refine accepts a JSON array of `select-candidate` or `replace-step` changes,
+applies the batch atomically, clears prior approval, and automatically
+revalidates `validate-first` plans. Approve returns a new plan artifact with its
+approval timestamp, `validated` or `best-guess-bypass` basis, and execution
+content fingerprint. These commands print returned artifacts and never silently
+overwrite the input file.
+
+An unvalidated best-guess plan requires explicit user confirmation and the
+additional `--allow-best-guess-bypass` flag. Draft, blocked, unresolved, unsafe,
+or stale plans remain ineligible. WES-179 must verify the fingerprint before
+execution; the fingerprint is consistency evidence rather than an identity
+signature.
 
 ## Deferrals
 

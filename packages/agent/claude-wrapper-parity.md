@@ -66,6 +66,19 @@ Codex, including `missing_project_path`, `invalid_project`, `missing_variant`,
 The wrapper should avoid echoing raw manifests, event metadata, source query
 strings, typed values, credentials, or secret-bearing local paths.
 
+## Walkthrough Review Parity
+
+A future Claude wrapper should use the same review, refinement, and approval
+contract as Codex. It should invoke `autodemo agent review`, translate user
+answers into structured refinement arrays for `autodemo agent refine`, present
+the automatically revalidated plan again, and call `autodemo agent approve`
+only after explicit user confirmation.
+
+The wrapper must preserve all blockers, avoid direct plan JSON edits, and never
+pass `--allow-best-guess-bypass` unless the user explicitly accepts bypassing
+browser validation. It should persist the approved structured artifact for
+WES-179 rather than treating conversation text as approval evidence.
+
 ## Out Of Scope
 
 - Claude production wrapper implementation.

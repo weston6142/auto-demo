@@ -107,11 +107,88 @@ browser actions, automate credentials, operate arbitrary OS apps, perform
 destructive production actions, record captures, or create projects. Those
 behaviors remain assigned to the downstream script workflow issues.
 
+## Walkthrough Validate Mode
+
+Validate mode is the WES-178 dry-run layer after walkthrough plan intake. It
+rehearses a resolved `WalkthroughPlan` against a browser target and annotates the
+plan with `validation.status`, step checks, and transcript-safe blockers.
+
+Use an existing plan artifact:
+
+```bash
+npm run autodemo -- agent validate --plan <plan-json-file> --json
+```
+
+Or create and validate a plan in one command:
+
+```bash
+npm run autodemo -- agent validate --url <target-url> --script <script-text> --json
+```
+
+Validation returns `ready` only when all resolved steps pass and no blockers
+remain. It returns all blockers that can be discovered safely. Blocker reasons include
+`multiple_matching_elements`, `missing_element`, `unresolved_plan_question`,
+`navigation_failed`, `unexpected_navigation`, `auth_wall_detected`,
+`timing_failure`, and `unsafe_action`. State-changing steps that depend on an
+earlier blocked or unresolved action receive an `unsafe_dependent_step` check and
+are skipped, while safe later assertions can still identify missing or ambiguous
+elements. Destructive-looking controls, credential-like fields, and target URLs
+with credential-like parameters are not exercised.
+
+The Playwright runner uses a fresh isolated browser context, disables service
+workers, blocks WebSocket connections, and blocks non-idempotent network
+requests including attempts during initial page load. If a safe-looking control
+attempts a POST, PUT, PATCH, or DELETE request, validation reports
+`unsafe_action` instead of allowing the request to reach the server. Post-action
+checks also wait for a bounded 500 ms DOM quiet window by default so delayed SPA
+updates are included.
+
+Type steps use the synthetic input `typed value redacted`, and validated output
+does not echo the original typed value, URL query strings, URL fragments,
+credentials, tokens, or raw DOM snapshots. WES-178 does not ask questions
+interactively. WES-177 consumes blockers and candidates, presents them for
+review, and updates the structured plan from user answers.
+
+Secret sanitation covers labeled credentials, bearer values, API-key-like
+values, JWT-like values, high-entropy tokens, query parameters, and bare or
+parameterized URL fragments.
+
+Explicit URL navigation steps are rehearsed and checked against the resulting
+location. Navigation instructions without a URL remain blocked for WES-177 to
+refine. Candidate labels include sanitized ordinal context when multiple visible
+elements otherwise have the same label and role.
+
+## Walkthrough Review And Approval
+
+WES-177 adds deterministic workflow services for an agent-conversation review
+gate:
+
+- `reviewWalkthroughPlan()` returns ordered public steps, warnings, blockers,
+  candidate choices, approval eligibility, and a transcript-safe summary.
+- `refineWalkthroughPlan()` accepts structured candidate selections or resolved
+  replacement steps, clears prior approval, and automatically revalidates
+  `validate-first` plans.
+- `approveWalkthroughPlan()` records explicit approval time, basis, and a
+  canonical SHA-256 fingerprint of execution-relevant plan content.
+- `verifyWalkthroughPlanApproval()` lets WES-179 reject stale approval before
+  capture begins.
+
+Approval fingerprints provide consistency evidence, not user identity or
+tamper-proof authorization. Any plan refinement invalidates validation and
+approval. Best-guess approval requires explicit bypass intent and still rejects
+unresolved or unsafe steps.
+
+The library does not parse conversation text. Codex, Claude, or another agent
+host explains reviews and translates user answers into structured refinement
+artifacts without editing plan JSON directly.
+
 ## Wrapper Artifacts
 
 - Codex skill wrapper: `skills/codex-auto-demo/SKILL.md`
 - Happy-path Codex transcript: `fixtures/codex-happy-path.md`
 - Invalid-project Codex transcript: `fixtures/codex-invalid-project.md`
+- Walkthrough review/approval transcript: `fixtures/codex-walkthrough-review-approval.md`
+- Walkthrough refinement transcript: `fixtures/codex-walkthrough-refinement.md`
 - Claude parity requirements: `claude-wrapper-parity.md`
 
 ## MCP Decision
