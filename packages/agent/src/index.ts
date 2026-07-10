@@ -7,6 +7,55 @@ import {
   type ProjectVariant,
 } from "@auto-demo/project";
 
+export {
+  isWalkthroughPlan,
+  validateWalkthroughPlan,
+  WalkthroughValidationRunnerError,
+  type ValidatedWalkthroughPlan,
+  type WalkthroughPlanValidation,
+  type WalkthroughPlanValidationBlocker,
+  type WalkthroughPlanValidationCheck,
+  type WalkthroughPlanValidationReason,
+  type WalkthroughValidationBrowserRunner,
+  type WalkthroughValidationDependencies,
+  type WalkthroughValidationError,
+  type WalkthroughValidationErrorCode,
+  type WalkthroughValidationMatch,
+  type WalkthroughValidationOptions,
+  type WalkthroughValidationPageState,
+  type WalkthroughValidationResult,
+} from "./walkthroughValidation.js";
+
+export {
+  createPlaywrightValidationRunner,
+  type PlaywrightValidationRunnerOptions,
+} from "./playwrightValidationRunner.js";
+
+export {
+  reviewWalkthroughPlan,
+  type WalkthroughPlanReview,
+  type WalkthroughPlanReviewResult,
+} from "./walkthroughReview.js";
+
+export {
+  approveWalkthroughPlan,
+  verifyWalkthroughPlanApproval,
+  walkthroughPlanFingerprint,
+  type WalkthroughApprovalError,
+  type WalkthroughApprovalErrorCode,
+  type WalkthroughApprovalOptions,
+  type WalkthroughPlanApprovalResult,
+  type WalkthroughPlanApprovalVerificationResult,
+} from "./walkthroughApproval.js";
+
+export {
+  refineWalkthroughPlan,
+  type WalkthroughPlanRefinement,
+  type WalkthroughPlanRefinementResult,
+  type WalkthroughRefinementError,
+  type WalkthroughRefinementErrorCode,
+} from "./walkthroughRefinement.js";
+
 export type AgentPackageRole = "agent-workflow-wrapper";
 
 export const agentPackageRole: AgentPackageRole = "agent-workflow-wrapper";
@@ -91,10 +140,26 @@ export type AgentWorkflowResult = AgentWorkflowSummary | AgentWorkflowFailure;
 export type AgentWorkflowGenerationResult = HeadlessVariantGenerationResult;
 
 export type WalkthroughPlanMode = "validate-first" | "best-guess";
-export type WalkthroughPlanState = "draft" | "needs-clarification" | "approved" | "executed";
+export type WalkthroughPlanState =
+  "draft" | "needs-clarification" | "validated" | "approved" | "executed";
 export type WalkthroughPlanStepAction =
   "navigate" | "click" | "type" | "wait" | "assert" | "question";
 export type WalkthroughPlanStepResolution = "resolved" | "unresolved";
+
+export type WalkthroughPlanTargetHint = {
+  kind: "accessible";
+  label: string;
+  role?: string;
+  occurrence?: number;
+};
+
+export type WalkthroughPlanApproval = {
+  required: true;
+  approved: boolean;
+  approvedAt?: string;
+  planFingerprint?: string;
+  basis?: "validated" | "best-guess-bypass";
+};
 
 export type WalkthroughPlanInput = {
   targetUrl: string;
@@ -119,6 +184,7 @@ export type WalkthroughPlanStep = {
     summary: string;
   };
   questionId?: string;
+  targetHint?: WalkthroughPlanTargetHint;
 };
 
 export type WalkthroughPlan = {
@@ -135,14 +201,12 @@ export type WalkthroughPlan = {
   };
   steps: WalkthroughPlanStep[];
   questions: WalkthroughPlanQuestion[];
-  approvals: {
-    required: true;
-    approved: false;
-  };
+  approvals: WalkthroughPlanApproval;
   execution: {
     status: "not-started";
   };
   warnings: Array<{ code: string; message: string }>;
+  validation?: import("./walkthroughValidation.js").WalkthroughPlanValidation;
 };
 
 export type WalkthroughPlanErrorCode =

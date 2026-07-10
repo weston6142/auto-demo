@@ -24,8 +24,9 @@ a browser demo script into a walkthrough plan.
   source of truth. Do not inspect or rewrite Auto Demo project internals to
   duplicate selection, generation, validation, or editor behavior.
 - Treat `autodemo agent plan --url <target-url> --script <script-text> --json`
-  as the source of truth for script intake. Do not invent browser validation,
-  approval, execution, capture, or project-handoff behavior in this wrapper.
+  as the source of truth for script intake. Use the validate, review, refine, and
+  approve commands for later plan lifecycle changes. Do not invent execution,
+  capture, or project-handoff behavior in this wrapper.
 
 ## Primary Command
 
@@ -52,6 +53,48 @@ step summaries redact typed values. `--mode` defaults to `validate-first`;
 `best-guess` adds a review warning. This command does not validate page state,
 approve plans, execute browser actions, record captures, automate credentials,
 perform destructive production actions, or create Auto Demo projects.
+
+## Walkthrough Review, Refinement, And Approval
+
+For `validate-first`, follow this sequence:
+
+```text
+plan -> validate -> review -> conversational clarification -> refine -> review -> explicit confirmation -> approve
+```
+
+Validate and review an existing plan artifact:
+
+```bash
+autodemo agent validate --plan <plan-json-file> --json
+autodemo agent review --plan <plan-json-file> --json
+```
+
+Explain the review conversationally, including every blocker, assumption,
+warning, and ordered public step. Ask one focused clarification at a time. Do
+not edit walkthrough plan JSON directly. Convert the user's answer into a
+structured refinement array and invoke:
+
+- Do not edit walkthrough plan JSON directly.
+
+```bash
+autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json
+```
+
+`validate-first` refinement automatically revalidates. Present the returned
+review again. Ask for explicit approval immediately before invoking:
+
+```bash
+autodemo agent approve --plan <plan-json-file> --json
+```
+
+Persist the returned approved plan artifact for WES-179. Any refinement clears
+prior validation and approval. Do not claim approval based on conversation text
+alone, omit blockers, invoke approval before confirmation, or edit approval
+fields directly.
+
+An unvalidated best-guess plan can be approved only after the user explicitly
+accepts bypassing browser validation. In that case, and only in that case, pass
+`--allow-best-guess-bypass`. Never add that flag silently.
 
 ## Variant Selection
 
@@ -111,7 +154,11 @@ and non-secret message. Common workflow codes include `missing_project_path`,
 `variant_not_found`, `unsupported_generation`, `generation_failed`, and
 `editor_unavailable`. Common planning codes include `missing_target_url`,
 `invalid_target_url`, `missing_script`, `unsupported_plan_mode`, and
-`unknown_agent_argument`.
+`unknown_agent_argument`. Review workflow codes include `invalid_plan`,
+`invalid_refinement`, `unknown_refinement_step`, `stale_validation_blocker`,
+`unknown_validation_candidate`, `candidate_not_persistable`,
+`unsupported_replacement_action`, `plan_not_approvable`,
+`best_guess_bypass_required`, and `stale_approval`.
 
 Do not paste secrets, raw event metadata, typed values, credentials, or full
 manifest contents into task reports. Use the command output's stable fields.
@@ -136,6 +183,5 @@ bundles remain outside this wrapper.
 - Hosted editor or cloud handoff services.
 - Marketplace distribution or local skill installation automation.
 - Demo-ready export bundle validation.
-- Browser validation, plan approval, script execution, capture-to-project
-  handoff, credentials automation, arbitrary OS apps, and destructive production
-  actions for walkthrough plans.
+- Script execution, capture-to-project handoff, credentials automation,
+  arbitrary OS apps, and destructive production actions for walkthrough plans.

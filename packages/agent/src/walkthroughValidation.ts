@@ -1,0 +1,1006 @@
+import type {
+  WalkthroughPlan,
+  WalkthroughPlanStep,
+  WalkthroughPlanStepAction,
+  WalkthroughPlanTargetHint,
+} from "./index.js";
+
+export type WalkthroughPlanValidationStatus = "ready" | "blocked";
+export type WalkthroughPlanValidationCheckStatus = "passed" | "blocked" | "skipped";
+export type WalkthroughPlanValidationReason =
+  | "unresolved_plan_question"
+  | "missing_element"
+  | "multiple_matching_elements"
+  | "unexpected_navigation"
+  | "navigation_failed"
+  | "auth_wall_detected"
+  | "timing_failure"
+  | "unsafe_dependent_step"
+  | "unsafe_action"
+  | "unsupported_step_action";
+
+export type WalkthroughValidationMatch = {
+  id: string;
+  label: string;
+  role?: string;
+  actionRisk?: "potentially-mutating";
+  targetHint?: WalkthroughPlanTargetHint;
+};
+
+export type WalkthroughValidationPageState = {
+  url: string;
+  title: string;
+  authWall: boolean;
+};
+
+export type WalkthroughPlanValidationCheck = {
+  id: string;
+  stepId: string;
+  action: WalkthroughPlanStepAction;
+  status: WalkthroughPlanValidationCheckStatus;
+  reason?: WalkthroughPlanValidationReason;
+  summary: string;
+};
+
+export type WalkthroughPlanValidationBlocker = {
+  id: string;
+  stepId: string;
+  reason: WalkthroughPlanValidationReason;
+  question: string;
+  candidates?: WalkthroughValidationMatch[];
+};
+
+export type WalkthroughPlanValidation = {
+  status: WalkthroughPlanValidationStatus;
+  validatedAt: string;
+  mode: "dry-run";
+  checks: WalkthroughPlanValidationCheck[];
+  blockers: WalkthroughPlanValidationBlocker[];
+};
+
+export type ValidatedWalkthroughPlan = WalkthroughPlan & {
+  validation: WalkthroughPlanValidation;
+};
+
+export type WalkthroughValidationErrorCode =
+  "invalid_plan" | "unsafe_target_url" | "browser_setup_failed" | "navigation_failed";
+
+export type WalkthroughValidationError = {
+  code: WalkthroughValidationErrorCode;
+  message: string;
+};
+
+export type WalkthroughValidationResult =
+  | { ok: true; plan: ValidatedWalkthroughPlan }
+  | { ok: false; errors: WalkthroughValidationError[] };
+
+export type WalkthroughValidationOptions = {
+  now?: () => Date;
+};
+
+export type WalkthroughValidationBrowserRunner = {
+  open(url: string): Promise<void>;
+  navigate(url: string): Promise<void>;
+  inspectPage(): Promise<WalkthroughValidationPageState>;
+  findMatches(step: WalkthroughPlanStep): Promise<WalkthroughValidationMatch[]>;
+  click(match: WalkthroughValidationMatch): Promise<void>;
+  type(match: WalkthroughValidationMatch, options: { redactedValue: true }): Promise<void>;
+  waitForIdle(): Promise<void>;
+  close(): Promise<void>;
+};
+
+export type WalkthroughValidationDependencies = {
+  browser: WalkthroughValidationBrowserRunner;
+};
+
+export class WalkthroughValidationRunnerError extends Error {
+  constructor(readonly code: "navigation_failed" | "unsafe_action") {
+    super(code);
+    this.name = "WalkthroughValidationRunnerError";
+  }
+}
+
+export function isWalkthroughPlan(value: unknown): value is WalkthroughPlan {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<WalkthroughPlan>;
+  return (
+    isSafeIdentifier(candidate.id) &&
+    candidate.target?.kind === "browser" &&
+    isSafeHttpUrl(candidate.target.url) &&
+    (candidate.mode === "validate-first" || candidate.mode === "best-guess") &&
+    (candidate.state === "draft" ||
+      candidate.state === "needs-clarification" ||
+      candidate.state === "validated" ||
+      candidate.state === "approved" ||
+      candidate.state === "executed") &&
+    isWalkthroughPlanSource(candidate.source) &&
+    Array.isArray(candidate.steps) &&
+    candidate.steps.length > 0 &&
+    candidate.steps.every(
+      (step, index) => isWalkthroughPlanStep(step) && step.order === index + 1,
+    ) &&
+    Array.isArray(candidate.questions) &&
+    candidate.questions.every(isWalkthroughPlanQuestion) &&
+    isWalkthroughPlanApproval(candidate.approvals, candidate.state) &&
+    candidate.execution?.status === "not-started" &&
+    Array.isArray(candidate.warnings) &&
+    candidate.warnings.every(isPlanWarning) &&
+    (candidate.validation === undefined || isWalkthroughPlanValidation(candidate.validation)) &&
+    hasConsistentPlanRelationships(candidate as WalkthroughPlan)
+  );
+}
+
+export async function validateWalkthroughPlan(
+  plan: WalkthroughPlan,
+  options: WalkthroughValidationOptions = {},
+  dependencies: WalkthroughValidationDependencies,
+): Promise<WalkthroughValidationResult> {
+  if (!isWalkthroughPlan(plan)) {
+    return failure("invalid_plan", "Walkthrough validation requires a valid walkthrough plan.");
+  }
+
+  if (hasCredentialLikeUrlData(plan.target.url)) {
+    return failure(
+      "unsafe_target_url",
+      "Walkthrough validation target URL contains credential-like data.",
+    );
+  }
+
+  try {
+    await dependencies.browser.open(plan.target.url);
+  } catch (error) {
+    await dependencies.browser.close().catch(() => undefined);
+    if (error instanceof WalkthroughValidationRunnerError && error.code === "navigation_failed") {
+      return failure(
+        "navigation_failed",
+        "Walkthrough validation could not navigate to the target page.",
+      );
+    }
+    return failure("browser_setup_failed", "Walkthrough validation browser setup failed.");
+  }
+
+  const checks: WalkthroughPlanValidationCheck[] = [];
+  const blockers: WalkthroughPlanValidationBlocker[] = [];
+  let unsafeAfterStateChangeBlocker = false;
+
+  try {
+    for (const step of plan.steps) {
+      const blockerId = `blocker-${step.order}`;
+
+      if (step.action === "question" || step.resolution === "unresolved") {
+        const question =
+          plan.questions.find((candidate) => candidate.stepId === step.id)?.prompt ??
+          step.public.summary;
+        blockers.push({
+          id: blockerId,
+          stepId: step.id,
+          reason: "unresolved_plan_question",
+          question: sanitizeText(question),
+        });
+        checks.push(blockedCheck(step, "unresolved_plan_question", sanitizeText(question)));
+        unsafeAfterStateChangeBlocker = true;
+        continue;
+      }
+
+      if (unsafeAfterStateChangeBlocker && isStateChanging(step)) {
+        checks.push({
+          id: `check-${step.order}`,
+          stepId: step.id,
+          action: step.action,
+          status: "skipped",
+          reason: "unsafe_dependent_step",
+          summary: `Skipped because an earlier state-changing step is blocked: ${safeSummary(step)}.`,
+        });
+        continue;
+      }
+
+      const outcome = await validateStep(step, dependencies.browser);
+      if (outcome.ok) {
+        checks.push({
+          id: `check-${step.order}`,
+          stepId: step.id,
+          action: step.action,
+          status: "passed",
+          summary: `Validated: ${safeSummary(step)}.`,
+        });
+        continue;
+      }
+
+      blockers.push({
+        id: blockerId,
+        stepId: step.id,
+        reason: outcome.reason,
+        question: outcome.question,
+        ...(outcome.candidates === undefined ? {} : { candidates: outcome.candidates }),
+      });
+      checks.push(blockedCheck(step, outcome.reason, outcome.question));
+      if (isStateChanging(step)) {
+        unsafeAfterStateChangeBlocker = true;
+      }
+    }
+  } finally {
+    await dependencies.browser.close().catch(() => undefined);
+  }
+
+  const now = options.now ?? (() => new Date());
+  const validation: WalkthroughPlanValidation = {
+    status: blockers.length === 0 ? "ready" : "blocked",
+    validatedAt: now().toISOString(),
+    mode: "dry-run",
+    checks,
+    blockers,
+  };
+  return {
+    ok: true,
+    plan: {
+      ...sanitizePlan(plan),
+      state: validation.status === "ready" ? "validated" : "needs-clarification",
+      validation,
+    },
+  };
+}
+
+type StepOutcome =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: WalkthroughPlanValidationReason;
+      question: string;
+      candidates?: WalkthroughValidationMatch[];
+    };
+
+async function validateStep(
+  step: WalkthroughPlanStep,
+  browser: WalkthroughValidationBrowserRunner,
+): Promise<StepOutcome> {
+  try {
+    const before = await browser.inspectPage();
+    if (before.authWall) {
+      return {
+        ok: false,
+        reason: "auth_wall_detected",
+        question: `How should validation authenticate before: ${safeSummary(step)}?`,
+      };
+    }
+
+    if (step.action === "navigate") {
+      const destination = navigationUrlForStep(step);
+      if (destination === undefined) {
+        const unsafeDestination = hasExplicitNavigationScheme(step.sourceText);
+        return {
+          ok: false,
+          reason: unsafeDestination ? "unsafe_action" : "unsupported_step_action",
+          question: unsafeDestination
+            ? `How should validation navigate without an unsafe URL: ${safeSummary(step)}?`
+            : `What URL should validation navigate to for: ${safeSummary(step)}?`,
+        };
+      }
+      if (hasCredentialLikeUrlData(destination)) {
+        return {
+          ok: false,
+          reason: "unsafe_action",
+          question: `How should validation navigate without credential-like URL data: ${safeSummary(step)}?`,
+        };
+      }
+      await browser.navigate(destination);
+      await browser.waitForIdle();
+      const after = await browser.inspectPage();
+      if (after.authWall) {
+        return {
+          ok: false,
+          reason: "auth_wall_detected",
+          question: `How should validation authenticate before: ${safeSummary(step)}?`,
+        };
+      }
+      if (normalizedLocation(destination) !== normalizedLocation(after.url)) {
+        return {
+          ok: false,
+          reason: "unexpected_navigation",
+          question: `Why did ${safeSummary(step)} reach ${sanitizeUrl(after.url)}?`,
+        };
+      }
+      return { ok: true };
+    }
+
+    if (isUnsafeWalkthroughAction(step)) {
+      return {
+        ok: false,
+        reason: "unsafe_action",
+        question: `How should this potentially destructive action be validated safely: ${safeSummary(step)}?`,
+      };
+    }
+
+    if (step.action === "wait") {
+      await browser.waitForIdle();
+      const after = await browser.inspectPage();
+      if (after.authWall) {
+        return {
+          ok: false,
+          reason: "auth_wall_detected",
+          question: `How should validation authenticate before: ${safeSummary(step)}?`,
+        };
+      }
+      return { ok: true };
+    }
+
+    const matches = await browser.findMatches(step);
+    if (matches.length === 0) {
+      return {
+        ok: false,
+        reason: "missing_element",
+        question: `What visible page element should satisfy: ${safeSummary(step)}?`,
+      };
+    }
+    if (matches.length > 1) {
+      return {
+        ok: false,
+        reason: "multiple_matching_elements",
+        question: `Which '${safeSummary(step)}' target should be used?`,
+        candidates: matches.map(sanitizeMatch),
+      };
+    }
+
+    if (matches[0].actionRisk === "potentially-mutating") {
+      return {
+        ok: false,
+        reason: "unsafe_action",
+        question: `How should this potentially destructive action be validated safely: ${safeSummary(step)}?`,
+      };
+    }
+
+    await performStep(step, matches[0], browser);
+    const after = await browser.inspectPage();
+    if (after.authWall) {
+      return {
+        ok: false,
+        reason: "auth_wall_detected",
+        question: `How should validation authenticate after: ${safeSummary(step)}?`,
+      };
+    }
+    if (isUnexpectedNavigation(before.url, after.url)) {
+      return {
+        ok: false,
+        reason: "unexpected_navigation",
+        question: `Should validation continue after ${safeSummary(step)} navigates to ${sanitizeUrl(after.url)}?`,
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof WalkthroughValidationRunnerError && error.code === "unsafe_action") {
+      return {
+        ok: false,
+        reason: "unsafe_action",
+        question: `How should this potentially destructive action be validated safely: ${safeSummary(step)}?`,
+      };
+    }
+    return {
+      ok: false,
+      reason: step.action === "navigate" ? "navigation_failed" : "timing_failure",
+      question: `How should validation recover from: ${safeSummary(step)}?`,
+    };
+  }
+}
+
+async function performStep(
+  step: WalkthroughPlanStep,
+  match: WalkthroughValidationMatch,
+  browser: WalkthroughValidationBrowserRunner,
+): Promise<void> {
+  if (step.action === "click") {
+    await browser.click(match);
+    await browser.waitForIdle();
+    return;
+  }
+  if (step.action === "type") {
+    await browser.type(match, { redactedValue: true });
+    await browser.waitForIdle();
+    return;
+  }
+  if (step.action === "assert") {
+    return;
+  }
+  throw new Error("Unsupported walkthrough validation action.");
+}
+
+function failure(
+  code: WalkthroughValidationErrorCode,
+  message: string,
+): WalkthroughValidationResult {
+  return { ok: false, errors: [{ code, message }] };
+}
+
+function isWalkthroughPlanStep(value: unknown): value is WalkthroughPlanStep {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const step = value as Partial<WalkthroughPlanStep>;
+  return (
+    isSafeIdentifier(step.id) &&
+    typeof step.order === "number" &&
+    Number.isInteger(step.order) &&
+    step.order > 0 &&
+    isStepAction(step.action) &&
+    (step.resolution === "resolved" || step.resolution === "unresolved") &&
+    isNonEmptyString(step.sourceText) &&
+    isNonEmptyString(step.public?.summary) &&
+    (step.action !== "type" ||
+      (isRedactedTypeDescription(step.sourceText) &&
+        isRedactedTypeDescription(step.public.summary))) &&
+    (step.questionId === undefined || isSafeIdentifier(step.questionId)) &&
+    (step.targetHint === undefined || isWalkthroughPlanTargetHint(step.targetHint))
+  );
+}
+
+function isWalkthroughPlanSource(value: unknown): value is WalkthroughPlan["source"] {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const source = value as Partial<WalkthroughPlan["source"]>;
+  return typeof source.script === "string" && source.parser === "deterministic-v1";
+}
+
+function isWalkthroughPlanQuestion(value: unknown): value is WalkthroughPlan["questions"][number] {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const question = value as Partial<WalkthroughPlan["questions"][number]>;
+  return (
+    isSafeIdentifier(question.id) &&
+    isSafeIdentifier(question.stepId) &&
+    isNonEmptyString(question.prompt) &&
+    question.reason === "unrecognized_step"
+  );
+}
+
+function isPlanWarning(value: unknown): value is WalkthroughPlan["warnings"][number] {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const warning = value as Partial<WalkthroughPlan["warnings"][number]>;
+  return isSafeIdentifier(warning.code) && typeof warning.message === "string";
+}
+
+function isWalkthroughPlanTargetHint(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const hint = value as { kind?: unknown; label?: unknown; role?: unknown; occurrence?: unknown };
+  return (
+    hint.kind === "accessible" &&
+    isNonEmptyString(hint.label) &&
+    (hint.role === undefined || isNonEmptyString(hint.role)) &&
+    (hint.occurrence === undefined ||
+      (typeof hint.occurrence === "number" &&
+        Number.isInteger(hint.occurrence) &&
+        hint.occurrence > 0))
+  );
+}
+
+function isWalkthroughPlanApproval(
+  value: unknown,
+  state: WalkthroughPlan["state"] | undefined,
+): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const approval = value as Partial<WalkthroughPlan["approvals"]>;
+  if (approval.required !== true || typeof approval.approved !== "boolean") {
+    return false;
+  }
+  if (!approval.approved) {
+    return (
+      approval.approvedAt === undefined &&
+      approval.planFingerprint === undefined &&
+      approval.basis === undefined &&
+      state !== "approved"
+    );
+  }
+  return (
+    state === "approved" &&
+    typeof approval.approvedAt === "string" &&
+    !Number.isNaN(Date.parse(approval.approvedAt)) &&
+    typeof approval.planFingerprint === "string" &&
+    /^sha256:[a-f0-9]{64}$/.test(approval.planFingerprint) &&
+    (approval.basis === "validated" || approval.basis === "best-guess-bypass")
+  );
+}
+
+function isWalkthroughPlanValidation(value: unknown): value is WalkthroughPlanValidation {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const validation = value as Partial<WalkthroughPlanValidation>;
+  return (
+    (validation.status === "ready" || validation.status === "blocked") &&
+    typeof validation.validatedAt === "string" &&
+    !Number.isNaN(Date.parse(validation.validatedAt)) &&
+    validation.mode === "dry-run" &&
+    Array.isArray(validation.checks) &&
+    validation.checks.every(isWalkthroughPlanValidationCheck) &&
+    Array.isArray(validation.blockers) &&
+    validation.blockers.every(isWalkthroughPlanValidationBlocker)
+  );
+}
+
+function isWalkthroughPlanValidationCheck(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const check = value as Partial<WalkthroughPlanValidationCheck>;
+  return (
+    isSafeIdentifier(check.id) &&
+    isSafeIdentifier(check.stepId) &&
+    isStepAction(check.action) &&
+    (check.status === "passed" || check.status === "blocked" || check.status === "skipped") &&
+    (check.reason === undefined || isWalkthroughPlanValidationReason(check.reason)) &&
+    typeof check.summary === "string"
+  );
+}
+
+function isWalkthroughPlanValidationBlocker(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const blocker = value as Partial<WalkthroughPlanValidationBlocker>;
+  return (
+    isSafeIdentifier(blocker.id) &&
+    isSafeIdentifier(blocker.stepId) &&
+    isWalkthroughPlanValidationReason(blocker.reason) &&
+    isNonEmptyString(blocker.question) &&
+    (blocker.candidates === undefined ||
+      (Array.isArray(blocker.candidates) && blocker.candidates.every(isWalkthroughValidationMatch)))
+  );
+}
+
+function isWalkthroughValidationMatch(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const match = value as Partial<WalkthroughValidationMatch>;
+  return (
+    isNonEmptyString(match.id) &&
+    isNonEmptyString(match.label) &&
+    (match.role === undefined || isNonEmptyString(match.role)) &&
+    (match.actionRisk === undefined || match.actionRisk === "potentially-mutating") &&
+    (match.targetHint === undefined || isWalkthroughPlanTargetHint(match.targetHint))
+  );
+}
+
+function isWalkthroughPlanValidationReason(value: unknown): boolean {
+  return (
+    value === "unresolved_plan_question" ||
+    value === "missing_element" ||
+    value === "multiple_matching_elements" ||
+    value === "unexpected_navigation" ||
+    value === "navigation_failed" ||
+    value === "auth_wall_detected" ||
+    value === "timing_failure" ||
+    value === "unsafe_dependent_step" ||
+    value === "unsafe_action" ||
+    value === "unsupported_step_action"
+  );
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isSafeIdentifier(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(value);
+}
+
+function hasConsistentPlanRelationships(plan: WalkthroughPlan): boolean {
+  if (plan.source.script.trim().length === 0) {
+    return false;
+  }
+
+  const stepIds = new Set(plan.steps.map((step) => step.id));
+  const questionIds = new Set(plan.questions.map((question) => question.id));
+  if (stepIds.size !== plan.steps.length || questionIds.size !== plan.questions.length) {
+    return false;
+  }
+
+  const unresolvedSteps = plan.steps.filter(
+    (step) => step.action === "question" || step.resolution === "unresolved",
+  );
+  if (unresolvedSteps.length !== plan.questions.length) {
+    return false;
+  }
+
+  for (const step of plan.steps) {
+    const question = plan.questions.find((candidate) => candidate.stepId === step.id);
+    if (step.action === "question" || step.resolution === "unresolved") {
+      if (step.questionId === undefined || question?.id !== step.questionId) {
+        return false;
+      }
+    } else if (step.questionId !== undefined || question !== undefined) {
+      return false;
+    }
+  }
+
+  if (plan.questions.length > 0 && plan.state !== "needs-clarification") {
+    return false;
+  }
+
+  if (plan.validation !== undefined && !hasConsistentValidationEvidence(plan)) {
+    return false;
+  }
+
+  if (plan.state === "approved") {
+    if (plan.approvals.basis === "validated") {
+      return plan.validation?.status === "ready";
+    }
+    return (
+      plan.approvals.basis === "best-guess-bypass" &&
+      plan.mode === "best-guess" &&
+      plan.validation === undefined
+    );
+  }
+
+  if (plan.validation?.status === "blocked") {
+    return plan.state === "needs-clarification";
+  }
+  if (plan.validation?.status === "ready") {
+    return plan.state === "validated";
+  }
+  if (plan.state === "validated") {
+    return false;
+  }
+  if (plan.state === "needs-clarification") {
+    return plan.questions.length > 0;
+  }
+  return true;
+}
+
+function hasConsistentValidationEvidence(plan: WalkthroughPlan): boolean {
+  const validation = plan.validation;
+  if (validation === undefined) return true;
+
+  const stepById = new Map(plan.steps.map((step) => [step.id, step]));
+  const checkIds = new Set(validation.checks.map((check) => check.id));
+  const blockerIds = new Set(validation.blockers.map((blocker) => blocker.id));
+  if (
+    validation.checks.length !== plan.steps.length ||
+    checkIds.size !== validation.checks.length ||
+    blockerIds.size !== validation.blockers.length
+  ) {
+    return false;
+  }
+
+  for (const check of validation.checks) {
+    const step = stepById.get(check.stepId);
+    if (
+      step === undefined ||
+      step.action !== check.action ||
+      (check.status === "passed" ? check.reason !== undefined : check.reason === undefined)
+    ) {
+      return false;
+    }
+    if (
+      check.status === "blocked" &&
+      !validation.blockers.some(
+        (blocker) => blocker.stepId === check.stepId && blocker.reason === check.reason,
+      )
+    ) {
+      return false;
+    }
+  }
+
+  for (const step of plan.steps) {
+    if (validation.checks.filter((check) => check.stepId === step.id).length !== 1) {
+      return false;
+    }
+  }
+
+  for (const blocker of validation.blockers) {
+    if (
+      !stepById.has(blocker.stepId) ||
+      !validation.checks.some(
+        (check) =>
+          check.stepId === blocker.stepId &&
+          check.status === "blocked" &&
+          check.reason === blocker.reason,
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return validation.status === "ready"
+    ? validation.blockers.length === 0 &&
+        validation.checks.every((check) => check.status === "passed")
+    : validation.blockers.length > 0;
+}
+
+function isSafeHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isStepAction(value: unknown): value is WalkthroughPlanStepAction {
+  return (
+    value === "navigate" ||
+    value === "click" ||
+    value === "type" ||
+    value === "wait" ||
+    value === "assert" ||
+    value === "question"
+  );
+}
+
+function isStateChanging(step: WalkthroughPlanStep): boolean {
+  return step.action === "click" || step.action === "type" || step.action === "navigate";
+}
+
+export function isUnsafeWalkthroughAction(
+  step: Pick<WalkthroughPlanStep, "action" | "sourceText" | "public" | "targetHint">,
+): boolean {
+  const description = [
+    step.sourceText,
+    step.public.summary,
+    step.targetHint?.label,
+    step.targetHint?.role,
+  ]
+    .filter((value): value is string => value !== undefined)
+    .join(" ");
+  if (step.action === "navigate") {
+    const destination = navigationUrlForStep(step);
+    return destination === undefined || hasCredentialLikeUrlData(destination);
+  }
+  if (step.action === "click") {
+    return /\b(delete|destroy|erase|wipe|remove|clear all|save|create|register|sign up|purchase|buy|pay|checkout|submit|confirm|send|publish|post|deploy|invite|transfer|approve|merge|enable|disable|revoke|archive|restore|upload|commit|cancel account|close account)\b/i.test(
+      description,
+    );
+  }
+  if (step.action === "type") {
+    return /\b(password|passcode|secret|token|credential|api[ _-]?key|credit card|card number|security code|ssn|social security)\b/i.test(
+      description,
+    );
+  }
+  return false;
+}
+
+function isRedactedTypeDescription(value: string): boolean {
+  return /^(type|enter|fill)\s+\[redacted\](?:\s+into\s+.+)?[.!?]?$/i.test(value.trim());
+}
+
+function hasExplicitNavigationScheme(value: string): boolean {
+  return /\b[a-z][a-z0-9+.-]*:(?:\/\/)?[^\s]+/i.test(value);
+}
+
+function safeSummary(step: WalkthroughPlanStep): string {
+  return sanitizeText(step.public.summary);
+}
+
+function blockedCheck(
+  step: WalkthroughPlanStep,
+  reason: WalkthroughPlanValidationReason,
+  summary: string,
+): WalkthroughPlanValidationCheck {
+  return {
+    id: `check-${step.order}`,
+    stepId: step.id,
+    action: step.action,
+    status: "blocked",
+    reason,
+    summary,
+  };
+}
+
+function sanitizeMatch(match: WalkthroughValidationMatch): WalkthroughValidationMatch {
+  return {
+    id: sanitizeText(match.id),
+    label: sanitizeText(match.label).slice(0, 120),
+    ...(match.role === undefined ? {} : { role: sanitizeText(match.role) }),
+    ...(match.actionRisk === undefined ? {} : { actionRisk: match.actionRisk }),
+    ...(match.targetHint === undefined
+      ? {}
+      : {
+          targetHint: {
+            kind: "accessible" as const,
+            label: sanitizeText(match.targetHint.label),
+            ...(match.targetHint.role === undefined
+              ? {}
+              : { role: sanitizeText(match.targetHint.role) }),
+            ...(match.targetHint.occurrence === undefined
+              ? {}
+              : { occurrence: match.targetHint.occurrence }),
+          },
+        }),
+  };
+}
+
+function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
+  const steps = plan.steps.map((step) => ({
+    id: sanitizeText(step.id),
+    order: step.order,
+    action: step.action,
+    resolution: step.resolution,
+    sourceText: sanitizeText(step.sourceText),
+    public: { summary: sanitizeText(step.public.summary) },
+    ...(step.questionId === undefined ? {} : { questionId: sanitizeText(step.questionId) }),
+    ...(step.targetHint === undefined
+      ? {}
+      : {
+          targetHint: {
+            kind: "accessible" as const,
+            label: sanitizeText(step.targetHint.label),
+            ...(step.targetHint.role === undefined
+              ? {}
+              : { role: sanitizeText(step.targetHint.role) }),
+            ...(step.targetHint.occurrence === undefined
+              ? {}
+              : { occurrence: step.targetHint.occurrence }),
+          },
+        }),
+  }));
+  return {
+    id: sanitizeText(plan.id),
+    target: { kind: "browser", url: sanitizeUrl(plan.target.url) },
+    mode: plan.mode,
+    state: plan.state,
+    source: {
+      script: steps.map((step) => step.sourceText).join(" "),
+      parser: "deterministic-v1",
+    },
+    steps,
+    questions: plan.questions.map((question) => ({
+      id: sanitizeText(question.id),
+      stepId: sanitizeText(question.stepId),
+      prompt: sanitizeText(question.prompt),
+      reason: "unrecognized_step",
+    })),
+    approvals: { required: true, approved: false },
+    execution: { status: "not-started" },
+    warnings: plan.warnings.map((warning) => ({
+      code: sanitizeText(warning.code),
+      message: sanitizeText(warning.message),
+    })),
+  };
+}
+
+export function sanitizeWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlan {
+  return sanitizePlan(plan);
+}
+
+export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): WalkthroughPlan {
+  const sanitized = sanitizePlan(plan);
+  if (plan.validation !== undefined) {
+    sanitized.validation = {
+      status: plan.validation.status,
+      validatedAt: plan.validation.validatedAt,
+      mode: "dry-run",
+      checks: plan.validation.checks.map((check) => ({
+        id: sanitizeText(check.id),
+        stepId: sanitizeText(check.stepId),
+        action: check.action,
+        status: check.status,
+        ...(check.reason === undefined ? {} : { reason: check.reason }),
+        summary: sanitizeText(check.summary),
+      })),
+      blockers: plan.validation.blockers.map((blocker) => ({
+        id: sanitizeText(blocker.id),
+        stepId: sanitizeText(blocker.stepId),
+        reason: blocker.reason,
+        question: sanitizeText(blocker.question),
+        ...(blocker.candidates === undefined
+          ? {}
+          : { candidates: blocker.candidates.map(sanitizeMatch) }),
+      })),
+    };
+  }
+  return sanitized;
+}
+
+function sanitizeText(value: string): string {
+  return value
+    .replace(/https?:\/\/[^\s]+/gi, (url) => sanitizeUrl(url))
+    .replace(/\bsk-[a-z0-9_-]{8,}\b/gi, "[redacted-secret]")
+    .replace(/\b[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\b/gi, "[redacted-secret]")
+    .replace(/\bBearer\s+[a-z0-9._~-]{8,}\b/gi, "Bearer [redacted-secret]")
+    .replace(
+      /\b(token|api[ _-]?key|password|passcode|secret|credential)\s*[:=]\s*[^\s,;]+/gi,
+      "$1=[redacted-secret]",
+    )
+    .replace(
+      /\b(token|api[ _-]?key|password|passcode|secret|credential)\s+(is\s+)?(?!field\b|input\b|manager\b|reset\b)([^\s,;]+)/gi,
+      (_match, kind: string, linking: string | undefined) =>
+        `${kind} ${linking ?? ""}[redacted-secret]`,
+    )
+    .replace(/\b[a-z0-9_-]{24,}\b/gi, (candidate) =>
+      isSecretLikeValue(candidate) ? "[redacted-secret]" : candidate,
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function sanitizeWalkthroughText(value: string): string {
+  return sanitizeText(value);
+}
+
+function hasCredentialLikeUrlData(value: string): boolean {
+  const url = new URL(value);
+  let rawFragment: string;
+  try {
+    rawFragment = decodeURIComponent(url.hash.replace(/^#/, ""));
+  } catch {
+    return true;
+  }
+  if (rawFragment.length > 0 && !rawFragment.includes("=") && isSecretLikeValue(rawFragment)) {
+    return true;
+  }
+  const parameterSets = [url.searchParams];
+  if (url.hash.includes("=")) {
+    parameterSets.push(new URLSearchParams(url.hash.replace(/^#/, "")));
+  }
+  for (const parameters of parameterSets) {
+    for (const [key, parameterValue] of parameters) {
+      if (
+        /(^|[-_.])(auth|authorization|token|api[-_]?key|key|secret|password|passcode|credential|signature|sig|code)($|[-_.])/i.test(
+          key,
+        ) ||
+        isSecretLikeValue(parameterValue)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isSecretLikeValue(value: string): boolean {
+  if (/^sk-[a-z0-9_-]{8,}$/i.test(value)) {
+    return true;
+  }
+  if (/^[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}$/i.test(value)) {
+    return true;
+  }
+  return value.length >= 24 && /[a-z]/i.test(value) && /\d/.test(value);
+}
+
+function sanitizeUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, url.pathname === "/" ? "/" : "");
+  } catch {
+    return "[redacted-url]";
+  }
+}
+
+export function sanitizeWalkthroughUrl(value: string): string {
+  return sanitizeUrl(value);
+}
+
+function isUnexpectedNavigation(before: string, after: string): boolean {
+  return normalizedLocation(before) !== normalizedLocation(after);
+}
+
+function normalizedLocation(value: string): string {
+  try {
+    const url = new URL(value);
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+function navigationUrlForStep(step: Pick<WalkthroughPlanStep, "sourceText">): string | undefined {
+  const match = step.sourceText.match(/https?:\/\/[^\s]+/i)?.[0];
+  if (match === undefined) {
+    return undefined;
+  }
+  const candidate = match.replace(/[.!?,;:]+$/, "");
+  return isSafeHttpUrl(candidate) ? candidate : undefined;
+}

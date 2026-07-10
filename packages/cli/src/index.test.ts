@@ -1,10 +1,48 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createWalkthroughPlan, type WalkthroughValidationBrowserRunner } from "@auto-demo/agent";
 import { writeCaptureManifest, type CaptureOutput } from "@auto-demo/capture";
-import { runCli, runCliAsync } from "./index.js";
+import { runCli, runCliAsync, type CliDependencies } from "./index.js";
+
+function testDependencies(
+  createValidationRunner?: () => WalkthroughValidationBrowserRunner,
+): CliDependencies {
+  return {
+    browserCaptureAdapter: {
+      kind: "browser",
+      async start() {
+        throw new Error("capture should not start during agent validate tests");
+      },
+    },
+    createValidationRunner,
+    now: () => new Date("2026-07-09T12:00:00.000Z"),
+    async runChildCommand() {
+      return { exitCode: 0 };
+    },
+  };
+}
+
+function validationRunner(
+  matches: Array<{ id: string; label: string; role?: string }>,
+): WalkthroughValidationBrowserRunner {
+  return {
+    async open() {},
+    async navigate() {},
+    async inspectPage() {
+      return { url: "https://example.com/signup", title: "Signup", authWall: false };
+    },
+    async findMatches() {
+      return matches;
+    },
+    async click() {},
+    async type() {},
+    async waitForIdle() {},
+    async close() {},
+  };
+}
 
 function fakeCaptureOutput(outputDir: string): CaptureOutput {
   return {
@@ -662,6 +700,192 @@ describe("runCliAsync agent", () => {
     expect(output.errors).toEqual([
       { code: "unknown_agent_argument", message: expect.any(String) },
     ]);
+  });
+
+  it("validates a walkthrough plan file as JSON", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "auto-demo-agent-validate-"));
+    const planPath = join(tempDir, "plan.json");
+    await writeFile(
+      planPath,
+      JSON.stringify(
+        createWalkthroughPlan({
+          targetUrl: "https://example.com/signup",
+          script: "Click Get started.",
+          mode: "validate-first",
+        }),
+      ),
+    );
+
+    try {
+      const result = await runCliAsync(
+        ["agent", "validate", "--plan", planPath, "--json"],
+        testDependencies(() =>
+          validationRunner([{ id: "match-1", label: "Get started", role: "button" }]),
+        ),
+      );
+      const output = JSON.parse(result.stdout) as {
+        ok: boolean;
+        plan: { validation: { status: string; validatedAt: string } };
+      };
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(output).toMatchObject({
+        ok: true,
+        plan: {
+          validation: {
+            status: "ready",
+            validatedAt: "2026-07-09T12:00:00.000Z",
+          },
+        },
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("validates URL and script input and returns ambiguity blockers", async () => {
+    const result = await runCliAsync(
+      [
+        "agent",
+        "validate",
+        "--url",
+        "https://example.com/signup",
+        "--script",
+        "Click Get started.",
+        "--json",
+      ],
+      testDependencies(() =>
+        validationRunner([
+          { id: "candidate-1", label: "Header: Get started", role: "button" },
+          { id: "candidate-2", label: "Hero: Get started", role: "button" },
+        ]),
+      ),
+    );
+    const output = JSON.parse(result.stdout) as {
+      ok: boolean;
+      plan: { validation: { status: string; blockers: Array<{ reason: string }> } };
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(output.ok).toBe(true);
+    expect(output.plan.validation.status).toBe("blocked");
+    expect(output.plan.validation.blockers).toEqual([
+      {
+        id: "blocker-1",
+        stepId: "step-1",
+        reason: "multiple_matching_elements",
+        question: expect.any(String),
+        candidates: expect.any(Array),
+      },
+    ]);
+  });
+
+  it("requires JSON output for walkthrough validation", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "validate",
+      "--url",
+      "https://example.com",
+      "--script",
+      "Click Get started.",
+    ]);
+
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo agent validate currently requires --json output.\n",
+    });
+  });
+
+  it("returns a structured error when a validation plan file is missing", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "validate",
+      "--plan",
+      join(tmpdir(), `missing-plan-${randomUUID()}.json`),
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: false,
+      errors: [{ code: "missing_plan_file", message: expect.any(String) }],
+    });
+  });
+
+  it("returns structured errors for invalid JSON and invalid plan shapes", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "auto-demo-agent-invalid-plan-"));
+    const invalidJsonPath = join(tempDir, "invalid-json.json");
+    const invalidPlanPath = join(tempDir, "invalid-plan.json");
+    await writeFile(invalidJsonPath, "not json");
+    await writeFile(invalidPlanPath, JSON.stringify({ id: "not-a-plan" }));
+
+    try {
+      const invalidJson = await runCliAsync([
+        "agent",
+        "validate",
+        "--plan",
+        invalidJsonPath,
+        "--json",
+      ]);
+      const invalidPlan = await runCliAsync([
+        "agent",
+        "validate",
+        "--plan",
+        invalidPlanPath,
+        "--json",
+      ]);
+
+      expect(JSON.parse(invalidJson.stdout)).toEqual({
+        ok: false,
+        errors: [{ code: "invalid_plan_json", message: expect.any(String) }],
+      });
+      expect(JSON.parse(invalidPlan.stdout)).toEqual({
+        ok: false,
+        errors: [{ code: "invalid_plan", message: expect.any(String) }],
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns every safely discoverable validate argument error", async () => {
+    const result = await runCliAsync(["agent", "validate", "--mode", "fast", "--wat", "--json"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: false,
+      errors: [
+        { code: "unsupported_plan_mode", message: expect.any(String) },
+        { code: "unknown_agent_argument", message: expect.any(String) },
+        { code: "missing_validate_input", message: expect.any(String) },
+      ],
+    });
+  });
+
+  it("rejects conflicting walkthrough validation input forms", async () => {
+    const result = await runCliAsync([
+      "agent",
+      "validate",
+      "--plan",
+      "plan.json",
+      "--url",
+      "https://example.com",
+      "--script",
+      "Click Get started.",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: false,
+      errors: [{ code: "conflicting_validate_input", message: expect.any(String) }],
+    });
   });
 });
 
