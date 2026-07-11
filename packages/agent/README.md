@@ -182,6 +182,27 @@ The library does not parse conversation text. Codex, Claude, or another agent
 host explains reviews and translates user answers into structured refinement
 artifacts without editing plan JSON directly.
 
+## Approved Walkthrough Execution
+
+WES-179 executes the approved artifact on the same Playwright page being
+recorded:
+
+```bash
+autodemo agent execute --plan <approved-plan-json-file> --inputs <runtime-inputs-json-file> --out <capture-directory> --json
+```
+
+`--inputs` is required only for type steps. Its values must be non-secret demo
+data because they appear in the recorded browser pixels; they never appear in
+the plan, metadata, diagnostics, or JSON result. Execute mode always verifies
+the approval fingerprint, has no unapproved shortcut, resolves accessible
+targets strictly, stops on the first failure, and uses deterministic
+`natural-v1` pacing.
+
+Success returns an immutable executed plan plus completed capture paths. Failure
+keeps the returned plan approved, records sanitized step outcomes, and preserves
+a failed capture bundle when recording started. WES-180 owns project import,
+baseline generation, and editor/export handoff.
+
 ## Wrapper Artifacts
 
 - Codex skill wrapper: `skills/codex-auto-demo/SKILL.md`
@@ -189,6 +210,7 @@ artifacts without editing plan JSON directly.
 - Invalid-project Codex transcript: `fixtures/codex-invalid-project.md`
 - Walkthrough review/approval transcript: `fixtures/codex-walkthrough-review-approval.md`
 - Walkthrough refinement transcript: `fixtures/codex-walkthrough-refinement.md`
+- Walkthrough execution transcript: `fixtures/codex-walkthrough-execution.md`
 - Claude parity requirements: `claude-wrapper-parity.md`
 
 ## MCP Decision

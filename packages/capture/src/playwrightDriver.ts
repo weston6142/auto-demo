@@ -7,7 +7,8 @@ import {
   type Page,
   type Video,
 } from "playwright";
-import type { CaptureViewport } from "./index.js";
+import type { BrowserCaptureController, CaptureViewport } from "./index.js";
+import { createPlaywrightExecutionController } from "./playwrightExecutionController.js";
 
 export type PlaywrightDriver = {
   launchChromium(): Promise<PlaywrightBrowser>;
@@ -72,6 +73,7 @@ export type PlaywrightPage = {
   onNavigation(callback: (phase: string) => void): void;
   onPageError(callback: (error: PlaywrightPageError) => void): void;
   snapshotMetadata(): Promise<PlaywrightPageSnapshot>;
+  executionController(): BrowserCaptureController;
 };
 
 export type PlaywrightVideo = {
@@ -167,6 +169,9 @@ function wrapPage(page: Page): PlaywrightPage {
         viewport:
           viewport === undefined ? undefined : { width: viewport.width, height: viewport.height },
       };
+    },
+    executionController() {
+      return createPlaywrightExecutionController(page);
     },
   };
 }

@@ -117,6 +117,21 @@ or stale plans remain ineligible. WES-179 must verify the fingerprint before
 execution; the fingerprint is consistency evidence rather than an identity
 signature.
 
+## Agent Walkthrough Execution
+
+Execute a verified approved plan on the same browser page being recorded:
+
+```bash
+npm run autodemo -- agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json
+```
+
+Runtime inputs are permitted only for non-secret demo data. Values are visible
+in recorded pixels but excluded from plans, metadata, diagnostics, and JSON.
+Execution has no unapproved shortcut, uses strict accessible target matching and
+deterministic `natural-v1` pacing, and stops on the first failed step. Expected
+failures exit `1` with a preserved failed capture bundle when recording began;
+interruption exits `130`. WES-180 owns capture-to-project handoff.
+
 ## Deferrals
 
 Registry publication, Homebrew formulas, native app packaging, bundled

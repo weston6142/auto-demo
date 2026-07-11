@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createCaptureEventFactory, type CaptureEvent } from "./captureEvents.js";
 import { createPlaywrightMetadataRecorder } from "./playwrightMetadataRecorder.js";
+import type { BrowserCaptureController } from "./index.js";
 import type {
   BrowserBindingCallback,
   PlaywrightConsoleMessage,
@@ -96,6 +97,16 @@ class FakePage implements PlaywrightPage {
       pageUrl: this.currentUrl,
       pageTitle: this.currentTitle,
       viewport: this.viewport,
+    };
+  }
+
+  executionController(): BrowserCaptureController {
+    return {
+      async navigate() {},
+      async click() {},
+      async type() {},
+      async assertVisible() {},
+      async waitForSettled() {},
     };
   }
 }

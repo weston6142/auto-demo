@@ -387,6 +387,44 @@ describe("refineWalkthroughPlan", () => {
     );
   });
 
+  it("preserves execution data on safe replacement steps", async () => {
+    const bestGuess = createPlan("Pick the best option.");
+    bestGuess.mode = "best-guess";
+
+    const result = await refineWalkthroughPlan(
+      bestGuess,
+      [
+        {
+          kind: "replace-step",
+          stepId: "step-1",
+          replacement: {
+            action: "type",
+            resolution: "resolved",
+            sourceText: "Type [redacted] into Search.",
+            public: { summary: "Type [redacted] into Search." },
+            targetHint: { kind: "accessible", label: "Search" },
+            inputBinding: "step-1",
+          },
+        },
+      ],
+      {},
+      { browser: runner() },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        steps: [
+          {
+            action: "type",
+            inputBinding: "step-1",
+            targetHint: { label: "Search" },
+          },
+        ],
+      },
+    });
+  });
+
   it("returns structured errors for malformed refinement data and unsafe hints", async () => {
     const malformed = await refineWalkthroughPlan(
       ambiguousPlan(),

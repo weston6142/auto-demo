@@ -79,6 +79,16 @@ pass `--allow-best-guess-bypass` unless the user explicitly accepts bypassing
 browser validation. It should persist the approved structured artifact for
 WES-179 rather than treating conversation text as approval evidence.
 
+## Walkthrough Execution Parity
+
+A Claude wrapper should invoke
+`autodemo agent execute --plan <approved-plan-json-file> --inputs <runtime-inputs-json-file> --out <capture-directory> --json`
+only after approval verification. Runtime bindings must contain non-secret demo
+data and must not be repeated in conversation output. The wrapper should report
+the stable result, `natural-v1` pacing profile, and completed or failed capture
+bundle without inspecting raw metadata. WES-180 remains responsible for project
+import and editor/export handoff.
+
 ## Out Of Scope
 
 - Claude production wrapper implementation.

@@ -96,6 +96,22 @@ An unvalidated best-guess plan can be approved only after the user explicitly
 accepts bypassing browser validation. In that case, and only in that case, pass
 `--allow-best-guess-bypass`. Never add that flag silently.
 
+## Approved Walkthrough Execution
+
+After approval, execute the returned artifact without editing its JSON:
+
+```bash
+autodemo agent execute --plan <approved-plan-json-file> --inputs <runtime-inputs-json-file> --out <capture-directory> --json
+```
+
+Omit `--inputs` when the plan has no type steps. Runtime values must be
+non-secret demo data because the browser video displays them. Never paste those
+values into the conversation, command arguments, plan, diagnostics, metadata,
+or task report. Execute mode verifies approval, has no unapproved shortcut,
+uses strict target matching and `natural-v1` pacing, and preserves a failed
+capture bundle after mid-script failure. WES-180 owns project import and
+editor/export handoff.
+
 ## Variant Selection
 
 When the user names a saved variant, pass it through directly:
@@ -183,5 +199,5 @@ bundles remain outside this wrapper.
 - Hosted editor or cloud handoff services.
 - Marketplace distribution or local skill installation automation.
 - Demo-ready export bundle validation.
-- Script execution, capture-to-project handoff, credentials automation,
-  arbitrary OS apps, and destructive production actions for walkthrough plans.
+- Capture-to-project handoff, credentials automation, arbitrary OS apps, and
+  destructive production actions for walkthrough plans.
