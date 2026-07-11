@@ -56,6 +56,22 @@ export {
   type WalkthroughRefinementErrorCode,
 } from "./walkthroughRefinement.js";
 
+export {
+  executeWalkthroughPlan,
+  NATURAL_EXECUTION_PACING,
+  type WalkthroughExecutionBrowser,
+  type WalkthroughExecutionCaptureOutput,
+  type WalkthroughExecutionCaptureSession,
+  type WalkthroughExecutionCaptureStartResult,
+  type WalkthroughExecutionCaptureStopResult,
+  type WalkthroughExecutionDependencies,
+  type WalkthroughExecutionError,
+  type WalkthroughExecutionErrorCode,
+  type WalkthroughExecutionInput,
+  type WalkthroughExecutionResult,
+  type WalkthroughExecutionTarget,
+} from "./walkthroughExecution.js";
+
 export type AgentPackageRole = "agent-workflow-wrapper";
 
 export const agentPackageRole: AgentPackageRole = "agent-workflow-wrapper";
@@ -185,7 +201,39 @@ export type WalkthroughPlanStep = {
   };
   questionId?: string;
   targetHint?: WalkthroughPlanTargetHint;
+  navigationUrl?: string;
+  inputBinding?: string;
+  waitDurationMs?: number;
 };
+
+export type WalkthroughPlanExecutionStepOutcome = {
+  stepId: string;
+  action: WalkthroughPlanStepAction;
+  status: "completed" | "failed" | "skipped";
+  startedAt?: string;
+  endedAt?: string;
+  durationMs?: number;
+  errorCode?: string;
+};
+
+export type WalkthroughPlanExecutionCapture = {
+  outputDir: string;
+  manifestPath: string;
+  mediaPath?: string;
+  metadataPath?: string;
+};
+
+export type WalkthroughPlanExecution =
+  | { status: "not-started" }
+  | {
+      status: "completed" | "failed";
+      startedAt: string;
+      endedAt: string;
+      durationMs: number;
+      pacingProfile: "natural-v1";
+      steps: WalkthroughPlanExecutionStepOutcome[];
+      capture: WalkthroughPlanExecutionCapture;
+    };
 
 export type WalkthroughPlan = {
   id: string;
@@ -202,9 +250,7 @@ export type WalkthroughPlan = {
   steps: WalkthroughPlanStep[];
   questions: WalkthroughPlanQuestion[];
   approvals: WalkthroughPlanApproval;
-  execution: {
-    status: "not-started";
-  };
+  execution: WalkthroughPlanExecution;
   warnings: Array<{ code: string; message: string }>;
   validation?: import("./walkthroughValidation.js").WalkthroughPlanValidation;
 };
@@ -212,6 +258,7 @@ export type WalkthroughPlan = {
 export type WalkthroughPlanErrorCode =
   | "missing_target_url"
   | "invalid_target_url"
+  | "invalid_navigation_url"
   | "missing_script"
   | "unsupported_plan_mode"
   | "unknown_agent_argument";
@@ -253,7 +300,7 @@ export function createWalkthroughPlan(input: WalkthroughPlanInput): WalkthroughP
       code: "missing_target_url",
       message: "Walkthrough plan requires --url <target-url>.",
     });
-  } else if (!isHttpUrl(targetUrl)) {
+  } else if (!isSafePlanUrl(targetUrl)) {
     errors.push({
       code: "invalid_target_url",
       message: "Walkthrough plan target URL must be an absolute http(s) URL.",
@@ -264,6 +311,12 @@ export function createWalkthroughPlan(input: WalkthroughPlanInput): WalkthroughP
     errors.push({
       code: "missing_script",
       message: "Walkthrough plan requires non-empty script text.",
+    });
+  }
+  if (scriptUrls(script).some((url) => !isSafePlanUrl(url))) {
+    errors.push({
+      code: "invalid_navigation_url",
+      message: "Walkthrough script navigation URLs must be safe absolute http(s) URLs.",
     });
   }
 
@@ -291,6 +344,7 @@ export function createWalkthroughPlan(input: WalkthroughPlanInput): WalkthroughP
         resolution: "resolved",
         sourceText: normalized.action === "type" ? normalized.summary : stepText,
         public: { summary: normalized.summary },
+        ...executionDataForStep(normalized.action, stepText, stepId),
       };
     }
 
@@ -315,12 +369,16 @@ export function createWalkthroughPlan(input: WalkthroughPlanInput): WalkthroughP
   return {
     ok: true,
     plan: {
-      id: planId(targetUrl, script, mode),
+      id: planId(
+        planIdentityTarget(targetUrl),
+        steps.map((step) => step.sourceText).join(" "),
+        mode,
+      ),
       target: { kind: "browser", url: targetUrl },
       mode,
       state: questions.length === 0 ? "draft" : "needs-clarification",
       source: {
-        script,
+        script: steps.map((step) => step.sourceText).join(" "),
         parser: "deterministic-v1",
       },
       steps,
@@ -537,13 +595,37 @@ function failure(projectPath: string, ...errors: AgentWorkflowError[]): AgentWor
   };
 }
 
-function isHttpUrl(value: string): boolean {
+function isSafePlanUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) {
+      return false;
+    }
+    const parameterSets = [url.searchParams];
+    if (url.hash.includes("=")) parameterSets.push(new URLSearchParams(url.hash.slice(1)));
+    return parameterSets.every((parameters) =>
+      [...parameters].every(
+        ([key, parameterValue]) =>
+          !/(^|[-_.])(auth|authorization|token|api[-_]?key|key|secret|password|passcode|credential|signature|sig|code)($|[-_.])/i.test(
+            key,
+          ) && !isSecretLikePlanValue(parameterValue),
+      ),
+    );
   } catch {
     return false;
   }
+}
+
+function isSecretLikePlanValue(value: string): boolean {
+  return (
+    /^sk-[a-z0-9_-]{8,}$/i.test(value) ||
+    /^[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}$/i.test(value) ||
+    (value.length >= 24 && /[a-z]/i.test(value) && /\d/.test(value))
+  );
+}
+
+function scriptUrls(script: string): string[] {
+  return (script.match(/https?:\/\/[^\s]+/gi) ?? []).map((url) => url.replace(/[.!?,;:]+$/, ""));
 }
 
 function isWalkthroughPlanMode(value: string): value is WalkthroughPlanMode {
@@ -556,6 +638,44 @@ function planId(targetUrl: string, script: string, mode: WalkthroughPlanMode): s
     .digest("hex")
     .slice(0, 12);
   return `plan-${hash}`;
+}
+
+function planIdentityTarget(targetUrl: string): string {
+  const url = new URL(targetUrl);
+  url.username = "";
+  url.password = "";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+function executionDataForStep(
+  action: WalkthroughPlanStepAction,
+  sourceText: string,
+  stepId: string,
+): Pick<WalkthroughPlanStep, "navigationUrl" | "inputBinding" | "waitDurationMs"> {
+  if (action === "type") {
+    return { inputBinding: stepId };
+  }
+
+  if (action === "navigate") {
+    const candidate = sourceText.match(/https?:\/\/[^\s]+/i)?.[0]?.replace(/[.!?,;:]+$/, "");
+    return candidate !== undefined && isSafePlanUrl(candidate) ? { navigationUrl: candidate } : {};
+  }
+
+  if (action === "wait") {
+    const match = sourceText.match(/^wait\s+(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?)\b/i);
+    if (match === null) {
+      return {};
+    }
+    const amount = Number(match[1]);
+    const durationMs = /^m/i.test(match[2]) ? amount : amount * 1_000;
+    return Number.isInteger(durationMs) && durationMs > 0 && durationMs <= 60_000
+      ? { waitDurationMs: durationMs }
+      : {};
+  }
+
+  return {};
 }
 
 function splitScript(script: string): string[] {

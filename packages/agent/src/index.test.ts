@@ -355,6 +355,83 @@ describe("createWalkthroughPlan", () => {
     );
   });
 
+  it("adds deterministic execution data without preserving typed values", () => {
+    const result = createWalkthroughPlan({
+      targetUrl: "https://example.com/start",
+      script:
+        "Go to https://example.com/dashboard. Type launch demo into Search. Wait 2 seconds. Verify Results.",
+      mode: "best-guess",
+    });
+
+    expect(result.ok && result.plan.steps).toMatchObject([
+      {
+        id: "step-1",
+        action: "navigate",
+        navigationUrl: "https://example.com/dashboard",
+      },
+      { id: "step-2", action: "type", inputBinding: "step-2" },
+      { id: "step-3", action: "wait", waitDurationMs: 2_000 },
+      { id: "step-4", action: "assert" },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("launch demo");
+  });
+
+  it("does not derive the public plan id from typed values or URL query values", () => {
+    const first = createWalkthroughPlan({
+      targetUrl: "https://example.com/start?campaign=campaign-alpha",
+      script: "Type typed-private-alpha into Search.",
+      mode: "best-guess",
+    });
+    const second = createWalkthroughPlan({
+      targetUrl: "https://example.com/start?campaign=campaign-beta",
+      script: "Type typed-private-beta into Search.",
+      mode: "best-guess",
+    });
+
+    expect(first.ok && second.ok && first.plan.id).toBe(
+      first.ok && second.ok ? second.plan.id : false,
+    );
+    expect(JSON.stringify(first)).not.toContain("typed-private-alpha");
+    expect(JSON.stringify(second)).not.toContain("typed-private-beta");
+  });
+
+  it("rejects credential-like target and navigation URLs without serializing their values", () => {
+    const targetSecret = "target-private-value";
+    const navigationSecret = "navigation-private-value";
+    const unsafeTarget = createWalkthroughPlan({
+      targetUrl: `https://example.com/start?token=${targetSecret}`,
+      script: "Click Continue.",
+      mode: "validate-first",
+    });
+    const unsafeNavigation = createWalkthroughPlan({
+      targetUrl: "https://example.com/start",
+      script: `Go to https://example.com/dashboard?api_key=${navigationSecret}.`,
+      mode: "validate-first",
+    });
+
+    expect(unsafeTarget).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_target_url" }],
+    });
+    expect(unsafeNavigation).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_navigation_url" }],
+    });
+    expect(JSON.stringify([unsafeTarget, unsafeNavigation])).not.toContain(targetSecret);
+    expect(JSON.stringify([unsafeTarget, unsafeNavigation])).not.toContain(navigationSecret);
+  });
+
+  it("keeps unsupported wait durations explicit for execution preflight", () => {
+    const result = createWalkthroughPlan({
+      targetUrl: "https://example.com",
+      script: "Wait 250 ms. Wait 61 seconds.",
+      mode: "best-guess",
+    });
+
+    expect(result.ok && result.plan.steps[0]).toMatchObject({ waitDurationMs: 250 });
+    expect(result.ok && result.plan.steps[1]).not.toHaveProperty("waitDurationMs");
+  });
+
   it("returns stable errors for invalid intake input", () => {
     const result = createWalkthroughPlan({
       targetUrl: "not a url",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  approveWalkthroughPlan,
   createWalkthroughPlan,
   isWalkthroughPlan,
   validateWalkthroughPlan,
@@ -58,6 +59,55 @@ function runner(
 }
 
 describe("validateWalkthroughPlan", () => {
+  it("accepts only consistent completed and failed execution lifecycles", () => {
+    const created = createWalkthroughPlan({
+      targetUrl: "https://example.com",
+      script: "Click Get started.",
+      mode: "best-guess",
+    });
+    if (!created.ok) throw new Error("test plan should be valid");
+    const approved = approveWalkthroughPlan(created.plan, { allowBestGuessBypass: true });
+    if (!approved.ok) throw new Error("test plan should approve");
+
+    const completed = structuredClone(approved.plan);
+    completed.state = "executed";
+    completed.execution = {
+      status: "completed",
+      startedAt: "2026-07-10T17:00:00.000Z",
+      endedAt: "2026-07-10T17:00:01.000Z",
+      durationMs: 1_000,
+      pacingProfile: "natural-v1",
+      steps: [{ stepId: "step-1", action: "click", status: "completed" }],
+      capture: {
+        outputDir: "/captures/demo",
+        manifestPath: "/captures/demo/capture.manifest.json",
+      },
+    };
+    const failed = structuredClone(completed);
+    failed.state = "approved";
+    failed.execution.status = "failed";
+
+    expect(isWalkthroughPlan(completed)).toBe(true);
+    expect(isWalkthroughPlan(failed)).toBe(true);
+
+    failed.state = "executed";
+    expect(isWalkthroughPlan(failed)).toBe(false);
+  });
+
+  it("preserves safe execution data and rejects malformed action fields", async () => {
+    const executable = plan("Type launch demo into Search. Wait 2 seconds.");
+
+    const result = await validateWalkthroughPlan(executable, {}, { browser: runner({}) });
+
+    expect(result.ok && result.plan.steps).toMatchObject([
+      { action: "type", inputBinding: "step-1" },
+      { action: "wait", waitDurationMs: 2_000 },
+    ]);
+
+    executable.steps[0].waitDurationMs = 500;
+    expect(isWalkthroughPlan(executable)).toBe(false);
+  });
+
   it("rejects incomplete or non-browser-safe plan shapes", async () => {
     const invalidPlan = {
       id: "partial-plan",

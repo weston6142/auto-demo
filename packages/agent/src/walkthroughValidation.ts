@@ -125,7 +125,7 @@ export function isWalkthroughPlan(value: unknown): value is WalkthroughPlan {
     Array.isArray(candidate.questions) &&
     candidate.questions.every(isWalkthroughPlanQuestion) &&
     isWalkthroughPlanApproval(candidate.approvals, candidate.state) &&
-    candidate.execution?.status === "not-started" &&
+    isWalkthroughPlanExecution(candidate.execution, candidate.state, candidate.steps) &&
     Array.isArray(candidate.warnings) &&
     candidate.warnings.every(isPlanWarning) &&
     (candidate.validation === undefined || isWalkthroughPlanValidation(candidate.validation)) &&
@@ -417,6 +417,17 @@ function isWalkthroughPlanStep(value: unknown): value is WalkthroughPlanStep {
     return false;
   }
   const step = value as Partial<WalkthroughPlanStep>;
+  const executionDataValid =
+    (step.navigationUrl === undefined ||
+      (step.action === "navigate" && isSafeHttpUrl(step.navigationUrl))) &&
+    (step.inputBinding === undefined ||
+      (step.action === "type" && isSafeIdentifier(step.inputBinding))) &&
+    (step.waitDurationMs === undefined ||
+      (step.action === "wait" &&
+        typeof step.waitDurationMs === "number" &&
+        Number.isInteger(step.waitDurationMs) &&
+        step.waitDurationMs > 0 &&
+        step.waitDurationMs <= 60_000));
   return (
     isSafeIdentifier(step.id) &&
     typeof step.order === "number" &&
@@ -430,7 +441,8 @@ function isWalkthroughPlanStep(value: unknown): value is WalkthroughPlanStep {
       (isRedactedTypeDescription(step.sourceText) &&
         isRedactedTypeDescription(step.public.summary))) &&
     (step.questionId === undefined || isSafeIdentifier(step.questionId)) &&
-    (step.targetHint === undefined || isWalkthroughPlanTargetHint(step.targetHint))
+    (step.targetHint === undefined || isWalkthroughPlanTargetHint(step.targetHint)) &&
+    executionDataValid
   );
 }
 
@@ -495,17 +507,69 @@ function isWalkthroughPlanApproval(
       approval.approvedAt === undefined &&
       approval.planFingerprint === undefined &&
       approval.basis === undefined &&
-      state !== "approved"
+      state !== "approved" &&
+      state !== "executed"
     );
   }
   return (
-    state === "approved" &&
+    (state === "approved" || state === "executed") &&
     typeof approval.approvedAt === "string" &&
     !Number.isNaN(Date.parse(approval.approvedAt)) &&
     typeof approval.planFingerprint === "string" &&
     /^sha256:[a-f0-9]{64}$/.test(approval.planFingerprint) &&
     (approval.basis === "validated" || approval.basis === "best-guess-bypass")
   );
+}
+
+function isWalkthroughPlanExecution(
+  value: unknown,
+  state: WalkthroughPlan["state"] | undefined,
+  steps: WalkthroughPlanStep[] | undefined,
+): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const execution = value as Partial<WalkthroughPlan["execution"]> & {
+    steps?: unknown;
+    capture?: unknown;
+  };
+  if (execution.status === "not-started") return state !== "executed";
+  if (execution.status !== "completed" && execution.status !== "failed") return false;
+  if (execution.status === "completed" ? state !== "executed" : state !== "approved") return false;
+  if (
+    typeof execution.startedAt !== "string" ||
+    Number.isNaN(Date.parse(execution.startedAt)) ||
+    typeof execution.endedAt !== "string" ||
+    Number.isNaN(Date.parse(execution.endedAt)) ||
+    typeof execution.durationMs !== "number" ||
+    !Number.isInteger(execution.durationMs) ||
+    execution.durationMs < 0 ||
+    execution.pacingProfile !== "natural-v1" ||
+    !Array.isArray(execution.steps) ||
+    !Array.isArray(steps) ||
+    execution.steps.length !== steps.length ||
+    typeof execution.capture !== "object" ||
+    execution.capture === null
+  ) {
+    return false;
+  }
+  const capture = execution.capture as { outputDir?: unknown; manifestPath?: unknown };
+  if (!isNonEmptyString(capture.outputDir) || !isNonEmptyString(capture.manifestPath)) return false;
+  return execution.steps.every((outcome, index) => {
+    if (typeof outcome !== "object" || outcome === null) return false;
+    const candidate = outcome as {
+      stepId?: unknown;
+      action?: unknown;
+      status?: unknown;
+      errorCode?: unknown;
+    };
+    return (
+      candidate.stepId === steps[index]?.id &&
+      candidate.action === steps[index]?.action &&
+      (candidate.status === "completed" ||
+        candidate.status === "failed" ||
+        candidate.status === "skipped") &&
+      (candidate.errorCode === undefined || isSafeIdentifier(candidate.errorCode))
+    );
+  });
 }
 
 function isWalkthroughPlanValidation(value: unknown): value is WalkthroughPlanValidation {
@@ -623,7 +687,12 @@ function hasConsistentPlanRelationships(plan: WalkthroughPlan): boolean {
     return false;
   }
 
-  if (plan.state === "approved") {
+  if (plan.state === "approved" || plan.state === "executed") {
+    const lifecycleMatches =
+      plan.state === "executed"
+        ? plan.execution.status === "completed"
+        : plan.execution.status !== "completed";
+    if (!lifecycleMatches) return false;
     if (plan.approvals.basis === "validated") {
       return plan.validation?.status === "ready";
     }
@@ -841,6 +910,9 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
               : { occurrence: step.targetHint.occurrence }),
           },
         }),
+    ...(step.navigationUrl === undefined ? {} : { navigationUrl: sanitizeUrl(step.navigationUrl) }),
+    ...(step.inputBinding === undefined ? {} : { inputBinding: sanitizeText(step.inputBinding) }),
+    ...(step.waitDurationMs === undefined ? {} : { waitDurationMs: step.waitDurationMs }),
   }));
   return {
     id: sanitizeText(plan.id),

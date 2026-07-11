@@ -122,6 +122,38 @@ export type BrowserCaptureAdapter = {
   start(options: BrowserCaptureOptions): Promise<CaptureStartResult>;
 };
 
+export type BrowserExecutionTarget = {
+  label: string;
+  role?: string;
+  occurrence?: number;
+};
+
+export type BrowserCaptureController = {
+  navigate(url: string): Promise<void>;
+  click(target: BrowserExecutionTarget): Promise<void>;
+  type(target: BrowserExecutionTarget, value: string, options: { delayMs: number }): Promise<void>;
+  assertVisible(target: BrowserExecutionTarget): Promise<void>;
+  waitForSettled(): Promise<void>;
+};
+
+export type ControllableCaptureSession = CaptureSession & {
+  readonly browser: BrowserCaptureController;
+};
+
+export type ControllableCaptureStartResult =
+  | {
+      ok: true;
+      session: ControllableCaptureSession;
+      outputDir: string;
+      manifestPath: string;
+    }
+  | Extract<CaptureStartResult, { ok: false }>;
+
+export type ControllableBrowserCaptureAdapter = {
+  readonly kind: "browser";
+  start(options: BrowserCaptureOptions): Promise<ControllableCaptureStartResult>;
+};
+
 /** Creates the default browser capture backend for real viewport media and interaction metadata recording. */
 export { createPlaywrightBrowserCaptureAdapter };
 

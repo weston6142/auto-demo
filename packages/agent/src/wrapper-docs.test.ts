@@ -284,4 +284,35 @@ describe("agent wrapper documentation", () => {
       review: refinementArtifact.review,
     });
   });
+
+  it("documents approved walkthrough execution and its capture-only handoff", async () => {
+    const rootReadme = await readRootDoc("README.md");
+    const agentReadme = await readAgentDoc("README.md");
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const parity = await readAgentDoc("claude-wrapper-parity.md");
+    const executionFixture = await readAgentDoc("fixtures/codex-walkthrough-execution.md");
+    const combined = [rootReadme, agentReadme, skill, parity, executionFixture].join("\n");
+
+    for (const required of [
+      "autodemo agent execute --plan <approved-plan-json-file>",
+      "--inputs <runtime-inputs-json-file>",
+      "--out <capture-directory>",
+      "natural-v1",
+      "non-secret demo data",
+      "failed capture bundle",
+      "WES-180",
+    ]) {
+      expect(combined).toContain(required);
+    }
+    expect(combined).not.toContain("execute --allow-unapproved");
+
+    expect(jsonBlock(executionFixture, "Successful execution result")).toMatchObject({
+      ok: true,
+      plan: { state: "executed", execution: { status: "completed" } },
+    });
+    expect(jsonBlock(executionFixture, "Failed execution result")).toMatchObject({
+      ok: false,
+      plan: { state: "approved", execution: { status: "failed" } },
+    });
+  });
 });

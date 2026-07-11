@@ -1,9 +1,9 @@
 import { rename, stat } from "node:fs/promises";
 import type {
-  BrowserCaptureAdapter,
+  ControllableBrowserCaptureAdapter,
+  ControllableCaptureStartResult,
   BrowserCaptureOptions,
   CaptureOutput,
-  CaptureStartResult,
   CaptureStopReason,
   CaptureStopResult,
 } from "./index.js";
@@ -29,7 +29,7 @@ type PlaywrightAdapterDependencies = {
   createEventWriter?: (eventsPath: string) => Promise<JsonlEventWriter>;
 };
 
-export function createPlaywrightBrowserCaptureAdapter(): BrowserCaptureAdapter {
+export function createPlaywrightBrowserCaptureAdapter(): ControllableBrowserCaptureAdapter {
   return createPlaywrightBrowserCaptureAdapterForDriver(createDefaultPlaywrightDriver(), {
     now: () => new Date(),
   });
@@ -38,7 +38,7 @@ export function createPlaywrightBrowserCaptureAdapter(): BrowserCaptureAdapter {
 export function createPlaywrightBrowserCaptureAdapterForDriver(
   driver: PlaywrightDriver,
   dependencies: PlaywrightAdapterDependencies,
-): BrowserCaptureAdapter {
+): ControllableBrowserCaptureAdapter {
   return {
     kind: "browser",
     async start(options) {
@@ -51,7 +51,7 @@ async function startPlaywrightCapture(
   driver: PlaywrightDriver,
   dependencies: PlaywrightAdapterDependencies,
   options: BrowserCaptureOptions,
-): Promise<CaptureStartResult> {
+): Promise<ControllableCaptureStartResult> {
   const paths = buildCapturePaths(options.outputDir);
   let browser: PlaywrightBrowser | undefined;
   let context: PlaywrightBrowserContext | undefined;
@@ -123,6 +123,7 @@ async function startPlaywrightCapture(
 class PlaywrightCaptureSession {
   public readonly outputDir: string;
   public readonly manifestPath: string;
+  public readonly browser: ReturnType<PlaywrightPage["executionController"]>;
   private stopPromise: Promise<CaptureStopResult> | undefined;
 
   constructor(
@@ -139,6 +140,7 @@ class PlaywrightCaptureSession {
   ) {
     this.outputDir = state.paths.outputDir;
     this.manifestPath = state.paths.manifestPath;
+    this.browser = state.page.executionController();
   }
 
   async stop(reason: CaptureStopReason): Promise<CaptureStopResult> {

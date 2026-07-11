@@ -55,13 +55,13 @@ and other standalone distribution artifact work are deferred from the MVP.
 
 ## Packages
 
-- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, local editor startup, agent workflow handoff, walkthrough plan intake, JSON export routing, and the repo-root clean-checkout wrapper contract for WES-164, with the workspace-scoped command retained as a diagnostic fallback.
+- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, local editor startup, agent workflow handoff, walkthrough planning and execution, JSON export routing, and the repo-root clean-checkout wrapper contract for WES-164, with the workspace-scoped command retained as a diagnostic fallback.
 - `@auto-demo/project`: Auto Demo schema v1 project manifest types, strict validation with accumulated structured errors, MVP polish variant definition and saved-file validation, capture-bundle import into the normalized project layout, and project load/save/generated/browser variant persistence APIs.
-- `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, interaction metadata JSONL capture, temporary capture manifest APIs, capture output paths, and unsupported-backend fallback.
+- `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, same-page execution controller, interaction metadata JSONL capture, temporary capture manifest APIs, capture output paths, and unsupported-backend fallback.
 - `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata, the baseline-only MVP style preset contract, and headless dry-run/save batch summaries.
 - `@auto-demo/render`: export and render orchestration for saved variants, including the WES-167 `mp4-demo` preset, local ffmpeg runner boundary, and render summary metadata.
 - `@auto-demo/editor`: local browser editor server, approximate variant preview, schema-backed local finishing UI, and update/copy saves for browser-edited variants.
-- `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, deterministic walkthrough plan intake, and repository-owned Codex wrapper artifacts.
+- `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, deterministic walkthrough planning, approval-aware recorded execution, and repository-owned Codex wrapper artifacts.
 
 ## CLI
 
@@ -76,6 +76,7 @@ autodemo agent run --project <project-dir-or-manifest> --json [--variant <varian
 autodemo agent run --project <project-dir-or-manifest> --json --generate baseline --source-variant <source-variant-id> --save <baseline-polish|all>
 autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
+autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json
 autodemo export --project <project-dir-or-manifest> --json [--variant baseline-polish] [--preset mp4-demo]
 autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo validate <capture-dir-or-manifest>
@@ -158,10 +159,13 @@ ambiguous instructions, approval and execution placeholders, and non-secret
 warnings. Public type-step summaries redact typed values. `--mode` defaults to
 `validate-first`; `best-guess` adds a review warning. Expected failures exit `1`
 and return stable planning error codes for missing or invalid target URLs,
-missing scripts, unsupported modes, and unknown plan arguments. Page validation,
-approval workflow, browser execution, capture recording, credential automation,
-destructive production actions, and capture-to-project handoff remain downstream
-script workflow work.
+missing scripts, unsupported modes, and unknown plan arguments. The agent
+workflow can validate, review, refine, approve, and execute the resulting plan
+under browser capture. Execution requires verified approval, uses strict target
+matching and deterministic `natural-v1` pacing, accepts optional runtime inputs
+containing only non-secret demo data, and preserves a failed capture bundle when
+a step breaks. Credential automation, destructive production actions, and the
+WES-180 capture-to-project handoff remain downstream work.
 
 MCP is deferred from the MVP. The current accepted agent path is the CLI plus Codex wrapper: `autodemo agent run --project <project> --json` produces the non-secret JSON handoff that agents consume. Reopen MCP work after export and packaging evidence shows a need for persistent project/session discovery, editor handoff lifecycle control, artifact inspection across multiple outputs, repeated orchestration mistakes that typed tools would prevent, or a host requires MCP instead of shell commands. Future MCP work does not introduce a new project schema, hosted services, or final MP4 export behavior; local MP4 export stays CLI-owned through `autodemo export`.
 

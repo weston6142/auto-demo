@@ -83,7 +83,11 @@ export function verifyWalkthroughPlanApproval(
   if (!isWalkthroughPlan(plan) || !plan.approvals.approved) {
     return failure("invalid_plan", "Walkthrough approval verification requires an approved plan.");
   }
-  if (plan.approvals.planFingerprint !== walkthroughPlanFingerprint(plan)) {
+  const fingerprintMatches = plan.approvals.planFingerprint === walkthroughPlanFingerprint(plan);
+  const legacyFingerprintMatches =
+    !plan.steps.some(hasStructuredExecutionData) &&
+    plan.approvals.planFingerprint === legacyWalkthroughPlanFingerprint(plan);
+  if (!fingerprintMatches && !legacyFingerprintMatches) {
     return failure(
       "stale_approval",
       "Walkthrough approval does not match the current execution content.",
@@ -93,7 +97,29 @@ export function verifyWalkthroughPlanApproval(
 }
 
 export function walkthroughPlanFingerprint(plan: WalkthroughPlan): string {
-  const canonical = canonicalize({
+  return fingerprint({
+    target: plan.target,
+    mode: plan.mode,
+    steps: plan.steps.map((step) => ({
+      id: step.id,
+      order: step.order,
+      action: step.action,
+      resolution: step.resolution,
+      sourceText: step.sourceText,
+      public: step.public,
+      targetHint: step.targetHint ?? null,
+      questionId: step.questionId ?? null,
+      navigationUrl: step.navigationUrl ?? null,
+      inputBinding: step.inputBinding ?? null,
+      waitDurationMs: step.waitDurationMs ?? null,
+    })),
+    questions: plan.questions,
+    validation: plan.validation ?? null,
+  });
+}
+
+function legacyWalkthroughPlanFingerprint(plan: WalkthroughPlan): string {
+  return fingerprint({
     target: plan.target,
     mode: plan.mode,
     steps: plan.steps.map((step) => ({
@@ -109,6 +135,18 @@ export function walkthroughPlanFingerprint(plan: WalkthroughPlan): string {
     questions: plan.questions,
     validation: plan.validation ?? null,
   });
+}
+
+function hasStructuredExecutionData(step: WalkthroughPlan["steps"][number]): boolean {
+  return (
+    step.navigationUrl !== undefined ||
+    step.inputBinding !== undefined ||
+    step.waitDurationMs !== undefined
+  );
+}
+
+function fingerprint(value: unknown): string {
+  const canonical = canonicalize(value);
   const digest = createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
   return `sha256:${digest}`;
 }

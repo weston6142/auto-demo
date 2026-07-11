@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CaptureEvent } from "./captureEvents.js";
+import type { BrowserCaptureController } from "./index.js";
 import type { JsonlEventWriter } from "./jsonlEventWriter.js";
 import { validateCaptureBundle } from "./captureManifest.js";
 import { createPlaywrightBrowserCaptureAdapterForDriver } from "./playwrightAdapter.js";
@@ -31,6 +32,7 @@ class FakePage implements PlaywrightPage {
   public currentUrl = "https://example.com/demo";
   public currentTitle = "Demo";
   public viewport = { width: 1280, height: 720 };
+  public readonly controlledActions: string[] = [];
 
   constructor(private readonly fakeVideo: PlaywrightVideo | null) {}
 
@@ -60,6 +62,26 @@ class FakePage implements PlaywrightPage {
       pageUrl: this.currentUrl,
       pageTitle: this.currentTitle,
       viewport: this.viewport,
+    };
+  }
+
+  executionController(): BrowserCaptureController {
+    return {
+      navigate: async (url) => {
+        this.controlledActions.push(`navigate:${url}`);
+      },
+      click: async (target) => {
+        this.controlledActions.push(`click:${target.label}`);
+      },
+      type: async (target) => {
+        this.controlledActions.push(`type:${target.label}`);
+      },
+      assertVisible: async (target) => {
+        this.controlledActions.push(`assert:${target.label}`);
+      },
+      waitForSettled: async () => {
+        this.controlledActions.push("settled");
+      },
     };
   }
 }
@@ -140,6 +162,8 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
     expect(driver.browser.context.page.gotos).toEqual(["https://example.com/demo"]);
     expect(result.session.outputDir).toBe(outputDir);
     expect(result.session.manifestPath).toBe(`${outputDir}/capture.manifest.json`);
+    await result.session.browser.click({ label: "Get started" });
+    expect(driver.browser.context.page.controlledActions).toEqual(["click:Get started"]);
   });
 
   it("returns media and timing when the session stops", async () => {

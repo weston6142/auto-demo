@@ -601,7 +601,7 @@ describe("runCliAsync agent", () => {
     expect(output.plan.steps.map((step) => step.action)).toEqual(["navigate", "click"]);
   });
 
-  it("redacts typed values from public walkthrough plan steps", async () => {
+  it("redacts typed values from the walkthrough plan artifact", async () => {
     const result = await runCliAsync([
       "agent",
       "plan",
@@ -619,7 +619,7 @@ describe("runCliAsync agent", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(output.ok).toBe(true);
-    expect(output.plan.source.script).toBe("Type hunter2 into the password field.");
+    expect(output.plan.source.script).toBe("Type [redacted] into the password field.");
     expect(output.plan.steps[0]?.sourceText).toBe("Type [redacted] into the password field.");
   });
 
@@ -700,6 +700,32 @@ describe("runCliAsync agent", () => {
     expect(output.errors).toEqual([
       { code: "unknown_agent_argument", message: expect.any(String) },
     ]);
+  });
+
+  it("orders unsafe navigation errors before other walkthrough plan errors", async () => {
+    const secret = "navigation-private-value";
+    const result = await runCliAsync([
+      "agent",
+      "plan",
+      "--wat",
+      "--url",
+      "https://example.com",
+      "--script",
+      `Go to https://example.com/dashboard?token=${secret}.`,
+      "--mode",
+      "fast",
+      "--json",
+    ]);
+    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(output.errors).toEqual([
+      { code: "invalid_navigation_url", message: expect.any(String) },
+      { code: "unsupported_plan_mode", message: expect.any(String) },
+      { code: "unknown_agent_argument", message: expect.any(String) },
+    ]);
+    expect(result.stdout).not.toContain(secret);
   });
 
   it("validates a walkthrough plan file as JSON", async () => {

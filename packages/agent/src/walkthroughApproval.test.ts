@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   approveWalkthroughPlan,
@@ -38,6 +39,35 @@ function validatedPlan(): WalkthroughPlan {
     blockers: [],
   };
   return plan;
+}
+
+function legacyFingerprint(plan: WalkthroughPlan): string {
+  const canonicalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonicalize);
+    if (typeof value !== "object" || value === null) return value;
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalize(nested)]),
+    );
+  };
+  const canonical = canonicalize({
+    target: plan.target,
+    mode: plan.mode,
+    steps: plan.steps.map((step) => ({
+      id: step.id,
+      order: step.order,
+      action: step.action,
+      resolution: step.resolution,
+      sourceText: step.sourceText,
+      public: step.public,
+      targetHint: step.targetHint ?? null,
+      questionId: step.questionId ?? null,
+    })),
+    questions: plan.questions,
+    validation: plan.validation ?? null,
+  });
+  return `sha256:${createHash("sha256").update(JSON.stringify(canonical)).digest("hex")}`;
 }
 
 describe("walkthrough approval", () => {
@@ -156,6 +186,53 @@ describe("walkthrough approval", () => {
           message: "Walkthrough approval does not match the current execution content.",
         },
       ],
+    });
+  });
+
+  it("fingerprints structured execution data", () => {
+    const typePlan = createPlan("best-guess", "Type launch demo into Search.");
+    const waitPlan = createPlan("best-guess", "Wait 2 seconds.");
+    const navigationPlan = createPlan("best-guess", "Go to https://example.com/dashboard.");
+    const approvedPlans = [typePlan, waitPlan, navigationPlan].map((plan) =>
+      approveWalkthroughPlan(plan, { allowBestGuessBypass: true }),
+    );
+    for (const approved of approvedPlans) {
+      if (!approved.ok) throw new Error("test plan should approve");
+    }
+
+    const [approvedType, approvedWait, approvedNavigation] = approvedPlans;
+    if (!approvedType.ok || !approvedWait.ok || !approvedNavigation.ok) {
+      throw new Error("test plans should approve");
+    }
+    expect(approvedType.plan.steps[0]).toMatchObject({ inputBinding: "step-1" });
+    expect(approvedWait.plan.steps[0]).toMatchObject({ waitDurationMs: 2_000 });
+    expect(approvedNavigation.plan.steps[0]).toMatchObject({
+      navigationUrl: "https://example.com/dashboard",
+    });
+
+    approvedType.plan.steps[0].inputBinding = "replacement";
+    approvedWait.plan.steps[0].waitDurationMs = 3_000;
+    approvedNavigation.plan.steps[0].navigationUrl = "https://example.com/other";
+
+    for (const approved of [approvedType, approvedWait, approvedNavigation]) {
+      expect(verifyWalkthroughPlanApproval(approved.plan)).toMatchObject({
+        ok: false,
+        errors: [{ code: "stale_approval" }],
+      });
+    }
+  });
+
+  it("accepts legacy approval fingerprints only when new execution fields are absent", () => {
+    const approved = approveWalkthroughPlan(validatedPlan());
+    if (!approved.ok) throw new Error("test plan should approve");
+    approved.plan.approvals.planFingerprint = legacyFingerprint(approved.plan);
+
+    expect(verifyWalkthroughPlanApproval(approved.plan)).toEqual({ ok: true });
+
+    approved.plan.steps[0].inputBinding = "new-binding";
+    expect(verifyWalkthroughPlanApproval(approved.plan)).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_plan" }],
     });
   });
 

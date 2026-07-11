@@ -67,7 +67,7 @@ npm run autodemo -- agent approve --plan plans/signup.validated.json --json
       "required": true,
       "approved": true,
       "approvedAt": "2026-07-10T15:00:00.000Z",
-      "planFingerprint": "sha256:a1d4d13b244b96040d9943f31df9687965428a0c39326730972d4dc53c228dce",
+      "planFingerprint": "sha256:ca634090a3527bf49428a714dafabc518ffc6a153e6f798d8a4229e774875bf3",
       "basis": "validated"
     },
     "execution": {

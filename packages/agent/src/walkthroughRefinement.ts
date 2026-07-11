@@ -193,6 +193,15 @@ function applyRefinement(plan: WalkthroughPlan, refinement: WalkthroughPlanRefin
     ...(refinement.replacement.targetHint === undefined
       ? {}
       : { targetHint: structuredClone(refinement.replacement.targetHint) }),
+    ...(refinement.replacement.navigationUrl === undefined
+      ? {}
+      : { navigationUrl: refinement.replacement.navigationUrl }),
+    ...(refinement.replacement.inputBinding === undefined
+      ? {}
+      : { inputBinding: refinement.replacement.inputBinding }),
+    ...(refinement.replacement.waitDurationMs === undefined
+      ? {}
+      : { waitDurationMs: refinement.replacement.waitDurationMs }),
   };
   plan.questions = plan.questions.filter((question) => question.stepId !== existing.id);
 }
@@ -253,14 +262,43 @@ function isReplacement(value: unknown): value is WalkthroughStepReplacement {
   ) {
     return false;
   }
+  if (
+    (replacement.navigationUrl !== undefined &&
+      (replacement.action !== "navigate" || !isSafeHttpUrl(replacement.navigationUrl))) ||
+    (replacement.inputBinding !== undefined &&
+      (replacement.action !== "type" || !isSafeRefinementIdentifier(replacement.inputBinding))) ||
+    (replacement.waitDurationMs !== undefined &&
+      (replacement.action !== "wait" ||
+        !Number.isInteger(replacement.waitDurationMs) ||
+        replacement.waitDurationMs < 1 ||
+        replacement.waitDurationMs > 60_000))
+  ) {
+    return false;
+  }
   if (replacement.action === "type") {
     return (
+      replacement.inputBinding !== undefined &&
       replacement.sourceText.includes("[redacted]") &&
       replacement.public.summary.includes("[redacted]") &&
       !isUnsafeWalkthroughAction(replacement)
     );
   }
+  if (replacement.action === "navigate" && replacement.navigationUrl === undefined) return false;
+  if (replacement.action === "wait" && replacement.waitDurationMs === undefined) return false;
   return !isUnsafeWalkthroughAction(replacement);
+}
+
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isSafeRefinementIdentifier(value: unknown): value is string {

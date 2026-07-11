@@ -26,6 +26,7 @@ import {
   type CaptureSession,
   type CaptureStopReason,
   type CaptureViewport,
+  type ControllableBrowserCaptureAdapter,
 } from "@auto-demo/capture";
 import {
   generateHeadlessVariants,
@@ -44,6 +45,7 @@ import {
   type RenderSavedVariantResult,
 } from "@auto-demo/render";
 import { runAgentReviewCommand } from "./agentReviewCommands.js";
+import { runAgentExecuteCommand } from "./agentExecuteCommand.js";
 
 export type CliResult = {
   exitCode: number;
@@ -54,9 +56,11 @@ export type CliResult = {
 /** Dependencies that let tests or future integrations run CLI workflows without default process hooks. */
 export type CliDependencies = {
   browserCaptureAdapter: BrowserCaptureAdapter;
+  browserExecutionCaptureAdapter?: ControllableBrowserCaptureAdapter;
   createValidationRunner?: () => WalkthroughValidationBrowserRunner;
   createInterruptWatcher?: () => InterruptWatcher;
   now: () => Date;
+  sleep?: (durationMs: number) => Promise<void>;
   runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
   startEditorServer?: (options: StartEditorServerOptions) => Promise<EditorServer>;
   renderSavedVariant?: (input: RenderSavedVariantInput) => Promise<RenderSavedVariantResult>;
@@ -363,6 +367,24 @@ export async function runCliAsync(
 }
 
 async function runAgentCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
+  if (args[0] === "execute") {
+    const watcher =
+      dependencies.createInterruptWatcher === undefined
+        ? createSigintInterruptWatcher()
+        : dependencies.createInterruptWatcher();
+    try {
+      return await runAgentExecuteCommand(args.slice(1), {
+        captureAdapter:
+          dependencies.browserExecutionCaptureAdapter ?? createPlaywrightBrowserCaptureAdapter(),
+        now: dependencies.now,
+        interrupted: watcher.interrupted,
+        sleep: dependencies.sleep,
+      });
+    } finally {
+      watcher.dispose();
+    }
+  }
+
   if (args[0] === "review" || args[0] === "refine" || args[0] === "approve") {
     return await runAgentReviewCommand(args[0], args.slice(1), {
       now: dependencies.now,
@@ -1107,9 +1129,10 @@ function sortWalkthroughPlanErrors(errors: WalkthroughPlanError[]): WalkthroughP
   const order: Record<WalkthroughPlanError["code"], number> = {
     missing_target_url: 1,
     invalid_target_url: 2,
-    missing_script: 3,
-    unsupported_plan_mode: 4,
-    unknown_agent_argument: 5,
+    invalid_navigation_url: 3,
+    missing_script: 4,
+    unsupported_plan_mode: 5,
+    unknown_agent_argument: 6,
   };
   return [...errors].sort((left, right) => order[left.code] - order[right.code]);
 }
@@ -1651,8 +1674,10 @@ function exportParseFailure(errors: RenderError[]): RenderSavedVariantResult {
 }
 
 function defaultDependencies(): CliDependencies {
+  const browserCaptureAdapter = createPlaywrightBrowserCaptureAdapter();
   return {
-    browserCaptureAdapter: createPlaywrightBrowserCaptureAdapter(),
+    browserCaptureAdapter,
+    browserExecutionCaptureAdapter: browserCaptureAdapter,
     createInterruptWatcher: createSigintInterruptWatcher,
     now: () => new Date(),
     runChildCommand: runChildCommandWithInheritedStdio,
@@ -1711,6 +1736,7 @@ function helpText(): string {
     "  autodemo agent review --plan <plan-json-file> --json",
     "  autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json",
     "  autodemo agent approve --plan <plan-json-file> --json",
+    "  autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json",
     "",
   ].join("\n");
 }
@@ -1725,6 +1751,7 @@ function agentHelpText(): string {
     "  autodemo agent review --plan <plan-json-file> --json",
     "  autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json",
     "  autodemo agent approve --plan <plan-json-file> --json",
+    "  autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json",
     "",
     "Run options:",
     "  --variant <variant-id>       Select an existing saved variant",
@@ -1747,6 +1774,7 @@ function agentHelpText(): string {
     "Exit codes:",
     "  0  Agent handoff or walkthrough plan written as JSON",
     "  1  Expected validation, generation, handoff, or planning failure",
+    "  130  Walkthrough execution interrupted",
     "",
   ].join("\n");
 }

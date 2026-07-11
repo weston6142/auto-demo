@@ -21,7 +21,8 @@
         "sourceText": "Go to https://example.com/signup.",
         "public": {
           "summary": "Go to https://example.com/signup."
-        }
+        },
+        "navigationUrl": "https://example.com/signup"
       },
       {
         "id": "step-2",
