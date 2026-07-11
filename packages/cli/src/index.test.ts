@@ -185,6 +185,9 @@ describe("runCli", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Usage: autodemo <command>");
+    expect(result.stdout).toContain(
+      "autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json",
+    );
     expect(result.stderr).toBe("");
   });
 
@@ -388,6 +391,20 @@ describe("runCliAsync open", () => {
 });
 
 describe("runCliAsync agent", () => {
+  it("routes agent handoff to its structured argument contract", async () => {
+    const result = await runCliAsync(["agent", "handoff", "--json"]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining([
+        expect.objectContaining({ code: "missing_execution_file" }),
+        expect.objectContaining({ code: "invalid_project_input" }),
+      ]),
+    });
+  });
+
   it("prints a selected variant handoff summary as JSON", async () => {
     const projectDir = await createValidProject();
 

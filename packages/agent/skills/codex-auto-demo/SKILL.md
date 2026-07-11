@@ -109,8 +109,22 @@ non-secret demo data because the browser video displays them. Never paste those
 values into the conversation, command arguments, plan, diagnostics, metadata,
 or task report. Execute mode verifies approval, has no unapproved shortcut,
 uses strict target matching and `natural-v1` pacing, and preserves a failed
-capture bundle after mid-script failure. WES-180 owns project import and
-editor/export handoff.
+capture bundle after mid-script failure.
+
+Write successful execute JSON to a file, then create the project:
+
+```bash
+autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json
+```
+
+The handoff accepts only completed execution evidence, verifies the capture
+manifest, media, and metadata, imports a fresh project, and saves
+`baseline-polish`. It does not overwrite a non-empty project directory. If
+generation fails, preserve the imported project and resume investigation without
+re-recording. Report the returned structured next steps for
+`autodemo open --project <new-project-directory>` and
+`autodemo export --project <new-project-directory> --variant baseline-polish --json`;
+do not start the editor or export unless the user asks.
 
 ## Variant Selection
 
@@ -199,5 +213,5 @@ bundles remain outside this wrapper.
 - Hosted editor or cloud handoff services.
 - Marketplace distribution or local skill installation automation.
 - Demo-ready export bundle validation.
-- Capture-to-project handoff, credentials automation, arbitrary OS apps, and
-  destructive production actions for walkthrough plans.
+- Credentials automation, arbitrary OS apps, and destructive production actions
+  for walkthrough plans.

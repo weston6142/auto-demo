@@ -200,8 +200,22 @@ targets strictly, stops on the first failure, and uses deterministic
 
 Success returns an immutable executed plan plus completed capture paths. Failure
 keeps the returned plan approved, records sanitized step outcomes, and preserves
-a failed capture bundle when recording started. WES-180 owns project import,
-baseline generation, and editor/export handoff.
+a failed capture bundle when recording started.
+
+Persist successful execute JSON and complete the project handoff with:
+
+```bash
+autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json
+```
+
+Handoff accepts only completed execution evidence, verifies required capture
+artifacts, imports into a fresh project, and saves `baseline-polish`. It does not
+overwrite a non-empty project directory. A generation failure preserves the
+imported project so an operator can resume diagnosis without recording again.
+Success returns structured next steps for
+`autodemo open --project <new-project-directory>` and
+`autodemo export --project <new-project-directory> --variant baseline-polish --json`;
+it does not start the editor or export automatically.
 
 ## Wrapper Artifacts
 

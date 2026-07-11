@@ -46,6 +46,7 @@ import {
 } from "@auto-demo/render";
 import { runAgentReviewCommand } from "./agentReviewCommands.js";
 import { runAgentExecuteCommand } from "./agentExecuteCommand.js";
+import { runAgentHandoffCommand } from "./agentHandoffCommand.js";
 
 export type CliResult = {
   exitCode: number;
@@ -367,6 +368,10 @@ export async function runCliAsync(
 }
 
 async function runAgentCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
+  if (args[0] === "handoff") {
+    return await runAgentHandoffCommand(args.slice(1), { now: dependencies.now });
+  }
+
   if (args[0] === "execute") {
     const watcher =
       dependencies.createInterruptWatcher === undefined
@@ -1737,6 +1742,7 @@ function helpText(): string {
     "  autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json",
     "  autodemo agent approve --plan <plan-json-file> --json",
     "  autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json",
+    "  autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json",
     "",
   ].join("\n");
 }
@@ -1752,6 +1758,7 @@ function agentHelpText(): string {
     "  autodemo agent refine --plan <plan-json-file> --refinements <refinements-json-file> --json",
     "  autodemo agent approve --plan <plan-json-file> --json",
     "  autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json",
+    "  autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json",
     "",
     "Run options:",
     "  --variant <variant-id>       Select an existing saved variant",

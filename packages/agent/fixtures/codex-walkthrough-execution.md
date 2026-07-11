@@ -26,6 +26,7 @@ unchanged. There is no unapproved execution shortcut.
     }
   },
   "capture": {
+    "outputDir": "captures/demo",
     "manifestPath": "captures/demo/capture.manifest.json",
     "mediaPath": "captures/demo/media/viewport.webm",
     "metadataPath": "captures/demo/metadata/events.jsonl"
@@ -33,8 +34,19 @@ unchanged. There is no unapproved execution shortcut.
 }
 ```
 
-The result is a capture bundle. WES-180 owns importing it into an Auto Demo
-project, generating a baseline variant, and handing off to editor or export.
+Codex saves this JSON as the execution result, then runs:
+
+```bash
+autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json
+```
+
+Handoff verifies the completed capture, creates a fresh project, and saves
+`baseline-polish`. It does not overwrite a non-empty project directory. If
+generation fails after import, Codex preserves the project and can resume
+diagnosis without re-recording. On success it reports the structured
+`autodemo open --project <new-project-directory>` and
+`autodemo export --project <new-project-directory> --variant baseline-polish --json`
+next steps without running either automatically.
 
 ## Failed execution result
 
