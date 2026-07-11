@@ -86,8 +86,14 @@ A Claude wrapper should invoke
 only after approval verification. Runtime bindings must contain non-secret demo
 data and must not be repeated in conversation output. The wrapper should report
 the stable result, `natural-v1` pacing profile, and completed or failed capture
-bundle without inspecting raw metadata. WES-180 remains responsible for project
-import and editor/export handoff.
+bundle without inspecting raw metadata. After successful execution it should
+persist the result and invoke
+`autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json`.
+Handoff does not overwrite non-empty projects; generation failure preserves the
+imported project so the wrapper can resume diagnosis without re-recording. The
+wrapper reports the `baseline-polish` artifact and structured
+`autodemo open --project` and `autodemo export --project` next steps without
+starting either side effect automatically.
 
 ## Out Of Scope
 

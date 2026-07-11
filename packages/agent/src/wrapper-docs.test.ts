@@ -285,7 +285,7 @@ describe("agent wrapper documentation", () => {
     });
   });
 
-  it("documents approved walkthrough execution and its capture-only handoff", async () => {
+  it("documents approved walkthrough execution through project handoff", async () => {
     const rootReadme = await readRootDoc("README.md");
     const agentReadme = await readAgentDoc("README.md");
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
@@ -300,11 +300,19 @@ describe("agent wrapper documentation", () => {
       "natural-v1",
       "non-secret demo data",
       "failed capture bundle",
-      "WES-180",
+      "autodemo agent handoff --execution <execution-result-json-file>",
+      "--project <new-project-directory>",
+      "--name <project-name>",
+      "baseline-polish",
+      "does not overwrite",
+      "resume",
+      "autodemo open --project",
+      "autodemo export --project",
     ]) {
       expect(combined).toContain(required);
     }
     expect(combined).not.toContain("execute --allow-unapproved");
+    expect(combined).not.toContain("WES-180 owns project import");
 
     expect(jsonBlock(executionFixture, "Successful execution result")).toMatchObject({
       ok: true,

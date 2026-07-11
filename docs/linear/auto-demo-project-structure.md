@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 ## Project
 
@@ -71,6 +71,8 @@ Last updated: 2026-07-10
 - WES-177 reviewable demo plan approval workflow implementation plan: `docs/superpowers/plans/2026-07-10-wes-177-reviewable-demo-plan-approval-workflow.md`
 - WES-179 approved demo script execution design spec: `docs/superpowers/specs/2026-07-10-wes-179-execute-approved-demo-script-under-browser-capture-design.md`
 - WES-179 approved demo script execution implementation plan: `docs/superpowers/plans/2026-07-10-wes-179-execute-approved-demo-script-under-browser-capture.md`
+- WES-180 capture-to-project handoff design spec: `docs/superpowers/specs/2026-07-11-wes-180-capture-to-project-handoff-design.md`
+- WES-180 capture-to-project handoff implementation plan: `docs/superpowers/plans/2026-07-11-wes-180-capture-to-project-handoff.md`
 - WES-163 MP4 render artifacts design spec: `docs/superpowers/specs/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts-design.md`
 - WES-163 MP4 render artifacts implementation plan: `docs/superpowers/plans/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
@@ -166,7 +168,7 @@ Linear has not assigned these issues to project milestones yet. Treat this group
 - WES-178: Validate mode for rehearsing user demo scripts - Done - https://linear.app/weston-bushyeager/issue/WES-178/validate-mode-for-rehearsing-user-demo-scripts
 - WES-177: Reviewable demo plan approval workflow - Done - https://linear.app/weston-bushyeager/issue/WES-177/reviewable-demo-plan-approval-workflow
 - WES-179: Execute approved demo script under browser capture - Done - https://linear.app/weston-bushyeager/issue/WES-179/execute-approved-demo-script-under-browser-capture
-- WES-180: Capture-to-project handoff for executed demo scripts - Backlog - https://linear.app/weston-bushyeager/issue/WES-180/capture-to-project-handoff-for-executed-demo-scripts
+- WES-180: Capture-to-project handoff for executed demo scripts - In Progress - https://linear.app/weston-bushyeager/issue/WES-180/capture-to-project-handoff-for-executed-demo-scripts
 
 Readiness note for WES-180: the approved-script execution leg now lands as a merged capture bundle on PR #33, so the remaining scope is the capture-to-project import, baseline variant generation, and editor/export handoff.
 
@@ -338,6 +340,11 @@ capture-dir/
 - 2026-07-10 WES-179 planning: the implementation plan sequences execution-ready plan fields and fingerprinting, approval-aware agent preflight, natural-paced fail-fast execution, same-page capture control, the JSON CLI adapter, real Playwright success/failure smoke paths, operator documentation, and the Linear completion gate. Implementation must preserve unrelated user files already present in the checkout.
 - 2026-07-10 WES-179 implementation start: Linear moved to In Progress after the pre-task sync confirmed WES-179 remains the dependency-ready child before WES-180. The interrupted primary-checkout work was imported read-only into isolated branch `fm/auto-demo-wes179-finish-k3`; unrelated user files remain excluded.
 - 2026-07-11 WES-179 completion-gate sync: PR #33 merged to `develop` after GitHub Actions `CI / validate` passed on the exact head `4ae80700f4bebbd245d65de1a5b8d9af9e078822`. Completion evidence was added to WES-179, WES-180 received a readiness note, WES-176 received a tracker update, and the project map next-task pointer now advances to WES-180.
+- 2026-07-11 WES-180 pre-task sync: live Linear and `origin/develop` agree that WES-177, WES-178, WES-179, and WES-181 are Done; only tracker WES-176 and child WES-180 remain active. WES-180 is the sole incomplete child and is ready for brainstorming because merged PR #33 supplies the successful executed capture bundle that this task must import, baseline-polish, and hand off to editor/export. Keep WES-176 Backlog until WES-180 completion.
+- 2026-07-11 WES-180 design: the approved conservative direction is a resumable JSON-only `autodemo agent handoff` command that consumes successful WES-179 execution evidence, verifies required capture artifacts, imports into a fresh project directory, generates and saves `baseline-polish`, and returns structured editor/export command arguments. It does not overwrite projects, re-record captures, start the editor, or render exports.
+- 2026-07-11 WES-180 planning: implementation is sequenced through a behavior-first handoff command core, structured failure and collision coverage, CLI routing, a real Playwright execute-to-project smoke path, operator/wrapper documentation, repository validation, no-mistakes, completion sync, exact-head CI, and merge.
+- 2026-07-11 WES-180 local implementation: `autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json` now accepts only completed WES-179 evidence, verifies required capture artifacts, imports into a fresh project, generates and saves `baseline-polish`, and returns structured editor/export command arguments. Behavior tests cover malformed or failed execution, missing artifacts, invalid capture, non-empty-directory collision, generation failure preservation, sanitized exceptions, source immutability, and real Playwright execution through loadable project handoff.
+- 2026-07-11 WES-180 local verification: focused handoff/CLI/wrapper/Playwright tests passed, the CLI package typecheck and build passed, and full `npm run validate` passed with build, all workspace typechecks, ESLint, 375 Vitest tests plus 2 Node tests, and repository Prettier validation. No-mistakes and remote CI evidence remain pending.
 - 2026-07-04 WES-157 completion-gate sync: PR #18 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `287b10bb`. WES-157 completion evidence was added to Linear and the issue was moved to Done. WES-158 received a readiness note that the local editor/project-load entry point is available, with WES-170 still owning the preview-fidelity and MVP finishing-control decision before WES-158 implementation.
 - WES-157: Local browser editor project loading completed in PR #18. `autodemo open --project <project-dir-or-manifest>` starts the local review-only editor server, `@auto-demo/editor` loads validated project summaries through `@auto-demo/project`, `/api/project` returns operator-facing success or validation-error JSON, and the static editor lists saved/generated variants or shows empty-variant generation guidance.
 - WES-157 verification: TDD red checks failed first for missing `loadEditorProject()`/`startEditorServer()` exports and unimplemented CLI `open` routing; after implementation, focused editor/CLI tests passed, local `npm run validate` passed, and no-mistakes PR #18 passed GitHub CI `validate` on head `287b10bb`.

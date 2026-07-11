@@ -77,6 +77,7 @@ autodemo agent run --project <project-dir-or-manifest> --json --generate baselin
 autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
 autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json
+autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json
 autodemo export --project <project-dir-or-manifest> --json [--variant baseline-polish] [--preset mp4-demo]
 autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo validate <capture-dir-or-manifest>
@@ -164,8 +165,24 @@ workflow can validate, review, refine, approve, and execute the resulting plan
 under browser capture. Execution requires verified approval, uses strict target
 matching and deterministic `natural-v1` pacing, accepts optional runtime inputs
 containing only non-secret demo data, and preserves a failed capture bundle when
-a step breaks. Credential automation, destructive production actions, and the
-WES-180 capture-to-project handoff remain downstream work.
+a step breaks.
+
+Persist a successful execution result and create its final project with:
+
+```bash
+autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json
+```
+
+Handoff accepts only completed successful execution evidence, verifies the
+manifest, media, and metadata files, imports the capture, and saves the
+deterministic `baseline-polish` variant. It does not overwrite a non-empty
+project directory. If baseline generation fails after import, keep the project
+and resume handoff investigation without re-recording the successful capture.
+The JSON result includes structured arguments for
+`autodemo open --project <new-project-directory>` and
+`autodemo export --project <new-project-directory> --variant baseline-polish --json`;
+handoff does not start either side effect automatically. Credential automation
+and destructive production actions remain out of scope.
 
 MCP is deferred from the MVP. The current accepted agent path is the CLI plus Codex wrapper: `autodemo agent run --project <project> --json` produces the non-secret JSON handoff that agents consume. Reopen MCP work after export and packaging evidence shows a need for persistent project/session discovery, editor handoff lifecycle control, artifact inspection across multiple outputs, repeated orchestration mistakes that typed tools would prevent, or a host requires MCP instead of shell commands. Future MCP work does not introduce a new project schema, hosted services, or final MP4 export behavior; local MP4 export stays CLI-owned through `autodemo export`.
 

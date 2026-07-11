@@ -7,6 +7,7 @@ import {
   createWalkthroughPlan,
   type WalkthroughPlan,
 } from "@auto-demo/agent";
+import { loadProject } from "@auto-demo/project";
 import { afterEach, describe, expect, it } from "vitest";
 import { runCliAsync } from "./index.js";
 
@@ -106,6 +107,29 @@ describe("autodemo agent execute smoke", () => {
     const metadata = await readFile(output.capture.metadataPath, "utf8");
     expect(metadata).not.toContain("launch demo private");
     expect(result.stdout).not.toContain("launch demo private");
+
+    const executionPath = join(root, "execution.json");
+    const projectDir = join(root, "project");
+    await writeFile(executionPath, result.stdout);
+    const handoff = await runCliAsync([
+      "agent",
+      "handoff",
+      "--execution",
+      executionPath,
+      "--project",
+      projectDir,
+      "--name",
+      "Playwright Smoke Demo",
+      "--json",
+    ]);
+    expect(handoff.exitCode).toBe(0);
+    const loaded = await loadProject(projectDir);
+    expect(loaded.ok).toBe(true);
+    expect(loaded.ok && loaded.manifest.sourceCapture.status).toBe("completed");
+    expect(loaded.ok && loaded.manifest.variants[0]?.id).toBe("baseline-polish");
+    expect((await stat(join(projectDir, "variants", "baseline-polish.json"))).size).toBeGreaterThan(
+      0,
+    );
   }, 30_000);
 
   it("preserves a failed bundle after a mid-script target failure", async () => {
