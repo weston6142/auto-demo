@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   createWalkthroughPlan,
   reviewWalkthroughPlan,
+  validateDiscoverySession,
   verifyWalkthroughPlanApproval,
   type WalkthroughPlan,
   type WalkthroughPlanReview,
@@ -44,6 +45,67 @@ function section(markdown: string, heading: string): string {
 }
 
 describe("agent wrapper documentation", () => {
+  it("documents the WES-183 discovery contract without claiming a live workflow", async () => {
+    const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
+    const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
+    const combined = `${agentReadme} ${rootReadme}`;
+
+    for (const required of [
+      "DiscoverySessionV1",
+      "createDiscoverySession()",
+      "recordDiscoveryObservation()",
+      "beginDiscoveryAttempt()",
+      "finishDiscoveryAttempt()",
+      "selectDiscoveryPath()",
+      "completeDiscoverySession()",
+      "runtime-only input bindings",
+      "completed, failed, and abandoned sessions are terminal",
+      "WES-184",
+      "WES-185",
+      "WES-186",
+      "WES-187",
+    ]) {
+      expect(combined).toContain(required);
+    }
+    expect(combined).toContain("does not yet expose a discovery CLI");
+    expect(combined).not.toContain("autodemo agent discover");
+  });
+
+  it("publishes portable discovery session fixtures", async () => {
+    const completed = JSON.parse(await readAgentDoc("fixtures/discovery-session-completed.json"));
+    const explored = JSON.parse(
+      await readAgentDoc("fixtures/discovery-session-with-abandoned-attempts.json"),
+    );
+
+    expect(validateDiscoverySession(completed)).toMatchObject({
+      ok: true,
+      session: { status: "completed", selectedPath: { attemptIds: expect.any(Array) } },
+    });
+    expect(validateDiscoverySession(explored)).toMatchObject({
+      ok: true,
+      session: { status: "completed" },
+    });
+    expect(
+      explored.attempts.some((attempt: { status: string }) => attempt.status === "failed"),
+    ).toBe(true);
+    expect(explored.selectedPath.attemptIds).not.toContain("attempt-abandoned");
+  });
+
+  it("documents the structured browser observation API and safety boundaries", async () => {
+    const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
+
+    for (const expected of [
+      "createPlaywrightDiscoveryObservationExtractor",
+      "recordDiscoveryObservation",
+      "hasLiveTarget",
+      "optional artifact sink",
+      "never returns form values",
+      "WES-185 owns browser actions",
+    ]) {
+      expect(agentReadme).toContain(expected);
+    }
+  });
+
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
 

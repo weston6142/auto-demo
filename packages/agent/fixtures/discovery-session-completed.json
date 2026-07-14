@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "session-completed",
+  "status": "completed",
+  "target": { "kind": "browser", "startUrl": "https://example.com/checkout" },
+  "goal": "Show the checkout payment flow",
+  "host": { "name": "codex", "version": "1.0.0", "model": "gpt-5" },
+  "createdAt": "2026-07-13T12:00:00.000Z",
+  "updatedAt": "2026-07-13T12:00:09.000Z",
+  "observations": [
+    {
+      "id": "observation-checkout",
+      "sequence": 1,
+      "observedAt": "2026-07-13T12:00:01.000Z",
+      "page": {
+        "url": "https://example.com/checkout",
+        "title": "Checkout",
+        "viewport": { "width": 1280, "height": 720 },
+        "navigation": { "canGoBack": false }
+      },
+      "visibleStates": [{ "id": "visible-cart", "kind": "text", "summary": "Your cart" }],
+      "interactiveTargets": [
+        { "id": "target-checkout", "label": "Checkout", "role": "button", "disabled": false }
+      ],
+      "artifacts": [
+        {
+          "id": "artifact-checkout",
+          "kind": "screenshot",
+          "path": "artifacts/checkout.png",
+          "mediaType": "image/png"
+        }
+      ]
+    },
+    {
+      "id": "observation-payment-attempt-checkout",
+      "sequence": 2,
+      "observedAt": "2026-07-13T12:00:03.000Z",
+      "page": {
+        "url": "https://example.com/payment",
+        "title": "Payment",
+        "viewport": { "width": 1280, "height": 720 },
+        "navigation": { "canGoBack": true }
+      },
+      "visibleStates": [
+        {
+          "id": "visible-payment-attempt-checkout",
+          "kind": "text",
+          "summary": "Payment details"
+        }
+      ],
+      "interactiveTargets": [],
+      "artifacts": []
+    }
+  ],
+  "attempts": [
+    {
+      "id": "attempt-checkout",
+      "sequence": 1,
+      "status": "succeeded",
+      "startedAt": "2026-07-13T12:00:02.000Z",
+      "beforeObservationId": "observation-checkout",
+      "action": { "kind": "click", "targetId": "target-checkout" },
+      "expectations": [
+        {
+          "id": "expectation-navigation-attempt-checkout",
+          "kind": "navigation",
+          "origin": "declared-before-action",
+          "url": "https://example.com/payment",
+          "match": "same-origin-path"
+        }
+      ],
+      "confidence": { "level": "high", "bases": ["exact-accessible-target"] },
+      "finishedAt": "2026-07-13T12:00:04.000Z",
+      "derivedExpectations": [
+        {
+          "id": "expectation-visible-attempt-checkout",
+          "kind": "visible-state",
+          "origin": "derived-from-observation",
+          "targetId": "visible-payment-attempt-checkout"
+        }
+      ],
+      "observedEffects": [
+        {
+          "expectationId": "expectation-navigation-attempt-checkout",
+          "status": "matched",
+          "observationId": "observation-payment-attempt-checkout",
+          "summary": "Reached payment"
+        },
+        {
+          "expectationId": "expectation-visible-attempt-checkout",
+          "status": "matched",
+          "observationId": "observation-payment-attempt-checkout",
+          "summary": "Payment details are visible"
+        }
+      ],
+      "afterObservationId": "observation-payment-attempt-checkout",
+      "outcome": { "code": "action_completed", "summary": "Checkout opened payment" }
+    }
+  ],
+  "selectedPath": {
+    "attemptIds": ["attempt-checkout"],
+    "selectedAt": "2026-07-13T12:00:08.000Z",
+    "source": "host-agent"
+  },
+  "terminal": { "status": "completed", "completedAt": "2026-07-13T12:00:09.000Z" }
+}

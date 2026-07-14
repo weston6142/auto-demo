@@ -72,6 +72,82 @@ export {
   type WalkthroughExecutionTarget,
 } from "./walkthroughExecution.js";
 
+export {
+  DISCOVERY_LIMITS,
+  DISCOVERY_SCHEMA_VERSION,
+  type DiscoveryAction,
+  type DiscoveryArtifactReference,
+  type DiscoveryAttempt,
+  type DiscoveryAttemptBase,
+  type DiscoveryAttemptStatus,
+  type DiscoveryConfidence,
+  type DiscoveryConfidenceBasis,
+  type DiscoveryConfidenceLevel,
+  type DiscoveryContractError,
+  type DiscoveryContractErrorCode,
+  type DiscoveryContractResult,
+  type DiscoveryExpectation,
+  type DiscoveryExpectationOrigin,
+  type DiscoveryHostProvenance,
+  type DiscoveryInteractiveTarget,
+  type DiscoveryObservation,
+  type DiscoveryObservedEffect,
+  type DiscoverySelectedPath,
+  type DiscoverySessionStatus,
+  type DiscoverySessionV1,
+  type DiscoveryTerminal,
+  type DiscoveryVisibleState,
+  type FinalizedDiscoveryAttempt,
+  type PendingDiscoveryAttempt,
+} from "./discoveryContract.js";
+
+export {
+  abandonDiscoverySession,
+  beginDiscoveryAttempt,
+  completeDiscoverySession,
+  createChildDiscoverySession,
+  createDiscoverySession,
+  failDiscoverySession,
+  finishDiscoveryAttempt,
+  recordDiscoveryObservation,
+  selectDiscoveryPath,
+  type AbandonDiscoverySessionInput,
+  type BeginDiscoveryAttemptInput,
+  type CompleteDiscoverySessionInput,
+  type CreateDiscoverySessionInput,
+  type FailDiscoverySessionInput,
+  type FinishDiscoveryAttemptInput,
+  type RecordDiscoveryObservationInput,
+  type SelectDiscoveryPathInput,
+} from "./discoverySession.js";
+export {
+  matchesNavigationExpectation,
+  validateDiscoverySession,
+  validateSelectedPath,
+} from "./discoveryValidation.js";
+
+export {
+  createDiscoveryObservationExtractor,
+  type DiscoveryObservationArtifactSink,
+  type DiscoveryObservationDiagnostic,
+  type DiscoveryObservationDiagnosticCode,
+  type DiscoveryObservationExtractionError,
+  type DiscoveryObservationExtractionErrorCode,
+  type DiscoveryObservationExtractionResult,
+  type DiscoveryObservationExtractor,
+  type DiscoveryObservationExtractorDependencies,
+  type DiscoveryObservationIdKind,
+  type DiscoveryObservationPage,
+  type DiscoveryObservationPageSnapshot,
+  type DiscoveryObservationRawTarget,
+  type DiscoveryObservationRawVisibleState,
+} from "./discoveryObservation.js";
+
+export {
+  createPlaywrightDiscoveryObservationExtractor,
+  type PlaywrightDiscoveryObservationOptions,
+} from "./playwrightDiscoveryObservation.js";
+
 export type AgentPackageRole = "agent-workflow-wrapper";
 
 export const agentPackageRole: AgentPackageRole = "agent-workflow-wrapper";

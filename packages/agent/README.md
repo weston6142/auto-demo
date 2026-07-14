@@ -217,6 +217,86 @@ Success returns structured next steps for
 `autodemo export --project <new-project-directory> --variant baseline-polish --json`;
 it does not start the editor or export automatically.
 
+## Agentic Discovery Session Contract
+
+`DiscoverySessionV1` is the portable, versioned, bounded JSON evidence contract for agentic
+browser discovery. Hosts build it immutably with `createDiscoverySession()`,
+`recordDiscoveryObservation()`, `beginDiscoveryAttempt()`, `finishDiscoveryAttempt()`,
+`selectDiscoveryPath()`, and `completeDiscoverySession()`. Failed or intentionally stopped
+work uses `failDiscoverySession()` or `abandonDiscoverySession()`; completed, failed, and
+abandoned sessions are terminal, and continued work starts a child session.
+
+```ts
+import {
+  createDiscoverySession,
+  recordDiscoveryObservation,
+  beginDiscoveryAttempt,
+  finishDiscoveryAttempt,
+  selectDiscoveryPath,
+  completeDiscoverySession,
+} from "@auto-demo/agent";
+
+const created = createDiscoverySession({
+  id: "checkout-discovery",
+  target: { kind: "browser", startUrl: "https://example.com/checkout" },
+  goal: "Show checkout",
+  host: { name: "codex", version: "1.0.0" },
+  createdAt: "2026-07-13T12:00:00.000Z",
+});
+// Record an observation, begin the attempt before acting, record its resulting
+// observation, finish it with matched effects, select its ID, then complete.
+```
+
+Actions that type demo data retain runtime-only input bindings, never input values. The
+artifact keeps failed or abandoned exploration for diagnostics while the selected path
+references only continuous, successful attempts with matched navigation and visible-state
+evidence. The fixtures under `fixtures/discovery-session-*.json` demonstrate the handoff.
+
+This package does not yet expose a discovery CLI or a live discovery browser workflow.
+WES-184 adds observation extraction below; WES-185 owns browser actions, WES-186 owns safety
+policy, and WES-187 owns compilation into the existing walkthrough-plan lifecycle.
+
+## Structured Browser Observation Snapshots
+
+`createPlaywrightDiscoveryObservationExtractor()` inspects an existing Playwright page and
+returns bounded, transcript-safe observations accepted by `recordDiscoveryObservation()`. The
+caller owns the page and, when screenshots are wanted, provides an optional artifact sink that
+persists the bytes and returns a safe relative path.
+
+```ts
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import {
+  createPlaywrightDiscoveryObservationExtractor,
+  recordDiscoveryObservation,
+} from "@auto-demo/agent";
+
+const extractor = createPlaywrightDiscoveryObservationExtractor(page, {
+  artifactSink: {
+    async write({ id, bytes }) {
+      const path = `artifacts/${id}.png`;
+      await writeFile(join(sessionDirectory, path), bytes);
+      return { path };
+    },
+  },
+});
+
+const extracted = await extractor.observe();
+if (!extracted.ok) throw new Error(extracted.errors[0]?.code ?? "observation_failed");
+const recorded = recordDiscoveryObservation(session, extracted.observation);
+```
+
+Screenshots are opt-in. Successful observations contain only their safe relative path, media
+type, and SHA-256 hash; screenshot bytes stay behind the sink boundary. Target IDs remain stable
+while the same DOM element stays attached to the current main document. Use `hasLiveTarget()`
+before acting on a retained ID; navigation, removal, or element replacement invalidates it.
+
+Collection covers the main document and open shadow roots, excludes iframe contents, prioritizes
+accessible semantic controls, and reports bounded fallback targets and truncation through
+runtime-only diagnostics. It never returns form values, selectors, raw DOM, screenshot bytes, or
+exception details. Credential-like inputs appear only as safe target metadata. WES-185 owns
+browser actions; this extractor only observes and checks target liveness.
+
 ## Wrapper Artifacts
 
 - Codex skill wrapper: `skills/codex-auto-demo/SKILL.md`
