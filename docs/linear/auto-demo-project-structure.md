@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-11
+Last updated: 2026-07-14
 
 ## Project
 
@@ -73,6 +73,10 @@ Last updated: 2026-07-11
 - WES-179 approved demo script execution implementation plan: `docs/superpowers/plans/2026-07-10-wes-179-execute-approved-demo-script-under-browser-capture.md`
 - WES-180 capture-to-project handoff design spec: `docs/superpowers/specs/2026-07-11-wes-180-capture-to-project-handoff-design.md`
 - WES-180 capture-to-project handoff implementation plan: `docs/superpowers/plans/2026-07-11-wes-180-capture-to-project-handoff.md`
+- WES-183 agentic discovery session and evidence trace contract design spec: `docs/superpowers/specs/2026-07-13-wes-183-agentic-discovery-session-evidence-trace-contract-design.md`
+- WES-183 agentic discovery session and evidence trace contract implementation plan: `docs/superpowers/plans/2026-07-13-wes-183-agentic-discovery-session-evidence-trace-contract.md`
+- WES-184 structured browser observation snapshots design spec: `docs/superpowers/specs/2026-07-14-wes-184-structured-browser-observation-snapshots-design.md`
+- WES-184 structured browser observation snapshots implementation plan: `docs/superpowers/plans/2026-07-14-wes-184-structured-browser-observation-snapshots.md`
 - WES-163 MP4 render artifacts design spec: `docs/superpowers/specs/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts-design.md`
 - WES-163 MP4 render artifacts implementation plan: `docs/superpowers/plans/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
@@ -80,7 +84,7 @@ Last updated: 2026-07-11
 
 ## Milestone Order
 
-Milestone order is taken from the balanced MVP design spec because the Linear CLI milestone list currently returns the milestones alphabetically.
+Milestones 1–8 retain the order defined by the balanced MVP design spec. Milestone 9, Agentic Flow Discovery, was appended from live Linear; the Linear CLI milestone list itself is alphabetical.
 
 1. Public Repo And Project Foundation
 2. Capture Runtime
@@ -90,10 +94,11 @@ Milestone order is taken from the balanced MVP design spec because the Linear CL
 6. Browser Editor
 7. Agent Integrations
 8. Export And Packaging
+9. Agentic Flow Discovery
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next product task: none. All listed Auto Demo Balanced MVP milestone issues and Script-To-Recorded-Demo Workflow issues are complete; select again only after live Linear adds or reprioritizes work.
+Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current completion pointer: WES-184. Its implementation and documentation are locally verified on `fm/wes-184-structured-browser-observations`; WES-184 remains In Progress until feature-branch integration completes.
 
 ## Issues By Milestone
 
@@ -159,7 +164,7 @@ Prefer the earliest milestone or workflow group with incomplete issues. Within t
 - WES-167: Open question: choose MVP export preset and validation fixture - Done - https://linear.app/weston-bushyeager/issue/WES-167/open-question-choose-mvp-export-preset-and-validation-fixture
 - WES-168: Open question: decide MVP packaging and distribution target - Done - https://linear.app/weston-bushyeager/issue/WES-168/open-question-decide-mvp-packaging-and-distribution-target
 
-### 9. Script-To-Recorded-Demo Workflow
+### Completed Post-MVP: Script-To-Recorded-Demo Workflow
 
 Linear has not assigned these issues to project milestones yet. Treat this group as the next post-MVP workflow after the balanced MVP milestone children.
 
@@ -172,8 +177,38 @@ Linear has not assigned these issues to project milestones yet. Treat this group
 
 Completion note for WES-176/WES-180: PR #35 completes the capture-to-project import, saved baseline variant, and editor/export handoff. All Script-To-Recorded-Demo Workflow children are complete, so the tracker is also complete.
 
+### 9. Agentic Flow Discovery
+
+Linear milestone: `Agentic Flow Discovery` (`58dc5c96-c449-4900-b495-1bbf5ac61f5a`). The milestone moves walkthrough intake from literal deterministic text parsing toward host-agent discovery while retaining deterministic approved final recording. Safe rehearsal is the default. Mutation-capable discovery requires the user to explicitly identify a disposable environment; that authority never carries into final capture.
+
+- WES-182: Milestone 9: Agentic flow discovery - Backlog - https://linear.app/weston-bushyeager/issue/WES-182/milestone-9-agentic-flow-discovery
+- WES-183: Define agentic discovery session and evidence trace contract - Done; committed locally at `fe17aa6` - https://linear.app/weston-bushyeager/issue/WES-183/define-agentic-discovery-session-and-evidence-trace-contract
+- WES-184: Expose structured browser observation snapshots for host agents - In Progress - https://linear.app/weston-bushyeager/issue/WES-184/expose-structured-browser-observation-snapshots-for-host-agents
+- WES-185: Drive rehearsal actions and capture discovery evidence - Backlog - https://linear.app/weston-bushyeager/issue/WES-185/drive-rehearsal-actions-and-capture-discovery-evidence
+- WES-186: Enforce safe and explicitly disposable discovery policies - Backlog - https://linear.app/weston-bushyeager/issue/WES-186/enforce-safe-and-explicitly-disposable-discovery-policies
+- WES-187: Compile discovery traces into executable walkthrough plans - Backlog - https://linear.app/weston-bushyeager/issue/WES-187/compile-discovery-traces-into-executable-walkthrough-plans
+- WES-188: Add deterministic replay verification and agent repair loop - Backlog - https://linear.app/weston-bushyeager/issue/WES-188/add-deterministic-replay-verification-and-agent-repair-loop
+- WES-189: Add Codex YOLO-discovery workflow and approval handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-189/add-codex-yolo-discovery-workflow-and-approval-handoff
+- WES-191: Reconcile and retire legacy deterministic walkthrough intake paths - Backlog - https://linear.app/weston-bushyeager/issue/WES-191/reconcile-and-retire-legacy-deterministic-walkthrough-intake-paths
+- WES-190: Validate agentic discovery through recording and project handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-190/validate-agentic-discovery-through-recording-and-project-handoff
+
+Dependency order: WES-183 is Done and durable in local history at `fe17aa6`. WES-184 is the current implementation pointer. WES-185 remains blocked by WES-184; WES-186 may proceed alongside WES-184/WES-185; WES-187 is blocked by WES-185; WES-188 is blocked by WES-186 and WES-187; WES-189 is blocked by WES-188; WES-191 is blocked by WES-189; WES-190 is blocked by WES-191; tracker WES-182 is blocked by final acceptance issue WES-190.
+
 ## Investigation Notes
 
+- 2026-07-13 WES-183 pre-task sync: live Linear confirms Agentic Flow Discovery (`58dc5c96-c449-4900-b495-1bbf5ac61f5a`) is the earliest incomplete milestone, with WES-182 through WES-191 in Backlog and the recorded dependency chain intact. WES-183 has no blockers and is the selected next task. Local `develop` at `089cda0` contains the completed deterministic plan, validation, approval, execution, capture, and project-handoff baseline, while no WES-183 spec, plan, or product implementation exists.
+- WES-183 readiness: ready for brainstorming. Define the model-agnostic discovery session lifecycle and versioned evidence-trace boundary before downstream observation or controller work. The design should resolve type/API ownership, lifecycle and serialization, bounded and sanitized evidence, successful versus discarded paths, confidence and provenance, expected navigation/visible-state assertions, and conversion boundaries into the existing `WalkthroughPlan`; model inference remains host-owned.
+- 2026-07-13 WES-183 brainstorming start: the user approved the design conversation, so WES-183 moved to In Progress. No product implementation has started.
+- 2026-07-13 WES-183 design: the approved contract is a versioned portable JSON session with immutable lifecycle operations, bounded attempt-centric evidence, referenced successful-path IDs, terminal child-session lineage, binding-only typed inputs, ordinal confidence with structured bases, explicit expectation/evidence provenance, fixed limits, and no browser, policy, compilation, replay, CLI, file-I/O, or embedded-model behavior.
+- 2026-07-13 WES-183 planning: implementation is decomposed into public contract types, untrusted-artifact validation, bounded observations, attempt lifecycle, selected-path and terminal rules, security/fixture coverage, documentation, repository verification, and the Linear completion gate. Work remains unimplemented pending execution approval.
+- 2026-07-13 WES-183 local completion evidence: `@auto-demo/agent` now exposes the versioned, bounded `DiscoverySessionV1` contract, immutable lifecycle operations, untrusted-artifact validation, transcript-safe sanitization, runtime-only input bindings, selected-path evidence rules, terminal child-session lineage, and portable fixtures. Code review reported Ready with no Critical or Important findings. Focused discovery tests pass 27/27 and the agent suite passes 124/124; repository build, typecheck, lint, and all workspace tests pass; all WES-183 files pass formatting. Full validation's only failure is the preserved unrelated `check-codex-usage` plan. This is local verification evidence, not durable repository completion, because no commit contains the implementation.
+- 2026-07-13 WES-184 pre-task sync: live Linear and the working-copy map agree that WES-184 is the next dependency-ordered Agentic Flow Discovery issue and is ready for brainstorming. However, `develop` and `origin/develop` remain at `089cda0`, no WES-183 commit exists on any local or remote ref, and the WES-183 implementation, tests, fixtures, spec, plan, exports, and docs exist only in the dirty worktree. Reported WES-183 verification covers 124/124 agent tests plus repository build, typecheck, ESLint, and workspace tests; full validation stopped only on the preserved unrelated `check-codex-usage` formatting failure. Do not begin WES-184 implementation until WES-183 is durably integrated or reopened and reconciled.
+- 2026-07-14 WES-184 design: the approved direction is a public stateful `@auto-demo/agent` extractor over a narrow page adapter, with attached-element-stable opaque IDs, main-document and open-shadow-root collection, accessibility-first targets plus bounded focusable/clickable fallbacks, runtime-only truncation/redaction diagnostics, optional injected screenshot persistence, and one retry for navigation or document replacement. Browser actions, safety policy, compilation, replay, CLI, and final capture remain downstream.
+- 2026-07-14 WES-184 planning: implementation is decomposed into a WES-183 durability preflight, generic extractor contract, pure sanitization and deterministic limits, retry and liveness behavior, optional hashed screenshots, the Playwright adapter, dynamic/duplicate/security coverage, documentation, repository verification, review, and the Linear completion gate. WES-184 remains Backlog and implementation-blocked until WES-183 is committed or merged.
+- 2026-07-14 WES-184 implementation pre-task gate: `HEAD` and `origin/develop` remain at `089cda0`, no local or remote ref contains a WES-183 commit, and the WES-183 contract modules remain untracked. The user's inline/no-worktree/no-commit execution constraint prevents making that dependency durable, so the gate blocks WES-184 source edits and leaves WES-184 Backlog. Reopening WES-183 would reconcile Linear state but would not by itself unblock WES-184.
+- 2026-07-14 WES-184 post-commit pre-task gate: `HEAD` on local `develop` is `fe17aa6` (`feat: define agentic discovery session contract`), while `origin/develop` remains `089cda0`. The local commit contains the WES-183 contract, lifecycle, validation, tests, fixtures, exports, and docs, satisfying the recorded committed-or-merged durability gate. WES-184 is implementation-ready with no remaining blocker.
+- 2026-07-14 WES-184 implementation: `@auto-demo/agent` now exposes `createDiscoveryObservationExtractor()` and `createPlaywrightDiscoveryObservationExtractor()` for bounded WES-183-compatible page observations. The implementation provides document-scoped stable opaque target IDs, liveness checks, one-retry atomic collection, transcript-safe redaction and limits, main-document/open-shadow collection with iframe exclusion, credential-safe metadata, runtime-only diagnostics, and optional hashed screenshot references. WES-184 remains In Progress pending repository verification, review, and the completion sync gate.
+- 2026-07-14 WES-184 local verification: the agent suite passes 155/155, repository build, typecheck, ESLint, and all workspace tests pass, every WES-184 file passes Prettier, and `git diff --check` passes. Independent code review reports Ready with no Critical, Important, or Minor findings after security, boundedness, ordering, accessibility, retry, liveness, and artifact-persistence regressions were addressed. Repository-wide Prettier still fails only on the preserved unrelated `docs/superpowers/plans/2026-07-10-check-codex-usage-skill.md`. The WES-184 implementation is prepared for durable integration on `fm/wes-184-structured-browser-observations`; WES-184 remains In Progress pending the no-mistakes and PR completion gate.
 - Selected next task: WES-141, because the project map did not exist and this document is the local orientation layer for subsequent Linear work.
 - WES-141 expected outcome is concrete: create and maintain this repo-local Markdown map with project URL, milestone order, issue grouping, status conventions, spec links, and update rules.
 - 2026-06-27 recheck: Linear still shows WES-141 in Backlog, but this repo-local map now exists and contains the requested project URL, milestone order, issue grouping, status conventions, spec links, investigation notes, completion evidence, and update rules. Recommended next action is to add completion evidence to Linear and move WES-141 to Done before selecting WES-135 for the next product brainstorming cycle.

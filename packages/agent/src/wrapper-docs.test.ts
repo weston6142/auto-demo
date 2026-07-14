@@ -91,6 +91,21 @@ describe("agent wrapper documentation", () => {
     expect(explored.selectedPath.attemptIds).not.toContain("attempt-abandoned");
   });
 
+  it("documents the structured browser observation API and safety boundaries", async () => {
+    const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
+
+    for (const expected of [
+      "createPlaywrightDiscoveryObservationExtractor",
+      "recordDiscoveryObservation",
+      "hasLiveTarget",
+      "optional artifact sink",
+      "never returns form values",
+      "WES-185 owns browser actions",
+    ]) {
+      expect(agentReadme).toContain(expected);
+    }
+  });
+
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
 

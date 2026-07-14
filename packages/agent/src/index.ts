@@ -126,6 +126,28 @@ export {
   validateSelectedPath,
 } from "./discoveryValidation.js";
 
+export {
+  createDiscoveryObservationExtractor,
+  type DiscoveryObservationArtifactSink,
+  type DiscoveryObservationDiagnostic,
+  type DiscoveryObservationDiagnosticCode,
+  type DiscoveryObservationExtractionError,
+  type DiscoveryObservationExtractionErrorCode,
+  type DiscoveryObservationExtractionResult,
+  type DiscoveryObservationExtractor,
+  type DiscoveryObservationExtractorDependencies,
+  type DiscoveryObservationIdKind,
+  type DiscoveryObservationPage,
+  type DiscoveryObservationPageSnapshot,
+  type DiscoveryObservationRawTarget,
+  type DiscoveryObservationRawVisibleState,
+} from "./discoveryObservation.js";
+
+export {
+  createPlaywrightDiscoveryObservationExtractor,
+  type PlaywrightDiscoveryObservationOptions,
+} from "./playwrightDiscoveryObservation.js";
+
 export type AgentPackageRole = "agent-workflow-wrapper";
 
 export const agentPackageRole: AgentPackageRole = "agent-workflow-wrapper";

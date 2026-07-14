@@ -253,8 +253,49 @@ references only continuous, successful attempts with matched navigation and visi
 evidence. The fixtures under `fixtures/discovery-session-*.json` demonstrate the handoff.
 
 This package does not yet expose a discovery CLI or a live discovery browser workflow.
-WES-184 owns observation extraction, WES-185 browser control, WES-186 safety policy, and
-WES-187 compilation of completed evidence into the existing walkthrough-plan lifecycle.
+WES-184 adds observation extraction below; WES-185 owns browser actions, WES-186 owns safety
+policy, and WES-187 owns compilation into the existing walkthrough-plan lifecycle.
+
+## Structured Browser Observation Snapshots
+
+`createPlaywrightDiscoveryObservationExtractor()` inspects an existing Playwright page and
+returns bounded, transcript-safe observations accepted by `recordDiscoveryObservation()`. The
+caller owns the page and, when screenshots are wanted, provides an optional artifact sink that
+persists the bytes and returns a safe relative path.
+
+```ts
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import {
+  createPlaywrightDiscoveryObservationExtractor,
+  recordDiscoveryObservation,
+} from "@auto-demo/agent";
+
+const extractor = createPlaywrightDiscoveryObservationExtractor(page, {
+  artifactSink: {
+    async write({ id, bytes }) {
+      const path = `artifacts/${id}.png`;
+      await writeFile(join(sessionDirectory, path), bytes);
+      return { path };
+    },
+  },
+});
+
+const extracted = await extractor.observe();
+if (!extracted.ok) throw new Error(extracted.errors[0]?.code ?? "observation_failed");
+const recorded = recordDiscoveryObservation(session, extracted.observation);
+```
+
+Screenshots are opt-in. Successful observations contain only their safe relative path, media
+type, and SHA-256 hash; screenshot bytes stay behind the sink boundary. Target IDs remain stable
+while the same DOM element stays attached to the current main document. Use `hasLiveTarget()`
+before acting on a retained ID; navigation, removal, or element replacement invalidates it.
+
+Collection covers the main document and open shadow roots, excludes iframe contents, prioritizes
+accessible semantic controls, and reports bounded fallback targets and truncation through
+runtime-only diagnostics. It never returns form values, selectors, raw DOM, screenshot bytes, or
+exception details. Credential-like inputs appear only as safe target metadata. WES-185 owns
+browser actions; this extractor only observes and checks target liveness.
 
 ## Wrapper Artifacts
 
