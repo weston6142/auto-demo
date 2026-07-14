@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "session-unsafe-content",
+  "status": "active",
+  "target": { "kind": "browser", "startUrl": "https://example.com/checkout" },
+  "goal": "Show checkout",
+  "host": { "name": "codex", "version": "1.0.0" },
+  "createdAt": "2026-07-13T12:00:00.000Z",
+  "updatedAt": "2026-07-13T12:00:01.000Z",
+  "observations": [
+    {
+      "id": "observation-unsafe",
+      "sequence": 1,
+      "observedAt": "2026-07-13T12:00:01.000Z",
+      "page": {
+        "url": "https://example.com/checkout",
+        "title": "Checkout",
+        "viewport": { "width": 1280, "height": 720 },
+        "navigation": { "canGoBack": false }
+      },
+      "visibleStates": [],
+      "interactiveTargets": [],
+      "artifacts": [
+        {
+          "id": "artifact-unsafe",
+          "kind": "screenshot",
+          "path": "../secret.png",
+          "mediaType": "image/png"
+        }
+      ]
+    }
+  ],
+  "attempts": [],
+  "extraSecret": "password=hunter2"
+}

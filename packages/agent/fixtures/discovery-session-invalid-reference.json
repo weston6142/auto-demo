@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "session-invalid-reference",
+  "status": "completed",
+  "target": { "kind": "browser", "startUrl": "https://example.com/checkout" },
+  "goal": "Show checkout",
+  "host": { "name": "codex", "version": "1.0.0" },
+  "createdAt": "2026-07-13T12:00:00.000Z",
+  "updatedAt": "2026-07-13T12:00:02.000Z",
+  "observations": [],
+  "attempts": [],
+  "selectedPath": {
+    "attemptIds": ["attempt-missing"],
+    "selectedAt": "2026-07-13T12:00:01.000Z",
+    "source": "host-agent"
+  },
+  "terminal": { "status": "completed", "completedAt": "2026-07-13T12:00:02.000Z" }
+}

@@ -11,7 +11,7 @@
     "pretypecheck": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
-    "test": "vitest run src/index.test.ts src/wrapper-docs.test.ts src/walkthroughValidation.test.ts src/playwrightValidationRunner.test.ts src/walkthroughReview.test.ts src/walkthroughApproval.test.ts src/walkthroughRefinement.test.ts src/walkthroughExecution.test.ts"
+    "test": "vitest run src/index.test.ts src/wrapper-docs.test.ts src/walkthroughValidation.test.ts src/playwrightValidationRunner.test.ts src/walkthroughReview.test.ts src/walkthroughApproval.test.ts src/walkthroughRefinement.test.ts src/walkthroughExecution.test.ts src/discoverySession.test.ts src/discoveryValidation.test.ts"
   },
   "dependencies": {
     "@auto-demo/polish": "0.0.0",

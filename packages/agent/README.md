@@ -217,6 +217,45 @@ Success returns structured next steps for
 `autodemo export --project <new-project-directory> --variant baseline-polish --json`;
 it does not start the editor or export automatically.
 
+## Agentic Discovery Session Contract
+
+`DiscoverySessionV1` is the portable, versioned, bounded JSON evidence contract for agentic
+browser discovery. Hosts build it immutably with `createDiscoverySession()`,
+`recordDiscoveryObservation()`, `beginDiscoveryAttempt()`, `finishDiscoveryAttempt()`,
+`selectDiscoveryPath()`, and `completeDiscoverySession()`. Failed or intentionally stopped
+work uses `failDiscoverySession()` or `abandonDiscoverySession()`; completed, failed, and
+abandoned sessions are terminal, and continued work starts a child session.
+
+```ts
+import {
+  createDiscoverySession,
+  recordDiscoveryObservation,
+  beginDiscoveryAttempt,
+  finishDiscoveryAttempt,
+  selectDiscoveryPath,
+  completeDiscoverySession,
+} from "@auto-demo/agent";
+
+const created = createDiscoverySession({
+  id: "checkout-discovery",
+  target: { kind: "browser", startUrl: "https://example.com/checkout" },
+  goal: "Show checkout",
+  host: { name: "codex", version: "1.0.0" },
+  createdAt: "2026-07-13T12:00:00.000Z",
+});
+// Record an observation, begin the attempt before acting, record its resulting
+// observation, finish it with matched effects, select its ID, then complete.
+```
+
+Actions that type demo data retain runtime-only input bindings, never input values. The
+artifact keeps failed or abandoned exploration for diagnostics while the selected path
+references only continuous, successful attempts with matched navigation and visible-state
+evidence. The fixtures under `fixtures/discovery-session-*.json` demonstrate the handoff.
+
+This package does not yet expose a discovery CLI or a live discovery browser workflow.
+WES-184 owns observation extraction, WES-185 browser control, WES-186 safety policy, and
+WES-187 compilation of completed evidence into the existing walkthrough-plan lifecycle.
+
 ## Wrapper Artifacts
 
 - Codex skill wrapper: `skills/codex-auto-demo/SKILL.md`
