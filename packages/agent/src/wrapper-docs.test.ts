@@ -106,6 +106,28 @@ describe("agent wrapper documentation", () => {
     }
   });
 
+  it("documents host-owned discovery rehearsal actions and downstream policy", async () => {
+    const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
+    const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
+    const combined = `${agentReadme} ${rootReadme}`;
+
+    for (const expected of [
+      "createPlaywrightDiscoveryRehearsalController",
+      "existing Playwright page",
+      "required authorizer",
+      "runtime-only input resolver",
+      "explicit retryOfAttemptId",
+      "complete or abandon explicitly",
+      "does not launch or close the browser",
+      "does not start final media capture",
+      "WES-186",
+      "WES-187",
+    ]) {
+      expect(combined).toContain(expected);
+    }
+    expect(combined).not.toContain("autodemo agent discover");
+  });
+
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
 

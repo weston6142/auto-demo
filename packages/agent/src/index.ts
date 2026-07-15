@@ -148,6 +148,26 @@ export {
   type PlaywrightDiscoveryObservationOptions,
 } from "./playwrightDiscoveryObservation.js";
 
+export {
+  createPlaywrightDiscoveryRehearsalController,
+  type PlaywrightDiscoveryRehearsalOptions,
+} from "./playwrightDiscoveryRehearsal.js";
+
+export {
+  createDiscoveryRehearsalController,
+  type DiscoveryActionAuthorization,
+  type DiscoveryActionAuthorizer,
+  type DiscoveryInputResolver,
+  type DiscoveryRehearsalActionInput,
+  type DiscoveryRehearsalControllerDependencies,
+  type DiscoveryRehearsalDriver,
+  type DiscoveryRehearsalDriverResult,
+  type DiscoveryRehearsalError,
+  type DiscoveryRehearsalResult,
+  type DiscoveryRehearsalStartInput,
+  type DiscoveryRehearsalStopInput,
+} from "./discoveryRehearsal.js";
+
 export type AgentPackageRole = "agent-workflow-wrapper";
 
 export const agentPackageRole: AgentPackageRole = "agent-workflow-wrapper";
