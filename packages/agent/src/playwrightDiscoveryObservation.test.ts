@@ -3,6 +3,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPlaywrightDiscoveryObservationExtractor } from "./index.js";
+import { PlaywrightDiscoveryObservationPage } from "./playwrightDiscoveryPage.js";
 
 let browser: Browser;
 let context: BrowserContext;
@@ -232,6 +233,28 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
     expect(result.observation.visibleStates.map((state) => state.summary)).not.toContain(
       "Password",
     );
+  });
+
+  it("classifies payment and upload controls only in the runtime snapshot", async () => {
+    await openHtml(`
+      <label>Card number <input autocomplete="cc-number"></label>
+      <label>Receipt <input type="file"></label>
+    `);
+
+    const snapshot = await new PlaywrightDiscoveryObservationPage(page).collectSnapshot();
+    expect(snapshot.interactiveTargets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Card number", sensitivePayment: true, upload: false }),
+        expect.objectContaining({ label: "Receipt", sensitivePayment: false, upload: true }),
+      ]),
+    );
+
+    const result = await createPlaywrightDiscoveryObservationExtractor(page).observe();
+    if (!result.ok) throw new Error("observation must succeed");
+    for (const target of result.observation.interactiveTargets) {
+      expect(target).not.toHaveProperty("sensitivePayment");
+      expect(target).not.toHaveProperty("upload");
+    }
   });
 
   it("never reads editable values into labels or visible context", async () => {

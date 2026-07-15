@@ -5,6 +5,8 @@ import {
   recordDiscoveryObservation,
   type DiscoveryObservationPage,
 } from "./index.js";
+import { createDiscoveryObservationExtractorWithRegistry } from "./discoveryObservation.js";
+import { createDiscoveryTargetRegistry } from "./discoveryTargetRegistry.js";
 
 function safePage(): DiscoveryObservationPage {
   return {
@@ -87,6 +89,52 @@ describe("createDiscoveryObservationExtractor", () => {
     expect(recordDiscoveryObservation(created.session, extracted.observation)).toMatchObject({
       ok: true,
       session: { observations: [{ id: "observation-1", sequence: 1 }] },
+    });
+  });
+
+  it("retains target risk only in the runtime registry", async () => {
+    const page = safePage();
+    page.readDocumentToken = async () => "document-sensitive";
+    page.collectSnapshot = async () => ({
+      documentToken: "document-sensitive",
+      url: "https://example.com/checkout",
+      title: "Checkout",
+      viewport: { width: 1280, height: 720 },
+      canGoBack: false,
+      visibleStates: [],
+      interactiveTargets: [
+        {
+          identityKey: "element-sensitive",
+          tier: "semantic",
+          label: "Card number",
+          role: "textbox",
+          order: 1,
+          disabled: false,
+          credential: false,
+          sensitivePayment: true,
+          upload: false,
+        },
+      ],
+    });
+    const registry = createDiscoveryTargetRegistry(() => "target-sensitive");
+    const extractor = createDiscoveryObservationExtractorWithRegistry(
+      {
+        page,
+        clock: () => "2026-07-15T12:00:00.000Z",
+        idGenerator: (kind) => `${kind}-1`,
+      },
+      registry,
+    );
+
+    const result = await extractor.observe();
+    if (!result.ok) throw new Error("observation must succeed");
+    const target = result.observation.interactiveTargets[0]!;
+
+    expect(target).not.toHaveProperty("credential");
+    expect(target).not.toHaveProperty("sensitivePayment");
+    expect(target).not.toHaveProperty("upload");
+    expect(registry.resolve(target.id)).toMatchObject({
+      risk: { credential: false, sensitivePayment: true, upload: false },
     });
   });
 

@@ -4,6 +4,11 @@ import type {
   WalkthroughPlanStepAction,
   WalkthroughPlanTargetHint,
 } from "./index.js";
+import {
+  hasCredentialLikeUrlData,
+  hasDestructiveActionLanguage,
+  isSecretLikeValue,
+} from "./actionSafety.js";
 
 export type WalkthroughPlanValidationStatus = "ready" | "blocked";
 export type WalkthroughPlanValidationCheckStatus = "passed" | "blocked" | "skipped";
@@ -825,9 +830,7 @@ export function isUnsafeWalkthroughAction(
     return destination === undefined || hasCredentialLikeUrlData(destination);
   }
   if (step.action === "click") {
-    return /\b(delete|destroy|erase|wipe|remove|clear all|save|create|register|sign up|purchase|buy|pay|checkout|submit|confirm|send|publish|post|deploy|invite|transfer|approve|merge|enable|disable|revoke|archive|restore|upload|commit|cancel account|close account)\b/i.test(
-      description,
-    );
+    return hasDestructiveActionLanguage(description);
   }
   if (step.action === "type") {
     return /\b(password|passcode|secret|token|credential|api[ _-]?key|credit card|card number|security code|ssn|social security)\b/i.test(
@@ -996,46 +999,6 @@ function sanitizeText(value: string): string {
 
 export function sanitizeWalkthroughText(value: string): string {
   return sanitizeText(value);
-}
-
-function hasCredentialLikeUrlData(value: string): boolean {
-  const url = new URL(value);
-  let rawFragment: string;
-  try {
-    rawFragment = decodeURIComponent(url.hash.replace(/^#/, ""));
-  } catch {
-    return true;
-  }
-  if (rawFragment.length > 0 && !rawFragment.includes("=") && isSecretLikeValue(rawFragment)) {
-    return true;
-  }
-  const parameterSets = [url.searchParams];
-  if (url.hash.includes("=")) {
-    parameterSets.push(new URLSearchParams(url.hash.replace(/^#/, "")));
-  }
-  for (const parameters of parameterSets) {
-    for (const [key, parameterValue] of parameters) {
-      if (
-        /(^|[-_.])(auth|authorization|token|api[-_]?key|key|secret|password|passcode|credential|signature|sig|code)($|[-_.])/i.test(
-          key,
-        ) ||
-        isSecretLikeValue(parameterValue)
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-function isSecretLikeValue(value: string): boolean {
-  if (/^sk-[a-z0-9_-]{8,}$/i.test(value)) {
-    return true;
-  }
-  if (/^[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}$/i.test(value)) {
-    return true;
-  }
-  return value.length >= 24 && /[a-z]/i.test(value) && /\d/.test(value);
 }
 
 function sanitizeUrl(value: string): string {

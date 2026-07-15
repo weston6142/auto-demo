@@ -154,6 +154,23 @@ export {
 } from "./playwrightDiscoveryRehearsal.js";
 
 export {
+  createPolicyEnforcedPlaywrightDiscoveryRehearsalController,
+  DiscoveryPolicyControllerError,
+  type DiscoveryPolicyControllerErrorCode,
+  type PlaywrightPolicyDiscoveryRehearsalOptions,
+} from "./playwrightPolicyDiscoveryRehearsal.js";
+
+export {
+  type DiscoveryPolicy,
+  type DiscoveryPolicyOutcomeCode,
+  type DiscoveryPolicyValidationError,
+  type DiscoveryPolicyValidationErrorCode,
+  type DiscoveryPolicyValidationResult,
+  type DisposableDiscoveryPolicy,
+  type SafeDiscoveryPolicy,
+} from "./discoveryPolicy.js";
+
+export {
   createDiscoveryRehearsalController,
   type DiscoveryActionAuthorization,
   type DiscoveryActionAuthorizer,
