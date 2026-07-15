@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { DISCOVERY_LIMITS } from "./discoveryContract.js";
 import type { RecordDiscoveryObservationInput } from "./discoverySession.js";
+import {
+  createDiscoveryTargetRegistry,
+  type DiscoveryTargetRegistry,
+} from "./discoveryTargetRegistry.js";
 import { buildDiscoveryObservation, diagnostic } from "./discoveryObservationTransform.js";
 import { isSafeArtifactPath, sanitizeObservationInput } from "./discoveryValidation.js";
 
@@ -114,28 +118,21 @@ const error = (
 export function createDiscoveryObservationExtractor(
   dependencies: DiscoveryObservationExtractorDependencies,
 ): DiscoveryObservationExtractor {
+  const idGenerator =
+    dependencies.idGenerator ?? ((kind: DiscoveryObservationIdKind) => `${kind}-${randomUUID()}`);
+  return createDiscoveryObservationExtractorWithRegistry(
+    dependencies,
+    createDiscoveryTargetRegistry(() => idGenerator("target")),
+  );
+}
+
+export function createDiscoveryObservationExtractorWithRegistry(
+  dependencies: DiscoveryObservationExtractorDependencies,
+  registry: DiscoveryTargetRegistry,
+): DiscoveryObservationExtractor {
   const clock = dependencies.clock ?? (() => new Date().toISOString());
   const idGenerator =
     dependencies.idGenerator ?? ((kind: DiscoveryObservationIdKind) => `${kind}-${randomUUID()}`);
-  let activeDocumentToken: string | undefined;
-  const targetIdByIdentity = new Map<string, string>();
-  const identityByTargetId = new Map<string, string>();
-
-  const resetDocument = (documentToken: string) => {
-    if (activeDocumentToken === documentToken) return;
-    activeDocumentToken = documentToken;
-    targetIdByIdentity.clear();
-    identityByTargetId.clear();
-  };
-
-  const targetId = (identityKey: string) => {
-    const existing = targetIdByIdentity.get(identityKey);
-    if (existing !== undefined) return existing;
-    const created = idGenerator("target");
-    targetIdByIdentity.set(identityKey, created);
-    identityByTargetId.set(created, identityKey);
-    return created;
-  };
 
   return {
     async observe() {
@@ -167,12 +164,12 @@ export function createDiscoveryObservationExtractor(
             retried = true;
             continue;
           }
-          resetDocument(snapshot.documentToken);
+          registry.resetDocument(snapshot.documentToken);
           const built = buildDiscoveryObservation({
             snapshot,
             observedAt: clock(),
             idGenerator,
-            targetId,
+            targetId: (identityKey) => registry.targetId(identityKey),
           });
           if (!built.ok) return built;
           if (Array.isArray(sanitizeObservationInput(built.observation, 1))) {
@@ -245,20 +242,20 @@ export function createDiscoveryObservationExtractor(
       return error("unstable_page", "Discovery page changed during observation.");
     },
     async hasLiveTarget(candidateTargetId) {
-      const identityKey = identityByTargetId.get(candidateTargetId);
-      if (identityKey === undefined || activeDocumentToken === undefined) return false;
+      const target = registry.resolve(candidateTargetId);
+      if (target === undefined) return false;
       try {
         if (!(await dependencies.page.isAvailable())) return false;
         const currentToken = await dependencies.page.readDocumentToken();
-        if (currentToken !== activeDocumentToken) {
-          resetDocument(currentToken);
+        if (currentToken !== target.documentToken) {
+          registry.resetDocument(currentToken);
           return false;
         }
-        const live = await dependencies.page.hasLiveIdentity(identityKey, activeDocumentToken);
-        if (!live) {
-          identityByTargetId.delete(candidateTargetId);
-          targetIdByIdentity.delete(identityKey);
-        }
+        const live = await dependencies.page.hasLiveIdentity(
+          target.identityKey,
+          target.documentToken,
+        );
+        if (!live) registry.remove(candidateTargetId);
         return live;
       } catch {
         return false;

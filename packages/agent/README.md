@@ -252,9 +252,9 @@ artifact keeps failed or abandoned exploration for diagnostics while the selecte
 references only continuous, successful attempts with matched navigation and visible-state
 evidence. The fixtures under `fixtures/discovery-session-*.json` demonstrate the handoff.
 
-This package does not yet expose a discovery CLI or a live discovery browser workflow.
-WES-184 adds observation extraction below; WES-185 owns browser actions, WES-186 owns safety
-policy, and WES-187 owns compilation into the existing walkthrough-plan lifecycle.
+This package does not yet expose a discovery CLI. WES-184 adds observation extraction below;
+the WES-185 controller owns host-driven rehearsal actions, WES-186 owns concrete safety policy,
+and WES-187 owns compilation into the existing walkthrough-plan lifecycle.
 
 ## Structured Browser Observation Snapshots
 
@@ -296,6 +296,59 @@ accessible semantic controls, and reports bounded fallback targets and truncatio
 runtime-only diagnostics. It never returns form values, selectors, raw DOM, screenshot bytes, or
 exception details. Credential-like inputs appear only as safe target metadata. WES-185 owns
 browser actions; this extractor only observes and checks target liveness.
+
+## Discovery Rehearsal Controller
+
+`createPlaywrightDiscoveryRehearsalController()` drives atomic rehearsal actions on an existing
+Playwright page and records bounded `DiscoverySessionV1` evidence. The host supplies a required
+authorizer for every action and a runtime-only input resolver for demo-data bindings.
+
+```ts
+import { createPlaywrightDiscoveryRehearsalController } from "@auto-demo/agent";
+
+const controller = createPlaywrightDiscoveryRehearsalController(page, {
+  authorizer,
+  inputResolver: {
+    async resolve(binding) {
+      return binding === "demo-name"
+        ? { ok: true, value: "Demo Person" }
+        : {
+            ok: false,
+            code: "input_binding_unavailable",
+            summary: "Demo input is unavailable.",
+          };
+    },
+  },
+});
+
+const started = await controller.start({
+  id: "profile-discovery",
+  target: { kind: "browser", startUrl: "https://example.test/profile" },
+  goal: "Save a demo profile",
+  host: { name: "codex", version: "1.0.0" },
+});
+```
+
+Each `perform()` call authorizes one declared action, begins one attempt, executes at most one
+browser effect, records one resulting observation when available, evaluates only the declared
+expectations, and finalizes the attempt before returning. Blocked actions are retained as
+evidence without resolving inputs or changing the page. Type values exist only between the
+resolver and the Playwright driver; they are never stored in the session or returned result.
+
+Click and type actions use only opaque target IDs from the latest observation. A target removed
+after observation produces a fixed `target_stale` failure; the controller never remaps it by
+selector, label, role, or similarity. Retrying is host-directed through the explicit
+retryOfAttemptId field; no action is silently repeated or queued.
+
+The host must complete or abandon explicitly with `stop()`. Completion accepts only a selected,
+continuous successful path with matched evidence, while failed or abandoned exploration remains
+available outside that path. Browser loss finalizes any pending attempt before failing the
+session. Terminal sessions reject later actions.
+
+The factory does not launch or close the browser and does not start final media capture. The host
+owns the page lifecycle. WES-186 supplies the concrete authorization policy, and WES-187 compiles
+selected discovery traces into executable walkthrough plans. This library workflow does not add
+a discovery CLI.
 
 ## Wrapper Artifacts
 
