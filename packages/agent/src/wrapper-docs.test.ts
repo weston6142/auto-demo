@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  compileDiscoverySessionToWalkthroughPlan,
   createPolicyEnforcedPlaywrightDiscoveryRehearsalController,
   createWalkthroughPlan,
   reviewWalkthroughPlan,
@@ -46,6 +47,17 @@ function section(markdown: string, heading: string): string {
 }
 
 describe("agent wrapper documentation", () => {
+  it("documents discovery compilation and its downstream lifecycle boundary", async () => {
+    const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
+    const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
+
+    expect(typeof compileDiscoverySessionToWalkthroughPlan).toBe("function");
+    expect(agentReadme).toContain("compileDiscoverySessionToWalkthroughPlan");
+    expect(agentReadme).toContain("draft and unapproved");
+    expect(agentReadme).toContain("does not carry disposable-environment authority");
+    expect(rootReadme).toContain("WES-188 owns fresh-context replay and repair");
+  });
+
   it("documents the WES-183 discovery contract without claiming a live workflow", async () => {
     const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
     const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
@@ -61,10 +73,8 @@ describe("agent wrapper documentation", () => {
       "completeDiscoverySession()",
       "runtime-only input bindings",
       "completed, failed, and abandoned sessions are terminal",
-      "WES-184",
-      "WES-185",
-      "WES-186",
       "WES-187",
+      "WES-188",
     ]) {
       expect(combined).toContain(required);
     }

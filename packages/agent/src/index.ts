@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { generateHeadlessVariants, type HeadlessVariantGenerationResult } from "@auto-demo/polish";
+import type { DiscoveryExpectationOrigin } from "./discoveryContract.js";
 import {
   loadProject,
   type LoadedProject,
@@ -125,6 +126,14 @@ export {
   validateDiscoverySession,
   validateSelectedPath,
 } from "./discoveryValidation.js";
+
+export {
+  compileDiscoverySessionToWalkthroughPlan,
+  type CompileDiscoverySessionOptions,
+  type CompileDiscoverySessionResult,
+  type DiscoveryPlanCompilationError,
+  type DiscoveryPlanCompilationErrorCode,
+} from "./discoveryPlanCompiler.js";
 
 export {
   createDiscoveryObservationExtractor,
@@ -282,6 +291,36 @@ export type WalkthroughPlanTargetHint = {
   occurrence?: number;
 };
 
+export type WalkthroughPlanSource =
+  | { parser: "deterministic-v1"; script: string }
+  | {
+      parser: "discovery-v1";
+      script: string;
+      discovery: {
+        schemaVersion: 1;
+        sessionId: string;
+        selectedPathFingerprint: string;
+      };
+    };
+
+export type WalkthroughPlanAssertion =
+  | { kind: "navigation"; url: string; match: "exact-url" | "same-origin-path" }
+  | {
+      kind: "visible-state";
+      condition: string;
+      role?: string;
+      occurrence?: number;
+    };
+
+export type WalkthroughPlanStepProvenance = {
+  kind: "discovery";
+  sessionId: string;
+  attemptId: string;
+  expectationId?: string;
+  expectationOrigin?: DiscoveryExpectationOrigin;
+  normalizedFrom?: "inspect" | "back" | "refresh";
+};
+
 export type WalkthroughPlanApproval = {
   required: true;
   approved: boolean;
@@ -317,6 +356,8 @@ export type WalkthroughPlanStep = {
   navigationUrl?: string;
   inputBinding?: string;
   waitDurationMs?: number;
+  assertion?: WalkthroughPlanAssertion;
+  provenance?: WalkthroughPlanStepProvenance;
 };
 
 export type WalkthroughPlanExecutionStepOutcome = {
@@ -356,10 +397,7 @@ export type WalkthroughPlan = {
   };
   mode: WalkthroughPlanMode;
   state: WalkthroughPlanState;
-  source: {
-    script: string;
-    parser: "deterministic-v1";
-  };
+  source: WalkthroughPlanSource;
   steps: WalkthroughPlanStep[];
   questions: WalkthroughPlanQuestion[];
   approvals: WalkthroughPlanApproval;

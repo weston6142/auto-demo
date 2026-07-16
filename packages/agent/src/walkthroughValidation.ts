@@ -1,7 +1,10 @@
 import type {
   WalkthroughPlan,
+  WalkthroughPlanAssertion,
+  WalkthroughPlanSource,
   WalkthroughPlanStep,
   WalkthroughPlanStepAction,
+  WalkthroughPlanStepProvenance,
   WalkthroughPlanTargetHint,
 } from "./index.js";
 import {
@@ -310,6 +313,16 @@ async function validateStep(
       return { ok: true };
     }
 
+    if (step.action === "assert" && step.assertion?.kind === "navigation") {
+      return matchesWalkthroughNavigationAssertion(step.assertion, before.url)
+        ? { ok: true }
+        : {
+            ok: false,
+            reason: "unexpected_navigation",
+            question: `Why did ${safeSummary(step)} reach an unexpected destination?`,
+          };
+    }
+
     if (isUnsafeWalkthroughAction(step)) {
       return {
         ok: false,
@@ -389,6 +402,25 @@ async function validateStep(
   }
 }
 
+function matchesWalkthroughNavigationAssertion(
+  assertion: Extract<NonNullable<WalkthroughPlanStep["assertion"]>, { kind: "navigation" }>,
+  actualValue: string,
+): boolean {
+  try {
+    const expected = new URL(sanitizeUrl(assertion.url));
+    const actual = new URL(sanitizeUrl(actualValue));
+    if (assertion.match === "exact-url") return expected.href === actual.href;
+    return (
+      expected.protocol === actual.protocol &&
+      expected.hostname === actual.hostname &&
+      expected.port === actual.port &&
+      expected.pathname === actual.pathname
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function performStep(
   step: WalkthroughPlanStep,
   match: WalkthroughValidationMatch,
@@ -433,6 +465,8 @@ function isWalkthroughPlanStep(value: unknown): value is WalkthroughPlanStep {
         Number.isInteger(step.waitDurationMs) &&
         step.waitDurationMs > 0 &&
         step.waitDurationMs <= 60_000));
+  const assertionValid =
+    step.assertion === undefined || isWalkthroughPlanAssertion(step.assertion, step);
   return (
     isSafeIdentifier(step.id) &&
     typeof step.order === "number" &&
@@ -447,6 +481,8 @@ function isWalkthroughPlanStep(value: unknown): value is WalkthroughPlanStep {
         isRedactedTypeDescription(step.public.summary))) &&
     (step.questionId === undefined || isSafeIdentifier(step.questionId)) &&
     (step.targetHint === undefined || isWalkthroughPlanTargetHint(step.targetHint)) &&
+    assertionValid &&
+    (step.provenance === undefined || isWalkthroughPlanStepProvenance(step.provenance)) &&
     executionDataValid
   );
 }
@@ -455,8 +491,76 @@ function isWalkthroughPlanSource(value: unknown): value is WalkthroughPlan["sour
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const source = value as Partial<WalkthroughPlan["source"]>;
-  return typeof source.script === "string" && source.parser === "deterministic-v1";
+  const source = value as Partial<WalkthroughPlanSource> & {
+    discovery?: Record<string, unknown>;
+  };
+  if (!isNonEmptyString(source.script)) return false;
+  if (source.parser === "deterministic-v1") {
+    return hasExactKeys(value, ["parser", "script"]);
+  }
+  return (
+    source.parser === "discovery-v1" &&
+    hasExactKeys(value, ["parser", "script", "discovery"]) &&
+    hasExactKeys(source.discovery, ["schemaVersion", "sessionId", "selectedPathFingerprint"]) &&
+    source.discovery?.schemaVersion === 1 &&
+    isSafeIdentifier(source.discovery.sessionId) &&
+    typeof source.discovery.selectedPathFingerprint === "string" &&
+    /^sha256:[a-f0-9]{64}$/.test(source.discovery.selectedPathFingerprint)
+  );
+}
+
+function isWalkthroughPlanAssertion(
+  value: WalkthroughPlanAssertion,
+  step: Partial<WalkthroughPlanStep>,
+): boolean {
+  if (step.action !== "assert") return false;
+  if (value.kind === "navigation") {
+    return (
+      hasExactKeys(value, ["kind", "url", "match"]) &&
+      step.targetHint === undefined &&
+      isSafeHttpUrl(value.url) &&
+      (value.match === "exact-url" || value.match === "same-origin-path")
+    );
+  }
+  if (!hasExactKeys(value, ["kind", "condition", "role", "occurrence"])) return false;
+  if (!isNonEmptyString(value.condition)) return false;
+  if (value.role !== undefined && !isNonEmptyString(value.role)) return false;
+  if (
+    value.occurrence !== undefined &&
+    (!Number.isInteger(value.occurrence) || value.occurrence <= 0)
+  ) {
+    return false;
+  }
+  if (step.targetHint === undefined) return false;
+  return (
+    step.targetHint.label === value.condition &&
+    step.targetHint.role === value.role &&
+    step.targetHint.occurrence === value.occurrence
+  );
+}
+
+function isWalkthroughPlanStepProvenance(value: WalkthroughPlanStepProvenance): boolean {
+  return (
+    hasExactKeys(value, [
+      "kind",
+      "sessionId",
+      "attemptId",
+      "expectationId",
+      "expectationOrigin",
+      "normalizedFrom",
+    ]) &&
+    value.kind === "discovery" &&
+    isSafeIdentifier(value.sessionId) &&
+    isSafeIdentifier(value.attemptId) &&
+    (value.expectationId === undefined || isSafeIdentifier(value.expectationId)) &&
+    (value.expectationOrigin === undefined ||
+      value.expectationOrigin === "declared-before-action" ||
+      value.expectationOrigin === "derived-from-observation") &&
+    (value.normalizedFrom === undefined ||
+      value.normalizedFrom === "inspect" ||
+      value.normalizedFrom === "back" ||
+      value.normalizedFrom === "refresh")
+  );
 }
 
 function isWalkthroughPlanQuestion(value: unknown): value is WalkthroughPlan["questions"][number] {
@@ -653,6 +757,12 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isSafeIdentifier(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(value);
+}
+
+function hasExactKeys(value: unknown, allowed: readonly string[]): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const allowedKeys = new Set(allowed);
+  return Object.keys(value).every((key) => allowedKeys.has(key));
 }
 
 function hasConsistentPlanRelationships(plan: WalkthroughPlan): boolean {
@@ -916,16 +1026,66 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
     ...(step.navigationUrl === undefined ? {} : { navigationUrl: sanitizeUrl(step.navigationUrl) }),
     ...(step.inputBinding === undefined ? {} : { inputBinding: sanitizeText(step.inputBinding) }),
     ...(step.waitDurationMs === undefined ? {} : { waitDurationMs: step.waitDurationMs }),
+    ...(step.assertion === undefined
+      ? {}
+      : {
+          assertion:
+            step.assertion.kind === "navigation"
+              ? {
+                  kind: "navigation" as const,
+                  url: sanitizeUrl(step.assertion.url),
+                  match: step.assertion.match,
+                }
+              : {
+                  kind: "visible-state" as const,
+                  condition: sanitizeText(step.assertion.condition),
+                  ...(step.assertion.role === undefined
+                    ? {}
+                    : { role: sanitizeText(step.assertion.role) }),
+                  ...(step.assertion.occurrence === undefined
+                    ? {}
+                    : { occurrence: step.assertion.occurrence }),
+                },
+        }),
+    ...(step.provenance === undefined
+      ? {}
+      : {
+          provenance: {
+            kind: "discovery" as const,
+            sessionId: sanitizeText(step.provenance.sessionId),
+            attemptId: sanitizeText(step.provenance.attemptId),
+            ...(step.provenance.expectationId === undefined
+              ? {}
+              : { expectationId: sanitizeText(step.provenance.expectationId) }),
+            ...(step.provenance.expectationOrigin === undefined
+              ? {}
+              : { expectationOrigin: step.provenance.expectationOrigin }),
+            ...(step.provenance.normalizedFrom === undefined
+              ? {}
+              : { normalizedFrom: step.provenance.normalizedFrom }),
+          },
+        }),
   }));
   return {
     id: sanitizeText(plan.id),
     target: { kind: "browser", url: sanitizeUrl(plan.target.url) },
     mode: plan.mode,
     state: plan.state,
-    source: {
-      script: steps.map((step) => step.sourceText).join(" "),
-      parser: "deterministic-v1",
-    },
+    source:
+      plan.source.parser === "discovery-v1"
+        ? {
+            script: steps.map((step) => step.sourceText).join(" "),
+            parser: "discovery-v1",
+            discovery: {
+              schemaVersion: 1,
+              sessionId: sanitizeText(plan.source.discovery.sessionId),
+              selectedPathFingerprint: plan.source.discovery.selectedPathFingerprint,
+            },
+          }
+        : {
+            script: steps.map((step) => step.sourceText).join(" "),
+            parser: "deterministic-v1",
+          },
     steps,
     questions: plan.questions.map((question) => ({
       id: sanitizeText(question.id),

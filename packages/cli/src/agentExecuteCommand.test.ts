@@ -39,6 +39,7 @@ function captureAdapter(): ControllableBrowserCaptureAdapter {
             async click() {},
             async type() {},
             async assertVisible() {},
+            async assertNavigation() {},
             async waitForSettled() {},
           },
           async stop() {

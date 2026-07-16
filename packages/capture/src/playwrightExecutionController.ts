@@ -1,5 +1,9 @@
 import type { Locator, Page } from "playwright";
-import type { BrowserCaptureController, BrowserExecutionTarget } from "./index.js";
+import type {
+  BrowserCaptureController,
+  BrowserExecutionTarget,
+  BrowserNavigationExpectation,
+} from "./index.js";
 
 export type PlaywrightExecutionControllerOptions = {
   timeoutMs?: number;
@@ -66,6 +70,11 @@ export function createPlaywrightExecutionController(
         throw new PlaywrightExecutionControllerError("assertion_failed");
       }
     },
+    async assertNavigation(expectation) {
+      if (!matchesNavigation(expectation, page.url())) {
+        throw new PlaywrightExecutionControllerError("assertion_failed");
+      }
+    },
     async waitForSettled() {
       try {
         await page.waitForLoadState("domcontentloaded", { timeout: timeoutMs });
@@ -75,6 +84,36 @@ export function createPlaywrightExecutionController(
       }
     },
   };
+}
+
+function matchesNavigation(
+  expectation: BrowserNavigationExpectation,
+  actualValue: string,
+): boolean {
+  const expected = sanitizedNavigationUrl(expectation.url);
+  const actual = sanitizedNavigationUrl(actualValue);
+  if (expected === undefined || actual === undefined) return false;
+  if (expectation.match === "exact-url") return expected.href === actual.href;
+  return (
+    expected.protocol === actual.protocol &&
+    expected.hostname === actual.hostname &&
+    expected.port === actual.port &&
+    expected.pathname === actual.pathname
+  );
+}
+
+function sanitizedNavigationUrl(value: string): URL | undefined {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return;
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url;
+  } catch {
+    return;
+  }
 }
 
 async function requireOneVisibleTarget(

@@ -18,6 +18,34 @@ afterAll(async () => {
 });
 
 describe("createPlaywrightExecutionController", () => {
+  it("asserts the current sanitized navigation destination", async () => {
+    await page.route("https://example.com/**", async (route) => {
+      await route.fulfill({ status: 200, contentType: "text/html", body: "<h1>Results</h1>" });
+    });
+    await page.goto("https://example.com/results?view=private#section");
+    const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
+
+    await expect(
+      controller.assertNavigation({
+        url: "https://example.com/results?other=value#different",
+        match: "exact-url",
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.assertNavigation({
+        url: "https://example.com/results",
+        match: "same-origin-path",
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      controller.assertNavigation({
+        url: "https://example.com/other",
+        match: "same-origin-path",
+      }),
+    ).rejects.toMatchObject({ code: "assertion_failed" });
+    await page.unroute("https://example.com/**");
+  });
+
   it("clicks, types, and asserts through accessible targets", async () => {
     await page.setContent(`
       <button onclick="this.dataset.clicked='true'">Get started</button>

@@ -79,6 +79,9 @@ class FakePage implements PlaywrightPage {
       assertVisible: async (target) => {
         this.controlledActions.push(`assert:${target.label}`);
       },
+      assertNavigation: async (expectation) => {
+        this.controlledActions.push(`assert-navigation:${expectation.url}`);
+      },
       waitForSettled: async () => {
         this.controlledActions.push("settled");
       },

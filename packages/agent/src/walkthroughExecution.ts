@@ -67,6 +67,10 @@ export type WalkthroughExecutionBrowser = {
     options: { delayMs: number },
   ): Promise<void>;
   assertVisible(target: WalkthroughExecutionTarget): Promise<void>;
+  assertNavigation(expectation: {
+    url: string;
+    match: "exact-url" | "same-origin-path";
+  }): Promise<void>;
   waitForSettled(): Promise<void>;
 };
 
@@ -264,14 +268,6 @@ async function prepareExecution(
         continue;
       }
       if (expectedBindings.has(step.inputBinding)) {
-        errors.push({
-          ...stepError(
-            "invalid_input_binding",
-            step,
-            "Each type step requires a unique runtime input binding.",
-          ),
-          bindingKey: sanitizeWalkthroughText(step.inputBinding),
-        });
         continue;
       }
       expectedBindings.add(step.inputBinding);
@@ -479,6 +475,10 @@ async function performStep(
   }
   if (step.action === "wait") {
     await sleep(step.waitDurationMs as number);
+    return;
+  }
+  if (step.action === "assert" && step.assertion?.kind === "navigation") {
+    await browser.assertNavigation(step.assertion);
     return;
   }
   const target = executionTargetForStep(step);
