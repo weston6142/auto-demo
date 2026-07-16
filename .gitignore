@@ -7,3 +7,6 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Private repo-specific Codex workflow skill.
+packages/agent/skills/auto-demo-linear-brainstorming/
