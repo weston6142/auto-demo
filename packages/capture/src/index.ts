@@ -128,11 +128,17 @@ export type BrowserExecutionTarget = {
   occurrence?: number;
 };
 
+export type BrowserNavigationExpectation = {
+  url: string;
+  match: "exact-url" | "same-origin-path";
+};
+
 export type BrowserCaptureController = {
   navigate(url: string): Promise<void>;
   click(target: BrowserExecutionTarget): Promise<void>;
   type(target: BrowserExecutionTarget, value: string, options: { delayMs: number }): Promise<void>;
   assertVisible(target: BrowserExecutionTarget): Promise<void>;
+  assertNavigation(expectation: BrowserNavigationExpectation): Promise<void>;
   waitForSettled(): Promise<void>;
 };
 

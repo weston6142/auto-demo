@@ -313,6 +313,16 @@ async function validateStep(
       return { ok: true };
     }
 
+    if (step.action === "assert" && step.assertion?.kind === "navigation") {
+      return matchesWalkthroughNavigationAssertion(step.assertion, before.url)
+        ? { ok: true }
+        : {
+            ok: false,
+            reason: "unexpected_navigation",
+            question: `Why did ${safeSummary(step)} reach an unexpected destination?`,
+          };
+    }
+
     if (isUnsafeWalkthroughAction(step)) {
       return {
         ok: false,
@@ -389,6 +399,25 @@ async function validateStep(
       reason: step.action === "navigate" ? "navigation_failed" : "timing_failure",
       question: `How should validation recover from: ${safeSummary(step)}?`,
     };
+  }
+}
+
+function matchesWalkthroughNavigationAssertion(
+  assertion: Extract<NonNullable<WalkthroughPlanStep["assertion"]>, { kind: "navigation" }>,
+  actualValue: string,
+): boolean {
+  try {
+    const expected = new URL(sanitizeUrl(assertion.url));
+    const actual = new URL(sanitizeUrl(actualValue));
+    if (assertion.match === "exact-url") return expected.href === actual.href;
+    return (
+      expected.protocol === actual.protocol &&
+      expected.hostname === actual.hostname &&
+      expected.port === actual.port &&
+      expected.pathname === actual.pathname
+    );
+  } catch {
+    return false;
   }
 }
 

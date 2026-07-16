@@ -51,6 +51,9 @@ function browser(actions: string[], failClick = false): WalkthroughExecutionBrow
     async assertVisible(target) {
       actions.push(`assert:${target.label}`);
     },
+    async assertNavigation(expectation) {
+      actions.push(`assert-navigation:${expectation.url}:${expectation.match}`);
+    },
     async waitForSettled() {
       actions.push("settled");
     },
@@ -172,7 +175,7 @@ describe("executeWalkthroughPlan", () => {
     expect(starts).toEqual([]);
   });
 
-  it("rejects duplicate input binding references before capture", async () => {
+  it("reuses one runtime input binding across multiple type steps", async () => {
     const duplicate = plan("Type alpha into Search. Type beta into Search.");
     duplicate.steps[1].inputBinding = duplicate.steps[0].inputBinding;
     const approved = approveWalkthroughPlan(duplicate, {
@@ -181,6 +184,7 @@ describe("executeWalkthroughPlan", () => {
     });
     if (!approved.ok) throw new Error("test plan should approve");
     const starts: string[] = [];
+    const actions: string[] = [];
 
     const result = await executeWalkthroughPlan(
       {
@@ -189,16 +193,45 @@ describe("executeWalkthroughPlan", () => {
         outputDir: "/captures/demo",
         viewport: { width: 1280, height: 720 },
       },
-      dependencies(session(browser([]), []), starts),
+      dependencies(session(browser(actions), []), starts),
     );
 
     expect(result).toMatchObject({
-      ok: false,
-      phase: "preflight",
-      errors: [{ code: "invalid_input_binding", bindingKey: "step-1" }],
+      ok: true,
+      phase: "completed",
     });
-    expect(starts).toEqual([]);
+    expect(starts).toEqual(["https://example.com/start"]);
+    expect(actions.filter((action) => action.includes("runtime private value"))).toHaveLength(2);
     expect(JSON.stringify(result)).not.toContain("runtime private value");
+  });
+
+  it("executes a structured navigation assertion without resolving a target", async () => {
+    const raw = plan("Verify Results.");
+    raw.steps[0].targetHint = undefined;
+    raw.steps[0].assertion = {
+      kind: "navigation",
+      url: "https://example.com/results",
+      match: "same-origin-path",
+    };
+    const approved = approveWalkthroughPlan(raw, { allowBestGuessBypass: true });
+    if (!approved.ok) throw new Error("test plan should approve");
+    const actions: string[] = [];
+    const executionBrowser = browser(actions);
+
+    const result = await executeWalkthroughPlan(
+      {
+        plan: approved.plan,
+        outputDir: "/captures/demo",
+        viewport: { width: 1280, height: 720 },
+      },
+      dependencies(session(executionBrowser, []), []),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(actions).toContain(
+      "assert-navigation:https://example.com/results:same-origin-path",
+    );
+    expect(actions.some((action) => action.startsWith("assert:"))).toBe(false);
   });
 
   it("executes an approved plan with runtime bindings and natural pacing", async () => {

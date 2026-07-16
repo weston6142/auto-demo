@@ -105,6 +105,44 @@ describe("validateWalkthroughPlan", () => {
     expect(isWalkthroughPlan(discovered)).toBe(true);
   });
 
+  it("blocks a structured navigation assertion at an unexpected destination", async () => {
+    const discovered = plan("Verify destination.");
+    discovered.steps[0].targetHint = undefined;
+    discovered.steps[0].assertion = {
+      kind: "navigation",
+      url: "https://example.com/results",
+      match: "same-origin-path",
+    };
+
+    const result = await validateWalkthroughPlan(
+      discovered,
+      {},
+      {
+        browser: runner(
+          {},
+          {
+            initialState: {
+              url: "https://example.com/other",
+              title: "Other",
+              authWall: false,
+            },
+          },
+        ),
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        state: "needs-clarification",
+        validation: {
+          status: "blocked",
+          blockers: [{ stepId: "step-1", reason: "unexpected_navigation" }],
+        },
+      },
+    });
+  });
+
   it("accepts only consistent completed and failed execution lifecycles", () => {
     const created = createWalkthroughPlan({
       targetUrl: "https://example.com",
