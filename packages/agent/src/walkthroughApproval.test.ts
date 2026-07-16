@@ -71,6 +71,45 @@ function legacyFingerprint(plan: WalkthroughPlan): string {
 }
 
 describe("walkthrough approval", () => {
+  it("fingerprints structured assertions and discovery provenance", () => {
+    const input = createPlan("best-guess", "Verify Results.");
+    input.steps[0].targetHint = { kind: "accessible", label: "Results" };
+    input.steps[0].assertion = { kind: "visible-state", condition: "Results" };
+    input.steps[0].provenance = {
+      kind: "discovery",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+      expectationId: "expectation-1",
+      expectationOrigin: "declared-before-action",
+    };
+    const approved = approveWalkthroughPlan(input, { allowBestGuessBypass: true });
+    if (!approved.ok) throw new Error("test plan should approve");
+
+    const changedAssertion = structuredClone(approved.plan);
+    changedAssertion.steps[0].assertion = {
+      kind: "visible-state",
+      condition: "Changed results",
+    };
+    changedAssertion.steps[0].targetHint = {
+      kind: "accessible",
+      label: "Changed results",
+    };
+    expect(verifyWalkthroughPlanApproval(changedAssertion)).toMatchObject({
+      ok: false,
+      errors: [{ code: "stale_approval" }],
+    });
+
+    const changedProvenance = structuredClone(approved.plan);
+    if (changedProvenance.steps[0].provenance === undefined) {
+      throw new Error("test plan should retain provenance");
+    }
+    changedProvenance.steps[0].provenance.expectationId = "expectation-2";
+    expect(verifyWalkthroughPlanApproval(changedProvenance)).toMatchObject({
+      ok: false,
+      errors: [{ code: "stale_approval" }],
+    });
+  });
+
   it("approves a validated plan with portable fingerprint evidence", () => {
     const input = validatedPlan();
     const result = approveWalkthroughPlan(input, {

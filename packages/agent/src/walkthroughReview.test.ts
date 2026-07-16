@@ -33,6 +33,26 @@ function validatedPlan(): WalkthroughPlan {
 }
 
 describe("reviewWalkthroughPlan", () => {
+  it("identifies discovery-compiled plans without exposing evidence identifiers", () => {
+    const discovered = plan("Verify Results.");
+    discovered.source = {
+      parser: "discovery-v1",
+      script: "Verify Results.",
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "private-session-id",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+
+    const result = reviewWalkthroughPlan(discovered);
+
+    expect(result).toMatchObject({ ok: true, review: { source: "discovery-v1" } });
+    expect(result.ok && result.review.summary).toContain("Source: discovery-v1");
+    expect(result.ok && result.review.summary).not.toContain("private-session-id");
+    expect(result.ok && result.review.summary).not.toContain("sha256:");
+  });
+
   it("builds an ordered readable review for a validated plan", () => {
     const result = reviewWalkthroughPlan(validatedPlan());
 

@@ -107,6 +107,58 @@ function replacement(): Omit<WalkthroughPlanStep, "id" | "order" | "questionId">
 }
 
 describe("refineWalkthroughPlan", () => {
+  it("preserves candidate provenance and clears replacement provenance", async () => {
+    const candidatePlan = ambiguousPlan();
+    candidatePlan.steps[0].provenance = {
+      kind: "discovery",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+    };
+    const selected = await refineWalkthroughPlan(
+      candidatePlan,
+      [
+        {
+          kind: "select-candidate",
+          stepId: "step-1",
+          blockerId: "blocker-1",
+          candidateId: "candidate-2",
+        },
+      ],
+      {},
+      { browser: runner() },
+    );
+    expect(selected.ok && selected.plan.steps[0].provenance).toMatchObject({
+      attemptId: "attempt-1",
+    });
+
+    const replacementPlan = createPlan("Pick the best option.");
+    replacementPlan.steps[0].provenance = {
+      kind: "discovery",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+    };
+    const replaced = await refineWalkthroughPlan(
+      replacementPlan,
+      [
+        {
+          kind: "replace-step",
+          stepId: "step-1",
+          replacement: {
+            ...replacement(),
+            provenance: {
+              kind: "discovery",
+              sessionId: "forged-session",
+              attemptId: "forged-attempt",
+            },
+          },
+        },
+      ],
+      {},
+      { browser: runner() },
+    );
+    expect(replaced.ok && replaced.plan.steps[0].provenance).toBeUndefined();
+  });
+
   it("selects a durable candidate hint and automatically revalidates", async () => {
     const result = await refineWalkthroughPlan(
       ambiguousPlan(),

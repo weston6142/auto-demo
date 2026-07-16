@@ -12,6 +12,7 @@ import {
 
 export type WalkthroughPlanReview = {
   planId: string;
+  source: WalkthroughPlan["source"]["parser"];
   target: string;
   mode: WalkthroughPlan["mode"];
   state: WalkthroughPlan["state"];
@@ -82,6 +83,7 @@ export function reviewWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlanRev
   const approval = approvalEligibility(plan, blockers);
   const lines = [
     `Target: ${target}`,
+    `Source: ${plan.source.parser}`,
     `Mode: ${plan.mode}`,
     `State: ${plan.state}`,
     "Steps:",
@@ -111,6 +113,7 @@ export function reviewWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlanRev
     ok: true,
     review: {
       planId: sanitizeWalkthroughText(plan.id),
+      source: plan.source.parser,
       target,
       mode: plan.mode,
       state: plan.state,
