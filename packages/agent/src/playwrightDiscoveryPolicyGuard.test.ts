@@ -348,7 +348,9 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
     try {
       guard.arm(permit(policy));
+      const downloadPromise = page.waitForEvent("download");
       await page.getByRole("link", { name: "Download" }).click();
+      await downloadPromise;
       const startedAt = Date.now();
 
       expect(await guard.finishAction()).toEqual({

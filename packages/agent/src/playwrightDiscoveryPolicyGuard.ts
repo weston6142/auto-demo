@@ -47,6 +47,8 @@ type FrameNavigated = { frame: { id: string; url: string } };
 
 const ROUTE_MATCHER = "**/*";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const ACTION_QUIET_PERIOD_MS = 200;
+const ACTION_SETTLE_TIMEOUT_MS = 750;
 
 export async function installPlaywrightDiscoveryPolicyGuard(
   page: Page,
@@ -343,7 +345,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       markActivity();
     },
     async finishAction() {
-      const deadline = Date.now() + 500;
+      const deadline = Date.now() + ACTION_SETTLE_TIMEOUT_MS;
       while (Date.now() < deadline) {
         if (pendingInterceptions.size > 0 || pendingSideEffects.size > 0) {
           const pending = Promise.all([...pendingInterceptions, ...pendingSideEffects]);
@@ -366,7 +368,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
           }
           continue;
         }
-        if (Date.now() - lastActivityAt >= 50) break;
+        if (Date.now() - lastActivityAt >= ACTION_QUIET_PERIOD_MS) break;
         await new Promise<void>((resolve) => setTimeout(resolve, 10));
       }
       const currentOrigin = safeRequestOrigin(page.url());
