@@ -252,9 +252,34 @@ artifact keeps failed or abandoned exploration for diagnostics while the selecte
 references only continuous, successful attempts with matched navigation and visible-state
 evidence. The fixtures under `fixtures/discovery-session-*.json` demonstrate the handoff.
 
-This package does not yet expose a discovery CLI. WES-184 adds observation extraction below;
-the WES-185 controller owns host-driven rehearsal actions, WES-186 owns concrete safety policy,
-and WES-187 owns compilation into the existing walkthrough-plan lifecycle.
+This package does not yet expose a discovery CLI. The observation extractor, rehearsal
+controller, policy-enforced controller, and discovery compiler are library APIs; host workflow
+and fresh-context repair remain downstream.
+
+## Discovery Plan Compilation
+
+`compileDiscoverySessionToWalkthroughPlan()` validates an untrusted completed
+`DiscoverySessionV1`, reads only its selected continuous successful path, and returns a
+deterministic `WalkthroughPlan` that is draft and unapproved.
+
+```ts
+import { compileDiscoverySessionToWalkthroughPlan } from "@auto-demo/agent";
+
+const compiled = compileDiscoverySessionToWalkthroughPlan(completedSession);
+if (!compiled.ok) throw new Error(compiled.errors[0]?.code ?? "compilation_failed");
+// compiled.plan is validate-first, draft, unapproved, and ready for fresh replay.
+```
+
+Opaque discovery target IDs are resolved to bounded accessible labels, roles, and occurrences.
+Type actions retain only runtime input binding names. Matched navigation and visible-state
+expectations become structured assertion steps, while inspect, back, and refresh are normalized
+into deterministic plan behavior with a fixed review warning. Failed, blocked, abandoned, and
+unselected attempts stay in the discovery artifact and never enter the plan.
+
+Compilation does not start a browser, replay, validation, approval, capture, or input resolution.
+It does not carry disposable-environment authority into the plan, and its fixed errors never echo
+page content, runtime values, URLs, or exception details. WES-188 owns fresh-context replay,
+structured repair evidence, and promotion to a validated plan.
 
 ## Structured Browser Observation Snapshots
 

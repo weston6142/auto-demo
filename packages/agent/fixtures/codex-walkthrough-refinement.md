@@ -93,6 +93,7 @@ The command applies the refinement, invalidates any prior approval, and automati
   },
   "review": {
     "planId": "plan-signup",
+    "source": "deterministic-v1",
     "target": "https://example.com/signup",
     "mode": "validate-first",
     "state": "validated",
@@ -125,7 +126,7 @@ The command applies the refinement, invalidates any prior approval, and automati
       "eligible": true,
       "basis": "validated"
     },
-    "summary": "Target: https://example.com/signup\nMode: validate-first\nState: validated\nSteps:\n1. Click Get started.\nValidation: ready\nValidation checks:\n- step-1: passed — Validated: Click Get started.\nReady for approval."
+    "summary": "Target: https://example.com/signup\nSource: deterministic-v1\nMode: validate-first\nState: validated\nSteps:\n1. Click Get started.\nValidation: ready\nValidation checks:\n- step-1: passed — Validated: Click Get started.\nReady for approval."
   }
 }
 ```

@@ -84,16 +84,41 @@ export function verifyWalkthroughPlanApproval(
     return failure("invalid_plan", "Walkthrough approval verification requires an approved plan.");
   }
   const fingerprintMatches = plan.approvals.planFingerprint === walkthroughPlanFingerprint(plan);
+  const preDiscoveryFingerprintMatches =
+    !plan.steps.some(hasDiscoveryStepData) &&
+    plan.approvals.planFingerprint === preDiscoveryWalkthroughPlanFingerprint(plan);
   const legacyFingerprintMatches =
     !plan.steps.some(hasStructuredExecutionData) &&
     plan.approvals.planFingerprint === legacyWalkthroughPlanFingerprint(plan);
-  if (!fingerprintMatches && !legacyFingerprintMatches) {
+  if (!fingerprintMatches && !preDiscoveryFingerprintMatches && !legacyFingerprintMatches) {
     return failure(
       "stale_approval",
       "Walkthrough approval does not match the current execution content.",
     );
   }
   return { ok: true };
+}
+
+function preDiscoveryWalkthroughPlanFingerprint(plan: WalkthroughPlan): string {
+  return fingerprint({
+    target: plan.target,
+    mode: plan.mode,
+    steps: plan.steps.map((step) => ({
+      id: step.id,
+      order: step.order,
+      action: step.action,
+      resolution: step.resolution,
+      sourceText: step.sourceText,
+      public: step.public,
+      targetHint: step.targetHint ?? null,
+      questionId: step.questionId ?? null,
+      navigationUrl: step.navigationUrl ?? null,
+      inputBinding: step.inputBinding ?? null,
+      waitDurationMs: step.waitDurationMs ?? null,
+    })),
+    questions: plan.questions,
+    validation: plan.validation ?? null,
+  });
 }
 
 export function walkthroughPlanFingerprint(plan: WalkthroughPlan): string {
@@ -147,6 +172,10 @@ function hasStructuredExecutionData(step: WalkthroughPlan["steps"][number]): boo
     step.assertion !== undefined ||
     step.provenance !== undefined
   );
+}
+
+function hasDiscoveryStepData(step: WalkthroughPlan["steps"][number]): boolean {
+  return step.assertion !== undefined || step.provenance !== undefined;
 }
 
 function fingerprint(value: unknown): string {
