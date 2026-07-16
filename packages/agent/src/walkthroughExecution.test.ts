@@ -228,9 +228,7 @@ describe("executeWalkthroughPlan", () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(actions).toContain(
-      "assert-navigation:https://example.com/results:same-origin-path",
-    );
+    expect(actions).toContain("assert-navigation:https://example.com/results:same-origin-path");
     expect(actions.some((action) => action.startsWith("assert:"))).toBe(false);
   });
 

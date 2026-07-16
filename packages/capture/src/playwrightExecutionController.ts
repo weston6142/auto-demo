@@ -86,7 +86,10 @@ export function createPlaywrightExecutionController(
   };
 }
 
-function matchesNavigation(expectation: BrowserNavigationExpectation, actualValue: string): boolean {
+function matchesNavigation(
+  expectation: BrowserNavigationExpectation,
+  actualValue: string,
+): boolean {
   const expected = sanitizedNavigationUrl(expectation.url);
   const actual = sanitizedNavigationUrl(actualValue);
   if (expected === undefined || actual === undefined) return false;
