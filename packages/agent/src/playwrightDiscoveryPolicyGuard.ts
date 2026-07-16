@@ -345,6 +345,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       markActivity();
     },
     async finishAction() {
+      markActivity();
       const deadline = Date.now() + ACTION_SETTLE_TIMEOUT_MS;
       while (Date.now() < deadline) {
         if (pendingInterceptions.size > 0 || pendingSideEffects.size > 0) {
