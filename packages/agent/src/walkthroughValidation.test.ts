@@ -60,7 +60,7 @@ function runner(
 
 describe("validateWalkthroughPlan", () => {
   it("accepts bounded discovery source, assertion, and provenance fields", () => {
-    const discovered = plan("Verify Results.") as unknown as Record<string, any>;
+    const discovered = plan("Verify Results.");
     discovered.source = {
       parser: "discovery-v1",
       script: "Verify Results.",
@@ -91,7 +91,7 @@ describe("validateWalkthroughPlan", () => {
   });
 
   it("rejects unknown discovery source, assertion, and provenance fields", () => {
-    const discovered = plan("Verify Results.") as unknown as Record<string, any>;
+    const discovered = plan("Verify Results.");
     discovered.source = {
       parser: "discovery-v1",
       script: "Verify Results.",
@@ -113,10 +113,14 @@ describe("validateWalkthroughPlan", () => {
     };
 
     for (const mutate of [
-      (candidate: Record<string, any>) => (candidate.source.extra = true),
-      (candidate: Record<string, any>) => (candidate.source.discovery.extra = true),
-      (candidate: Record<string, any>) => (candidate.steps[0].assertion.extra = true),
-      (candidate: Record<string, any>) => (candidate.steps[0].provenance.extra = true),
+      (candidate: typeof discovered) =>
+        ((candidate.source as unknown as Record<string, unknown>).extra = true),
+      (candidate: typeof discovered) =>
+        ((candidate.source as { discovery: Record<string, unknown> }).discovery.extra = true),
+      (candidate: typeof discovered) =>
+        ((candidate.steps[0].assertion as unknown as Record<string, unknown>).extra = true),
+      (candidate: typeof discovered) =>
+        ((candidate.steps[0].provenance as unknown as Record<string, unknown>).extra = true),
     ]) {
       const invalid = structuredClone(discovered);
       mutate(invalid);
@@ -125,7 +129,7 @@ describe("validateWalkthroughPlan", () => {
   });
 
   it("accepts navigation assertions without accessible targets", () => {
-    const discovered = plan("Verify destination.") as unknown as Record<string, any>;
+    const discovered = plan("Verify destination.");
     discovered.steps[0] = {
       ...discovered.steps[0],
       targetHint: undefined,
