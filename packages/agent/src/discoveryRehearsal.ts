@@ -100,6 +100,9 @@ export type DiscoveryRehearsalControllerDependencies<TPermit> = {
   driver: DiscoveryRehearsalDriver<TPermit>;
   authorizer: DiscoveryActionAuthorizer<TPermit>;
   inputResolver: DiscoveryInputResolver;
+  driverFailureOutcome?: (
+    result: Extract<DiscoveryRehearsalDriverResult, { ok: false }>,
+  ) => { code: string; summary: string } | undefined;
   clock?: () => string;
   idGenerator?: () => string;
 };
@@ -366,6 +369,14 @@ export function createDiscoveryRehearsalController<TPermit>(
     const after = latestObservation(current)!;
     const effects = evaluateExpectations(input.expectations, after);
     const matched = effects.every((effect) => effect.status === "matched");
+    let driverFailureOutcome: { code: string; summary: string } | undefined;
+    if (!executed.ok) {
+      try {
+        driverFailureOutcome = dependencies.driverFailureOutcome?.(executed);
+      } catch {
+        driverFailureOutcome = undefined;
+      }
+    }
     const finished = finishDiscoveryAttempt(current, attemptId, {
       status: executed.ok && matched ? "succeeded" : "failed",
       finishedAt: clock(),
@@ -376,7 +387,10 @@ export function createDiscoveryRehearsalController<TPermit>(
         executed.ok && matched
           ? { code: "action_completed", summary: "Discovery action completed." }
           : !executed.ok
-            ? { code: "action_failed", summary: "Discovery action failed." }
+            ? (driverFailureOutcome ?? {
+                code: "action_failed",
+                summary: "Discovery action failed.",
+              })
             : {
                 code: "expectation_unmatched",
                 summary: "Discovery expectation did not match.",

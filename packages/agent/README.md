@@ -350,6 +350,65 @@ owns the page lifecycle. WES-186 supplies the concrete authorization policy, and
 selected discovery traces into executable walkthrough plans. This library workflow does not add
 a discovery CLI.
 
+## Policy-Enforced Discovery Rehearsal
+
+`createPolicyEnforcedPlaywrightDiscoveryRehearsalController()` is the supported safe default for
+driving discovery in an isolated Chromium rehearsal context containing one page. It couples per-action policy
+with browser request enforcement so a permissive action decision cannot be separated from its
+origin, mutation, download, or WebSocket protections. The host supplies exact allowed origins;
+paths, wildcard domains, embedded credentials, and non-HTTP(S) schemes are rejected.
+
+```ts
+import { createPolicyEnforcedPlaywrightDiscoveryRehearsalController } from "@auto-demo/agent";
+
+const safe = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+  chromiumNetworkInstrumentation: "exclusive",
+  policy: { mode: "safe", allowedOrigins: ["https://demo.example"] },
+  inputResolver,
+});
+
+const disposable = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+  chromiumNetworkInstrumentation: "exclusive",
+  policy: {
+    mode: "disposable",
+    acknowledgement: "environment-is-disposable",
+    allowedOrigins: ["https://sandbox.example"],
+  },
+  inputResolver,
+});
+```
+
+Safe mode blocks destructive-looking actions and all non-idempotent browser requests. Disposable
+mode permits those mutations only while one authorized action is active and only within the exact
+declared origins. The host is responsible for obtaining explicit user approval before constructing
+the disposable declaration.
+
+Both modes permanently block credential and payment inputs, secret-like resolved values, unsafe
+or credential-bearing navigation, undeclared top-level origins, downloads, uploads, and
+WebSockets. Runtime target risk, resolved input values, request details, policy permits, and the
+disposable declaration are never written to `DiscoverySessionV1`.
+
+The controller uses page-target Chromium DevTools Protocol interception for every HTTP redirect
+hop, bypasses service workers, blocks WebSockets, cancels downloads, and rejects popup first
+navigations at the isolated context boundary. The context must contain only the rehearsal page
+when the controller is created and must not share external CDP network overrides. `stop()` and
+idempotent `dispose()` remove those guards without closing the page or context; disposal waits for
+an in-flight action, and cleanup failures remain retryable. The host retains browser ownership and
+must not use a shared production session.
+
+If observed browser work cannot become quiet within the bounded action window, the attempt fails
+with `policy_guard_unavailable`, the guard rejects later actions, and teardown remains available.
+
+The required `chromiumNetworkInstrumentation: "exclusive"` acknowledgement makes that CDP
+ownership precondition explicit; construction fails closed when it is absent at runtime.
+If construction throws `DiscoveryPolicyControllerError`, callers may safely `await error.cleanup()`;
+it is normally a no-op, but preserves a retry path when rare partial browser-hook rollback could not
+finish before the creation error was returned.
+
+Disposable authority applies to one controller instance. It never carries into final capture,
+compiled walkthrough plans, replay, review, approval, or execution. Those later workflows retain
+their own safety and approval boundaries.
+
 ## Wrapper Artifacts
 
 - Codex skill wrapper: `skills/codex-auto-demo/SKILL.md`

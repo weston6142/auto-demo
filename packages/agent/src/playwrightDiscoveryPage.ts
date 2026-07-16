@@ -472,6 +472,14 @@ function collectBrowserSnapshot(input: {
     const credential =
       inputElement?.type.toLowerCase() === "password" ||
       /(^|\s)(username|current-password|new-password|one-time-code)(\s|$)/.test(autocomplete);
+    const sensitivePayment = autocomplete
+      .split(/\s+/)
+      .some((token) =>
+        /^cc-(name|given-name|additional-name|family-name|number|exp|exp-month|exp-year|csc|type)$/.test(
+          token,
+        ),
+      );
+    const upload = inputElement?.type.toLowerCase() === "file";
     const formControl = element.closest("button, input");
     const explicitType = formControl?.getAttribute("type")?.toLowerCase();
     const submitsForm =
@@ -488,6 +496,8 @@ function collectBrowserSnapshot(input: {
       order,
       disabled: element.getAttribute("aria-disabled") === "true" || element.matches(":disabled"),
       credential,
+      sensitivePayment,
+      upload,
       ...(submitsForm ? { actionRisk: "potentially-mutating" as const } : {}),
     };
     targetTier.push(target);

@@ -59,6 +59,8 @@ export type DiscoveryObservationRawTarget = {
   order: number;
   disabled: boolean;
   credential: boolean;
+  sensitivePayment?: boolean;
+  upload?: boolean;
   actionRisk?: "potentially-mutating";
 };
 
@@ -169,7 +171,12 @@ export function createDiscoveryObservationExtractorWithRegistry(
             snapshot,
             observedAt: clock(),
             idGenerator,
-            targetId: (identityKey) => registry.targetId(identityKey),
+            targetId: (candidate) =>
+              registry.targetId(candidate.identityKey, {
+                credential: candidate.credential,
+                sensitivePayment: candidate.sensitivePayment ?? false,
+                upload: candidate.upload ?? false,
+              }),
           });
           if (!built.ok) return built;
           if (Array.isArray(sanitizeObservationInput(built.observation, 1))) {

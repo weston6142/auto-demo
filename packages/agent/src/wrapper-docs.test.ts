@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  createPolicyEnforcedPlaywrightDiscoveryRehearsalController,
   createWalkthroughPlan,
   reviewWalkthroughPlan,
   validateDiscoverySession,
@@ -126,6 +127,24 @@ describe("agent wrapper documentation", () => {
       expect(combined).toContain(expected);
     }
     expect(combined).not.toContain("autodemo agent discover");
+  });
+
+  it("documents the policy-enforced safe and disposable discovery workflow", async () => {
+    const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
+
+    expect(typeof createPolicyEnforcedPlaywrightDiscoveryRehearsalController).toBe("function");
+    for (const expected of [
+      "createPolicyEnforcedPlaywrightDiscoveryRehearsalController",
+      'chromiumNetworkInstrumentation: "exclusive"',
+      "environment-is-disposable",
+      "exact allowed origins",
+      "isolated Chromium rehearsal context",
+      "credential and payment inputs",
+      "downloads, uploads, and WebSockets",
+      "never carries into final capture",
+    ]) {
+      expect(agentReadme).toContain(expected);
+    }
   });
 
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {

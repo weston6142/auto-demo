@@ -4,6 +4,7 @@ import type {
   DiscoveryObservationExtractionError,
   DiscoveryObservationIdKind,
   DiscoveryObservationPageSnapshot,
+  DiscoveryObservationRawTarget,
   DiscoveryObservationRawVisibleState,
 } from "./discoveryObservation.js";
 import type { RecordDiscoveryObservationInput } from "./discoverySession.js";
@@ -58,7 +59,7 @@ export type BuildDiscoveryObservationInput = {
   snapshot: DiscoveryObservationPageSnapshot;
   observedAt: string;
   idGenerator: (kind: DiscoveryObservationIdKind) => string;
-  targetId: (identityKey: string) => string;
+  targetId: (candidate: DiscoveryObservationRawTarget) => string;
 };
 
 export type BuildDiscoveryObservationResult =
@@ -170,7 +171,7 @@ export function buildDiscoveryObservation(
       const occurrence = (occurrences.get(key) ?? 0) + 1;
       occurrences.set(key, occurrence);
       return {
-        id: targetId(candidate.identityKey),
+        id: targetId(candidate),
         label: sanitized.value,
         ...(role === undefined ? {} : { role }),
         ...((duplicateCounts.get(key) ?? 0) > 1 ? { occurrence } : {}),
