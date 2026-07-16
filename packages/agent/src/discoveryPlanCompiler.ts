@@ -37,8 +37,7 @@ export type DiscoveryPlanCompilationError = {
 
 export type CompileDiscoverySessionOptions = { mode?: "validate-first" };
 export type CompileDiscoverySessionResult =
-  | { ok: true; plan: WalkthroughPlan }
-  | { ok: false; errors: DiscoveryPlanCompilationError[] };
+  { ok: true; plan: WalkthroughPlan } | { ok: false; errors: DiscoveryPlanCompilationError[] };
 
 type UnnumberedStep = Omit<WalkthroughPlanStep, "id" | "order">;
 
@@ -78,13 +77,12 @@ function compileValidatedSession(session: DiscoverySessionV1): CompileDiscoveryS
     );
   }
   if (session.selectedPath === undefined || session.selectedPath.attemptIds.length === 0) {
-    return failure(
-      "missing_selected_path",
-      "Discovery plan compilation requires a selected path.",
-    );
+    return failure("missing_selected_path", "Discovery plan compilation requires a selected path.");
   }
 
-  const observations = new Map(session.observations.map((observation) => [observation.id, observation]));
+  const observations = new Map(
+    session.observations.map((observation) => [observation.id, observation]),
+  );
   const attempts = new Map(session.attempts.map((attempt) => [attempt.id, attempt]));
   const selected = session.selectedPath.attemptIds.map((attemptId) => {
     const attempt = attempts.get(attemptId);
@@ -135,16 +133,9 @@ function compileValidatedSession(session: DiscoverySessionV1): CompileDiscoveryS
   const targetUrl = sanitizeWalkthroughUrl(firstBefore.page.url);
   const selectedPathFingerprint = sha256({
     attemptIds: selected.map((attempt) => attempt.id),
-    attempts: selected.map((attempt) => ({
-      id: attempt.id,
-      action: attempt.action,
-      expectations: [...attempt.expectations, ...attempt.derivedExpectations],
-      observedEffects: attempt.observedEffects.map((effect) => ({
-        expectationId: effect.expectationId,
-        status: effect.status,
-        observationId: effect.observationId,
-      })),
-    })),
+    attempts: selected.map((attempt) =>
+      selectedAttemptFingerprintProjection(session, attempt, observations),
+    ),
   });
   const planHash = sha256({ target: targetUrl, mode: "validate-first", steps })
     .slice("sha256:".length)
@@ -167,8 +158,7 @@ function compileValidatedSession(session: DiscoverySessionV1): CompileDiscoveryS
       ? [
           {
             code: "normalized_discovery_action",
-            message:
-              "Discovery-only actions were normalized for deterministic walkthrough replay.",
+            message: "Discovery-only actions were normalized for deterministic walkthrough replay.",
           },
         ]
       : [],
@@ -177,6 +167,46 @@ function compileValidatedSession(session: DiscoverySessionV1): CompileDiscoveryS
     return failure("invalid_compiled_plan", "Discovery plan compilation produced an invalid plan.");
   }
   return { ok: true, plan };
+}
+
+function selectedAttemptFingerprintProjection(
+  session: DiscoverySessionV1,
+  attempt: FinalizedDiscoveryAttempt,
+  observations: Map<string, DiscoveryObservation>,
+): unknown {
+  const before = observations.get(attempt.beforeObservationId);
+  const after =
+    attempt.afterObservationId === undefined
+      ? undefined
+      : observations.get(attempt.afterObservationId);
+  if (before === undefined || after === undefined) throw referenceFailure(attempt.id);
+  const compiledAction = compileAction(session, attempt, before, after);
+  return {
+    id: attempt.id,
+    action:
+      compiledAction === undefined
+        ? { kind: "inspect" }
+        : {
+            kind: attempt.action.kind,
+            action: compiledAction.action,
+            targetHint: compiledAction.targetHint ?? null,
+            navigationUrl: compiledAction.navigationUrl ?? null,
+            inputBinding: compiledAction.inputBinding ?? null,
+            waitDurationMs: compiledAction.waitDurationMs ?? null,
+            normalizedFrom: compiledAction.provenance?.normalizedFrom ?? null,
+          },
+    expectations: [...attempt.expectations, ...attempt.derivedExpectations],
+    matchedEffects: [...attempt.expectations, ...attempt.derivedExpectations].map((expectation) => {
+      const effect = attempt.observedEffects.find(
+        (candidate) =>
+          candidate.expectationId === expectation.id &&
+          candidate.status === "matched" &&
+          candidate.observationId === after.id,
+      );
+      if (effect === undefined) throw referenceFailure(attempt.id, expectation.id);
+      return { expectationId: effect.expectationId, observationId: effect.observationId };
+    }),
+  };
 }
 
 function compileAction(
@@ -251,10 +281,7 @@ function compileAssertion(
   };
 }
 
-function navigationStep(
-  value: string,
-  provenance: WalkthroughPlanStepProvenance,
-): UnnumberedStep {
+function navigationStep(value: string, provenance: WalkthroughPlanStepProvenance): UnnumberedStep {
   const url = sanitizeWalkthroughUrl(value);
   const summary = `Navigate to ${url}.`;
   return {
@@ -273,9 +300,7 @@ function targetStep(
   provenance: WalkthroughPlanStepProvenance,
 ): UnnumberedStep {
   const summary =
-    action === "click"
-      ? `Click ${targetHint.label}.`
-      : `Type [redacted] into ${targetHint.label}.`;
+    action === "click" ? `Click ${targetHint.label}.` : `Type [redacted] into ${targetHint.label}.`;
   return {
     action,
     resolution: "resolved",
@@ -306,7 +331,9 @@ function actionTarget(
   action: Extract<DiscoveryAction, { kind: "click" | "type" }>,
   attemptId: string,
 ): WalkthroughPlanTargetHint {
-  const target = observation.interactiveTargets.find((candidate) => candidate.id === action.targetId);
+  const target = observation.interactiveTargets.find(
+    (candidate) => candidate.id === action.targetId,
+  );
   if (target === undefined) throw referenceFailure(attemptId);
   return accessibleTarget(target);
 }
@@ -329,7 +356,9 @@ function visibleTarget(
     (candidate) => candidate.id === expectation.targetId,
   );
   if (interactive !== undefined) return accessibleTarget(interactive);
-  const visible = observation.visibleStates.find((candidate) => candidate.id === expectation.targetId);
+  const visible = observation.visibleStates.find(
+    (candidate) => candidate.id === expectation.targetId,
+  );
   if (visible !== undefined) {
     return { kind: "accessible", label: sanitizeWalkthroughText(visible.summary) };
   }
@@ -377,7 +406,9 @@ function failure(
 }
 
 function sha256(value: unknown): string {
-  return `sha256:${createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex")}`;
+  return `sha256:${createHash("sha256")
+    .update(JSON.stringify(canonicalize(value)))
+    .digest("hex")}`;
 }
 
 function canonicalize(value: unknown): unknown {

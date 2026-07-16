@@ -1,9 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import {
-  compileDiscoverySessionToWalkthroughPlan,
-  type DiscoverySessionV1,
-} from "./index.js";
+import { compileDiscoverySessionToWalkthroughPlan, type DiscoverySessionV1 } from "./index.js";
 
 async function fixture(name: string): Promise<unknown> {
   return JSON.parse(
@@ -78,16 +75,36 @@ describe("compileDiscoverySessionToWalkthroughPlan", () => {
     });
   });
 
+  it("fingerprints resolved accessible targets used by the selected path", async () => {
+    const original = (await fixture("discovery-session-completed.json")) as DiscoverySessionV1;
+    const changed = structuredClone(original);
+    changed.observations[0].interactiveTargets[0].label = "Continue";
+
+    const first = compileDiscoverySessionToWalkthroughPlan(original);
+    const second = compileDiscoverySessionToWalkthroughPlan(changed);
+
+    expect(first.ok && first.plan.source.parser === "discovery-v1").toBe(true);
+    expect(second.ok && second.plan.source.parser === "discovery-v1").toBe(true);
+    if (
+      !first.ok ||
+      !second.ok ||
+      first.plan.source.parser !== "discovery-v1" ||
+      second.plan.source.parser !== "discovery-v1"
+    ) {
+      throw new Error("test sessions must compile as discovery plans");
+    }
+    expect(first.plan.source.discovery.selectedPathFingerprint).not.toBe(
+      second.plan.source.discovery.selectedPathFingerprint,
+    );
+  });
+
   it("normalizes inspect into assertions without a browser action", async () => {
     const session = (await fixture("discovery-session-completed.json")) as DiscoverySessionV1;
     session.attempts[0].action = { kind: "inspect" };
 
     const result = compileDiscoverySessionToWalkthroughPlan(session);
 
-    expect(result.ok && result.plan.steps.map((step) => step.action)).toEqual([
-      "assert",
-      "assert",
-    ]);
+    expect(result.ok && result.plan.steps.map((step) => step.action)).toEqual(["assert", "assert"]);
     expect(result.ok && result.plan.steps[0].provenance).toMatchObject({
       normalizedFrom: "inspect",
     });

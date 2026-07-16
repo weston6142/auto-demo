@@ -90,6 +90,40 @@ describe("validateWalkthroughPlan", () => {
     expect(isWalkthroughPlan(mismatched)).toBe(false);
   });
 
+  it("rejects unknown discovery source, assertion, and provenance fields", () => {
+    const discovered = plan("Verify Results.") as unknown as Record<string, any>;
+    discovered.source = {
+      parser: "discovery-v1",
+      script: "Verify Results.",
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    discovered.steps[0] = {
+      ...discovered.steps[0],
+      assertion: { kind: "visible-state", condition: "Results" },
+      targetHint: { kind: "accessible", label: "Results" },
+      provenance: {
+        kind: "discovery",
+        sessionId: "session-1",
+        attemptId: "attempt-1",
+      },
+    };
+
+    for (const mutate of [
+      (candidate: Record<string, any>) => (candidate.source.extra = true),
+      (candidate: Record<string, any>) => (candidate.source.discovery.extra = true),
+      (candidate: Record<string, any>) => (candidate.steps[0].assertion.extra = true),
+      (candidate: Record<string, any>) => (candidate.steps[0].provenance.extra = true),
+    ]) {
+      const invalid = structuredClone(discovered);
+      mutate(invalid);
+      expect(isWalkthroughPlan(invalid)).toBe(false);
+    }
+  });
+
   it("accepts navigation assertions without accessible targets", () => {
     const discovered = plan("Verify destination.") as unknown as Record<string, any>;
     discovered.steps[0] = {

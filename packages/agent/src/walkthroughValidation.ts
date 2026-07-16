@@ -495,9 +495,13 @@ function isWalkthroughPlanSource(value: unknown): value is WalkthroughPlan["sour
     discovery?: Record<string, unknown>;
   };
   if (!isNonEmptyString(source.script)) return false;
-  if (source.parser === "deterministic-v1") return true;
+  if (source.parser === "deterministic-v1") {
+    return hasExactKeys(value, ["parser", "script"]);
+  }
   return (
     source.parser === "discovery-v1" &&
+    hasExactKeys(value, ["parser", "script", "discovery"]) &&
+    hasExactKeys(source.discovery, ["schemaVersion", "sessionId", "selectedPathFingerprint"]) &&
     source.discovery?.schemaVersion === 1 &&
     isSafeIdentifier(source.discovery.sessionId) &&
     typeof source.discovery.selectedPathFingerprint === "string" &&
@@ -512,11 +516,13 @@ function isWalkthroughPlanAssertion(
   if (step.action !== "assert") return false;
   if (value.kind === "navigation") {
     return (
+      hasExactKeys(value, ["kind", "url", "match"]) &&
       step.targetHint === undefined &&
       isSafeHttpUrl(value.url) &&
       (value.match === "exact-url" || value.match === "same-origin-path")
     );
   }
+  if (!hasExactKeys(value, ["kind", "condition", "role", "occurrence"])) return false;
   if (!isNonEmptyString(value.condition)) return false;
   if (value.role !== undefined && !isNonEmptyString(value.role)) return false;
   if (
@@ -535,6 +541,14 @@ function isWalkthroughPlanAssertion(
 
 function isWalkthroughPlanStepProvenance(value: WalkthroughPlanStepProvenance): boolean {
   return (
+    hasExactKeys(value, [
+      "kind",
+      "sessionId",
+      "attemptId",
+      "expectationId",
+      "expectationOrigin",
+      "normalizedFrom",
+    ]) &&
     value.kind === "discovery" &&
     isSafeIdentifier(value.sessionId) &&
     isSafeIdentifier(value.attemptId) &&
@@ -743,6 +757,12 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isSafeIdentifier(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(value);
+}
+
+function hasExactKeys(value: unknown, allowed: readonly string[]): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const allowedKeys = new Set(allowed);
+  return Object.keys(value).every((key) => allowedKeys.has(key));
 }
 
 function hasConsistentPlanRelationships(plan: WalkthroughPlan): boolean {
