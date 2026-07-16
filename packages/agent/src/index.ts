@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { generateHeadlessVariants, type HeadlessVariantGenerationResult } from "@auto-demo/polish";
+import type { DiscoveryExpectationOrigin } from "./discoveryContract.js";
 import {
   loadProject,
   type LoadedProject,
@@ -125,6 +126,14 @@ export {
   validateDiscoverySession,
   validateSelectedPath,
 } from "./discoveryValidation.js";
+
+export {
+  compileDiscoverySessionToWalkthroughPlan,
+  type CompileDiscoverySessionOptions,
+  type CompileDiscoverySessionResult,
+  type DiscoveryPlanCompilationError,
+  type DiscoveryPlanCompilationErrorCode,
+} from "./discoveryPlanCompiler.js";
 
 export {
   createDiscoveryObservationExtractor,
