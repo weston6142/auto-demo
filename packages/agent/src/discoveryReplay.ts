@@ -1,8 +1,5 @@
 import { isSecretLikeValue, normalizeHttpOrigin } from "./actionSafety.js";
-import {
-  DISCOVERY_LIMITS,
-  type DiscoverySessionV1,
-} from "./discoveryContract.js";
+import { DISCOVERY_LIMITS, type DiscoverySessionV1 } from "./discoveryContract.js";
 import { compileDiscoverySessionToWalkthroughPlan } from "./discoveryPlanCompiler.js";
 import {
   validateDiscoveryPolicy,
@@ -253,7 +250,12 @@ async function runReplayAndRepairDiscoveryPlan(
       await browser.open(current.plan.target.url);
       attempt = await runReplayAttempt(current, browser, attemptIndex);
     } catch {
-      return replayFailure(current, "replay_setup_failed", "Discovery replay setup failed.", attempts);
+      return replayFailure(
+        current,
+        "replay_setup_failed",
+        "Discovery replay setup failed.",
+        attempts,
+      );
     } finally {
       await browser?.close().catch(() => undefined);
     }
@@ -289,16 +291,31 @@ async function runReplayAndRepairDiscoveryPlan(
         failure: structuredClone(attempt.failure),
       });
     } catch {
-      return repairFailure(current, attempts, "repair_provider_failed", "Discovery replay repair failed.");
+      return repairFailure(
+        current,
+        attempts,
+        "repair_provider_failed",
+        "Discovery replay repair failed.",
+      );
     }
     if (decision.decision === "stop") {
-      return repairFailure(current, attempts, "repair_declined", "Discovery replay repair was declined.");
+      return repairFailure(
+        current,
+        attempts,
+        "repair_declined",
+        "Discovery replay repair was declined.",
+      );
     }
     const repaired = prepareRepair(current, decision.session);
     if (!repaired.ok) return repairFailure(current, attempts, repaired.code, repaired.message);
     current = repaired.prepared;
   }
-  return replayFailure(current, "repair_limit_reached", "Discovery replay repair limit was reached.", attempts);
+  return replayFailure(
+    current,
+    "repair_limit_reached",
+    "Discovery replay repair limit was reached.",
+    attempts,
+  );
 }
 
 function prepareReplay(
@@ -328,7 +345,10 @@ function prepareReplay(
     );
   }
   if (!isWalkthroughPlan(input.plan) || input.plan.source.parser !== "discovery-v1") {
-    return preflightFailure("invalid_replay_plan", "Discovery replay requires a valid discovery plan.");
+    return preflightFailure(
+      "invalid_replay_plan",
+      "Discovery replay requires a valid discovery plan.",
+    );
   }
 
   const compiled = compileDiscoverySessionToWalkthroughPlan(validatedSession.session);
@@ -486,9 +506,7 @@ function policyAllowsUrl(policy: ValidatedDiscoveryPolicy, value: string): boole
 }
 
 export type DiscoveryReplayBrowserErrorCode =
-  | DiscoveryReplayFailureCode
-  | "candidate_not_found"
-  | "browser_closed";
+  DiscoveryReplayFailureCode | "candidate_not_found" | "browser_closed";
 
 export class DiscoveryReplayBrowserError extends Error {
   constructor(
@@ -509,7 +527,8 @@ async function runReplayAttempt(
   for (const step of prepared.plan.steps) {
     try {
       if (step.action === "navigate") {
-        if (step.navigationUrl === undefined) throw new DiscoveryReplayBrowserError("navigation_failed");
+        if (step.navigationUrl === undefined)
+          throw new DiscoveryReplayBrowserError("navigation_failed");
         await browser.navigate(step.navigationUrl);
       } else if (step.action === "click") {
         await browser.click(await requireReplayMatch(browser, step.targetHint));
@@ -520,7 +539,8 @@ async function runReplayAttempt(
           prepared.bindings[step.inputBinding]!,
         );
       } else if (step.action === "wait") {
-        if (step.waitDurationMs === undefined) throw new DiscoveryReplayBrowserError("timing_failure");
+        if (step.waitDurationMs === undefined)
+          throw new DiscoveryReplayBrowserError("timing_failure");
         await browser.wait(step.waitDurationMs);
       } else if (step.action === "assert") {
         if (step.assertion?.kind === "visible-state") {
@@ -602,7 +622,8 @@ async function failureEvidence(
   return {
     schemaVersion: 1,
     code,
-    repairability: code === "policy_blocked" || code === "replay_setup_failed" ? "hard-boundary" : "repairable",
+    repairability:
+      code === "policy_blocked" || code === "replay_setup_failed" ? "hard-boundary" : "repairable",
     step: {
       id: step.id,
       order: step.order,
@@ -632,7 +653,9 @@ function sanitizeMatches(matches: DiscoveryReplayMatch[]): DiscoveryReplayMatch[
   }));
 }
 
-function recommendationFor(code: DiscoveryReplayFailureCode): DiscoveryReplayFailureEvidence["recommendation"] {
+function recommendationFor(
+  code: DiscoveryReplayFailureCode,
+): DiscoveryReplayFailureEvidence["recommendation"] {
   if (code === "target_not_found" || code === "ambiguous_target") return "rediscover-target";
   if (code === "navigation_failed" || code === "navigation_mismatch") return "rediscover-route";
   if (code === "visible_state_mismatch") return "refresh-expectation";
@@ -642,7 +665,8 @@ function recommendationFor(code: DiscoveryReplayFailureCode): DiscoveryReplayFai
 
 function attemptIdentity(prepared: PreparedReplay, attempt: 1 | 2 | 3) {
   const source = prepared.plan.source;
-  if (source.parser !== "discovery-v1") throw new Error("prepared replay source must be discovery-v1");
+  if (source.parser !== "discovery-v1")
+    throw new Error("prepared replay source must be discovery-v1");
   return {
     attempt,
     replayId: prepared.replayId,

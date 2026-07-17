@@ -15,9 +15,7 @@ class FakeReplayBrowser implements DiscoveryReplayBrowser {
   readonly calls: string[] = [];
   readonly typedValues: string[] = [];
   closeCalls = 0;
-  matches: DiscoveryReplayMatch[] = [
-    { id: "candidate-1", label: "Checkout", role: "button" },
-  ];
+  matches: DiscoveryReplayMatch[] = [{ id: "candidate-1", label: "Checkout", role: "button" }];
   failNavigationAssertion = false;
   clickFailure: "policy_blocked" | undefined;
 
@@ -98,7 +96,11 @@ function countingFactory(counter: { creates: number }): DiscoveryReplayBrowserFa
 }
 
 function browserFactory(browser: DiscoveryReplayBrowser): DiscoveryReplayBrowserFactory {
-  return { async create() { return browser; } };
+  return {
+    async create() {
+      return browser;
+    },
+  };
 }
 
 function sequentialFactory(browsers: DiscoveryReplayBrowser[]): DiscoveryReplayBrowserFactory {
@@ -131,9 +133,13 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
     input.plan.steps[0].public.summary = "Tampered step";
     const counter = { creates: 0 };
 
-    const result = await replayAndRepairDiscoveryPlan(input, {}, {
-      browserFactory: countingFactory(counter),
-    });
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      {},
+      {
+        browserFactory: countingFactory(counter),
+      },
+    );
 
     expect(result).toEqual({
       ok: false,
@@ -154,9 +160,13 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
     input.plan.state = "validated";
     const counter = { creates: 0 };
 
-    const result = await replayAndRepairDiscoveryPlan(input, {}, {
-      browserFactory: countingFactory(counter),
-    });
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      {},
+      {
+        browserFactory: countingFactory(counter),
+      },
+    );
 
     expect(result).toMatchObject({
       ok: false,
@@ -179,9 +189,13 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
     input.plan = compiled.plan;
     const counter = { creates: 0 };
 
-    const missing = await replayAndRepairDiscoveryPlan(input, {}, {
-      browserFactory: countingFactory(counter),
-    });
+    const missing = await replayAndRepairDiscoveryPlan(
+      input,
+      {},
+      {
+        browserFactory: countingFactory(counter),
+      },
+    );
     const secret = await replayAndRepairDiscoveryPlan(
       { ...input, inputBindings: { "demo-name": "sk-example123456789" } },
       {},
@@ -216,9 +230,13 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
     const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
     if (!compiled.ok) throw new Error("navigation replay fixture must compile");
     input.plan = compiled.plan;
-    const outOfScope = await replayAndRepairDiscoveryPlan(input, {}, {
-      browserFactory: countingFactory(counter),
-    });
+    const outOfScope = await replayAndRepairDiscoveryPlan(
+      input,
+      {},
+      {
+        browserFactory: countingFactory(counter),
+      },
+    );
 
     expect(invalidLimit).toMatchObject({ errors: [{ code: "invalid_replay_options" }] });
     expect(outOfScope).toMatchObject({
@@ -361,15 +379,21 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     second.matches = [{ id: "candidate-1", label: "Next", role: "button" }];
     const repairCalls: string[] = [];
 
-    const result = await replayAndRepairDiscoveryPlan(root, {}, {
-      browserFactory: sequentialFactory([first, second]),
-      repair: {
-        async repair(input) {
-          repairCalls.push(`${input.repairNumber}:${input.parentSession.id}:${input.failure.code}`);
-          return { decision: "repaired", session: child };
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: sequentialFactory([first, second]),
+        repair: {
+          async repair(input) {
+            repairCalls.push(
+              `${input.repairNumber}:${input.parentSession.id}:${input.failure.code}`,
+            );
+            return { decision: "repaired", session: child };
+          },
         },
       },
-    });
+    );
 
     expect(result).toMatchObject({
       ok: true,
@@ -395,15 +419,19 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     browsers[2].matches = [{ id: "candidate-1", label: "Finish", role: "button" }];
     let repairCount = 0;
 
-    const result = await replayAndRepairDiscoveryPlan(root, {}, {
-      browserFactory: sequentialFactory(browsers),
-      repair: {
-        async repair() {
-          repairCount += 1;
-          return { decision: "repaired", session: repairCount === 1 ? child1 : child2 };
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: sequentialFactory(browsers),
+        repair: {
+          async repair() {
+            repairCount += 1;
+            return { decision: "repaired", session: repairCount === 1 ? child1 : child2 };
+          },
         },
       },
-    });
+    );
 
     expect(result).toMatchObject({
       ok: true,
@@ -422,10 +450,18 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     const browser = new FakeReplayBrowser();
     browser.matches = [];
 
-    const result = await replayAndRepairDiscoveryPlan(root, {}, {
-      browserFactory: browserFactory(browser),
-      repair: { async repair() { return { decision: "repaired", session: invalid }; } },
-    });
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: browserFactory(browser),
+        repair: {
+          async repair() {
+            return { decision: "repaired", session: invalid };
+          },
+        },
+      },
+    );
 
     expect(result).toMatchObject({
       ok: false,
@@ -442,15 +478,19 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     browser.clickFailure = "policy_blocked";
     let repairs = 0;
 
-    const result = await replayAndRepairDiscoveryPlan(root, {}, {
-      browserFactory: browserFactory(browser),
-      repair: {
-        async repair() {
-          repairs += 1;
-          return { decision: "stop", reason: "manual_review_required" };
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: browserFactory(browser),
+        repair: {
+          async repair() {
+            repairs += 1;
+            return { decision: "stop", reason: "manual_review_required" };
+          },
         },
       },
-    });
+    );
 
     expect(result).toMatchObject({
       ok: false,
@@ -492,10 +532,18 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     const browser = new FakeReplayBrowser();
     browser.matches = [];
 
-    const result = await replayAndRepairDiscoveryPlan(root, {}, {
-      browserFactory: browserFactory(browser),
-      repair: { async repair() { return { decision: "stop", reason: "repair_declined" }; } },
-    });
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: browserFactory(browser),
+        repair: {
+          async repair() {
+            return { decision: "stop", reason: "repair_declined" };
+          },
+        },
+      },
+    );
 
     expect(result).toMatchObject({
       ok: false,
@@ -511,10 +559,18 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     const browser = new FakeReplayBrowser();
     browser.matches = [];
 
-    const result = await replayAndRepairDiscoveryPlan(root, {}, {
-      browserFactory: browserFactory(browser),
-      repair: { async repair() { return { decision: "repaired", session: unchanged }; } },
-    });
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: browserFactory(browser),
+        repair: {
+          async repair() {
+            return { decision: "repaired", session: unchanged };
+          },
+        },
+      },
+    );
 
     expect(result).toMatchObject({
       ok: false,

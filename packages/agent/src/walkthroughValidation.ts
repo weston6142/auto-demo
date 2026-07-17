@@ -76,8 +76,7 @@ export type WalkthroughPlanReplayValidation = WalkthroughPlanValidationBase & {
 };
 
 export type WalkthroughPlanValidation =
-  | (WalkthroughPlanValidationBase & { mode: "dry-run" })
-  | WalkthroughPlanReplayValidation;
+  (WalkthroughPlanValidationBase & { mode: "dry-run" }) | WalkthroughPlanReplayValidation;
 
 export type ValidatedWalkthroughPlan = WalkthroughPlan & {
   validation: WalkthroughPlanValidation;
@@ -713,24 +712,15 @@ function isWalkthroughPlanValidation(value: unknown): value is WalkthroughPlanVa
   }
   if (validation.mode !== "discovery-replay") return false;
   return (
-    hasExactKeys(validation, [
-      "status",
-      "validatedAt",
-      "mode",
-      "checks",
-      "blockers",
-      "replay",
-    ]) && isWalkthroughPlanReplaySummary(validation.replay)
+    hasExactKeys(validation, ["status", "validatedAt", "mode", "checks", "blockers", "replay"]) &&
+    isWalkthroughPlanReplaySummary(validation.replay)
   );
 }
 
 function isWalkthroughPlanReplaySummary(value: unknown): boolean {
-  if (!hasExactKeys(value, [
-    "replayId",
-    "attempts",
-    "sourceSessionId",
-    "selectedPathFingerprint",
-  ])) {
+  if (
+    !hasExactKeys(value, ["replayId", "attempts", "sourceSessionId", "selectedPathFingerprint"])
+  ) {
     return false;
   }
   const replay = value as Partial<WalkthroughPlanReplayValidation["replay"]>;

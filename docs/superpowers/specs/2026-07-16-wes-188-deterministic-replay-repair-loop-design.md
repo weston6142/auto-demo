@@ -83,10 +83,7 @@ type DiscoveryReplayDependencies = {
 };
 
 type DiscoveryReplayBrowserFactory = {
-  create(input: {
-    policy: DiscoveryPolicy;
-    attempt: number;
-  }): Promise<DiscoveryReplayBrowser>;
+  create(input: { policy: DiscoveryPolicy; attempt: number }): Promise<DiscoveryReplayBrowser>;
 };
 
 type DiscoveryPlanRepairProvider = {
@@ -119,8 +116,12 @@ type DiscoveryReplayBrowser = {
   type(match: DiscoveryReplayMatch, value: string): Promise<void>;
   wait(durationMs: number): Promise<void>;
   waitForSettled(): Promise<void>;
-  assertVisible(assertion: Extract<WalkthroughPlanAssertion, { kind: "visible-state" }>): Promise<void>;
-  assertNavigation(assertion: Extract<WalkthroughPlanAssertion, { kind: "navigation" }>): Promise<void>;
+  assertVisible(
+    assertion: Extract<WalkthroughPlanAssertion, { kind: "visible-state" }>,
+  ): Promise<void>;
+  assertNavigation(
+    assertion: Extract<WalkthroughPlanAssertion, { kind: "navigation" }>,
+  ): Promise<void>;
   inspectPage(): Promise<{ url: string }>;
   close(): Promise<void>;
 };

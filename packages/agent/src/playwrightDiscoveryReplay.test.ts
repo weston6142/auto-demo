@@ -9,9 +9,9 @@ const browsers: Array<{ close(): Promise<void> }> = [];
 afterEach(async () => {
   await Promise.all(browsers.splice(0).map((browser) => browser.close()));
   await Promise.all(
-    servers.splice(0).map(
-      (server) => new Promise<void>((resolve) => server.close(() => resolve())),
-    ),
+    servers
+      .splice(0)
+      .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
   );
 });
 
@@ -90,15 +90,25 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
   });
 
   it("starts every replay attempt in a fresh browser context", async () => {
-    const origin = await fixture("<!doctype html><script>localStorage.count = String(Number(localStorage.count || 0) + 1)</script>");
+    const origin = await fixture(
+      "<!doctype html><script>localStorage.count = String(Number(localStorage.count || 0) + 1)</script>",
+    );
     const factory = createPlaywrightDiscoveryReplayBrowserFactory();
-    const first = await factory.create({ policy: { mode: "safe", allowedOrigins: [origin] }, attempt: 1 });
-    const second = await factory.create({ policy: { mode: "safe", allowedOrigins: [origin] }, attempt: 2 });
+    const first = await factory.create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    const second = await factory.create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 2,
+    });
     browsers.push(first, second);
     await first.open(origin);
     await second.open(origin);
 
-    await expect(first.assertVisible({ kind: "visible-state", condition: "missing" })).rejects.toMatchObject({ code: "visible_state_mismatch" });
+    await expect(
+      first.assertVisible({ kind: "visible-state", condition: "missing" }),
+    ).rejects.toMatchObject({ code: "visible_state_mismatch" });
     await expect(second.inspectPage()).resolves.toEqual({ url: `${origin}/` });
   });
 });

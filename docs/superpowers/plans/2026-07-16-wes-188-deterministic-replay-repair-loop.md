@@ -109,8 +109,7 @@ export type WalkthroughPlanReplayValidation = WalkthroughPlanValidationBase & {
 };
 
 export type WalkthroughPlanValidation =
-  | (WalkthroughPlanValidationBase & { mode: "dry-run" })
-  | WalkthroughPlanReplayValidation;
+  (WalkthroughPlanValidationBase & { mode: "dry-run" }) | WalkthroughPlanReplayValidation;
 ```
 
 Update `isWalkthroughPlanValidation()` to use exact key allowlists, safe IDs, a 1–3 integer attempt count, and a lowercase SHA-256 fingerprint. Update sanitization to preserve replay metadata only when `mode === "discovery-replay"`.
@@ -159,20 +158,18 @@ it("rejects a plan that does not canonically match its source session", async ()
   const { sourceSession, plan } = await compiledFixture();
   plan.steps[0].public.summary = "Tampered step";
 
-  const result = await replayAndRepairDiscoveryPlan(
-    { plan, sourceSession },
-    {},
-    dependencies(),
-  );
+  const result = await replayAndRepairDiscoveryPlan({ plan, sourceSession }, {}, dependencies());
 
   expect(result).toEqual({
     ok: false,
     phase: "preflight",
     attempts: [],
-    errors: [{
-      code: "plan_source_mismatch",
-      message: "Discovery replay plan does not match its compiled source session.",
-    }],
+    errors: [
+      {
+        code: "plan_source_mismatch",
+        message: "Discovery replay plan does not match its compiled source session.",
+      },
+    ],
   });
   expect(factoryCreates).toBe(0);
 });
@@ -215,8 +212,12 @@ export type DiscoveryReplayBrowser = {
   type(match: DiscoveryReplayMatch, value: string): Promise<void>;
   wait(durationMs: number): Promise<void>;
   waitForSettled(): Promise<void>;
-  assertVisible(assertion: Extract<WalkthroughPlanAssertion, { kind: "visible-state" }>): Promise<void>;
-  assertNavigation(assertion: Extract<WalkthroughPlanAssertion, { kind: "navigation" }>): Promise<void>;
+  assertVisible(
+    assertion: Extract<WalkthroughPlanAssertion, { kind: "visible-state" }>,
+  ): Promise<void>;
+  assertNavigation(
+    assertion: Extract<WalkthroughPlanAssertion, { kind: "navigation" }>,
+  ): Promise<void>;
   inspectPage(): Promise<{ url: string }>;
   close(): Promise<void>;
 };
@@ -358,17 +359,36 @@ Implement `prepareReplay()` with this sequence:
 ```ts
 const validatedSession = validateDiscoverySession(input.sourceSession);
 if (!validatedSession.ok || validatedSession.session.status !== "completed") {
-  return preflightFailure("invalid_source_session", "Discovery replay requires a completed source session.");
+  return preflightFailure(
+    "invalid_source_session",
+    "Discovery replay requires a completed source session.",
+  );
 }
 if (!isWalkthroughPlan(input.plan) || input.plan.source.parser !== "discovery-v1") {
-  return preflightFailure("invalid_replay_plan", "Discovery replay requires a valid discovery plan.");
+  return preflightFailure(
+    "invalid_replay_plan",
+    "Discovery replay requires a valid discovery plan.",
+  );
 }
-if (input.plan.state !== "draft" || input.plan.approvals.approved || input.plan.execution.status !== "not-started") {
-  return preflightFailure("invalid_replay_state", "Discovery replay requires a draft unapproved plan.");
+if (
+  input.plan.state !== "draft" ||
+  input.plan.approvals.approved ||
+  input.plan.execution.status !== "not-started"
+) {
+  return preflightFailure(
+    "invalid_replay_state",
+    "Discovery replay requires a draft unapproved plan.",
+  );
 }
 const compiled = compileDiscoverySessionToWalkthroughPlan(validatedSession.session);
-if (!compiled.ok || walkthroughPlanFingerprint(compiled.plan) !== walkthroughPlanFingerprint(input.plan)) {
-  return preflightFailure("plan_source_mismatch", "Discovery replay plan does not match its compiled source session.");
+if (
+  !compiled.ok ||
+  walkthroughPlanFingerprint(compiled.plan) !== walkthroughPlanFingerprint(input.plan)
+) {
+  return preflightFailure(
+    "plan_source_mismatch",
+    "Discovery replay plan does not match its compiled source session.",
+  );
 }
 ```
 
@@ -526,10 +546,14 @@ it("recompiles one completed child session before a fresh second replay", async 
   const browsers = [missingTargetBrowser(), successfulBrowser()];
   const repair = vi.fn().mockResolvedValue({ decision: "repaired", session: child });
 
-  const result = await replayAndRepairDiscoveryPlan(root, {}, {
-    browserFactory: sequentialFactory(browsers),
-    repair: { repair },
-  });
+  const result = await replayAndRepairDiscoveryPlan(
+    root,
+    {},
+    {
+      browserFactory: sequentialFactory(browsers),
+      repair: { repair },
+    },
+  );
 
   expect(result).toMatchObject({
     ok: true,
@@ -537,11 +561,13 @@ it("recompiles one completed child session before a fresh second replay", async 
     attempts: [{ status: "failed" }, { status: "passed" }],
     plan: { validation: { replay: { attempts: 2 } } },
   });
-  expect(repair).toHaveBeenCalledWith(expect.objectContaining({
-    repairNumber: 1,
-    parentSession: expect.objectContaining({ id: root.sourceSession.id }),
-    failure: expect.objectContaining({ repairability: "repairable" }),
-  }));
+  expect(repair).toHaveBeenCalledWith(
+    expect.objectContaining({
+      repairNumber: 1,
+      parentSession: expect.objectContaining({ id: root.sourceSession.id }),
+      failure: expect.objectContaining({ repairability: "repairable" }),
+    }),
+  );
 });
 ```
 
@@ -635,14 +661,20 @@ it("types runtime demo input and verifies the resulting visible state", async ()
     attempt: 1,
   });
   await browser.open(`${origin}/form`);
-  const [field] = await browser.findMatches({ kind: "accessible", label: "Demo name", role: "textbox" });
+  const [field] = await browser.findMatches({
+    kind: "accessible",
+    label: "Demo name",
+    role: "textbox",
+  });
   await browser.type(field!, "Demo Person");
   await browser.waitForSettled();
-  await expect(browser.assertVisible({
-    kind: "visible-state",
-    condition: "Welcome Demo Person",
-    role: "heading",
-  })).resolves.toBeUndefined();
+  await expect(
+    browser.assertVisible({
+      kind: "visible-state",
+      condition: "Welcome Demo Person",
+      role: "heading",
+    }),
+  ).resolves.toBeUndefined();
   await browser.close();
 });
 ```

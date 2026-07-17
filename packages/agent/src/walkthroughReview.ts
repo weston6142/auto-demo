@@ -91,10 +91,10 @@ export function reviewWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlanRev
             replay: structuredClone(plan.validation.replay),
           }
         : {
-          status: plan.validation.status,
-          validatedAt: plan.validation.validatedAt,
-          mode: "dry-run" as const,
-          checks: plan.validation.checks.map(sanitizeCheck),
+            status: plan.validation.status,
+            validatedAt: plan.validation.validatedAt,
+            mode: "dry-run" as const,
+            checks: plan.validation.checks.map(sanitizeCheck),
           };
   const blockers = (plan.validation?.blockers ?? []).map(sanitizeBlocker);
   const approval = approvalEligibility(plan, blockers);

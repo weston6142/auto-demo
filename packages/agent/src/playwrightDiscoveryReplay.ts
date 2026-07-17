@@ -1,4 +1,11 @@
-import { chromium, type Browser, type BrowserContext, type Locator, type Page, type Route } from "playwright";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type Route,
+} from "playwright";
 import type { DiscoveryInteractiveTarget } from "./discoveryContract.js";
 import {
   authorizeDiscoveryPolicyAction,
@@ -14,7 +21,10 @@ import {
   type DiscoveryReplayBrowserFactory,
   type DiscoveryReplayMatch,
 } from "./discoveryReplay.js";
-import { installPlaywrightDiscoveryPolicyGuard, type PlaywrightDiscoveryPolicyGuard } from "./playwrightDiscoveryPolicyGuard.js";
+import {
+  installPlaywrightDiscoveryPolicyGuard,
+  type PlaywrightDiscoveryPolicyGuard,
+} from "./playwrightDiscoveryPolicyGuard.js";
 import type { WalkthroughPlanAssertion, WalkthroughPlanTargetHint } from "./index.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -72,7 +82,8 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       });
     } else {
       const labelled = page.getByLabel(target.label, { exact: true });
-      locator = (await labelled.count()) > 0 ? labelled : page.getByText(target.label, { exact: true });
+      locator =
+        (await labelled.count()) > 0 ? labelled : page.getByText(target.label, { exact: true });
     }
     const matches: DiscoveryReplayMatch[] = [];
     for (let index = 0; index < (await locator.count()); index += 1) {
@@ -93,9 +104,13 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   async navigate(url: string): Promise<void> {
     const page = this.requirePage();
     const permit = this.authorize({ kind: "navigate", url });
-    await this.guarded(permit, async () => {
-      await page.goto(url, { waitUntil: "domcontentloaded" });
-    }, "navigation_failed");
+    await this.guarded(
+      permit,
+      async () => {
+        await page.goto(url, { waitUntil: "domcontentloaded" });
+      },
+      "navigation_failed",
+    );
   }
 
   async click(match: DiscoveryReplayMatch): Promise<void> {
@@ -128,14 +143,22 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     assertion: Extract<WalkthroughPlanAssertion, { kind: "visible-state" }>,
   ): Promise<void> {
     const page = this.requirePage();
-    const locator = assertion.role === undefined
-      ? page.getByText(assertion.condition, { exact: true })
-      : page.getByRole(assertion.role as Parameters<Page["getByRole"]>[0], {
-          name: assertion.condition,
-          exact: true,
-        });
-    const selected = assertion.occurrence === undefined ? locator : locator.nth(assertion.occurrence - 1);
-    if ((await selected.count()) === 0 || !(await selected.first().isVisible().catch(() => false))) {
+    const locator =
+      assertion.role === undefined
+        ? page.getByText(assertion.condition, { exact: true })
+        : page.getByRole(assertion.role as Parameters<Page["getByRole"]>[0], {
+            name: assertion.condition,
+            exact: true,
+          });
+    const selected =
+      assertion.occurrence === undefined ? locator : locator.nth(assertion.occurrence - 1);
+    if (
+      (await selected.count()) === 0 ||
+      !(await selected
+        .first()
+        .isVisible()
+        .catch(() => false))
+    ) {
       throw new DiscoveryReplayBrowserError("visible_state_mismatch");
     }
   }
@@ -145,9 +168,10 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   ): Promise<void> {
     const actual = new URL(this.requirePage().url());
     const expected = new URL(assertion.url);
-    const matches = assertion.match === "exact-url"
-      ? actual.href === expected.href
-      : actual.origin === expected.origin && actual.pathname === expected.pathname;
+    const matches =
+      assertion.match === "exact-url"
+        ? actual.href === expected.href
+        : actual.origin === expected.origin && actual.pathname === expected.pathname;
     if (!matches) throw new DiscoveryReplayBrowserError("navigation_mismatch");
   }
 
@@ -209,11 +233,14 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     try {
       await action();
     } catch {
-      const violation = await guard.finishAction().catch(() => ({ code: "policy_guard_unavailable" }));
+      const violation = await guard
+        .finishAction()
+        .catch(() => ({ code: "policy_guard_unavailable" }));
       if (violation !== undefined) throw new DiscoveryReplayBrowserError("policy_blocked");
       throw new DiscoveryReplayBrowserError(failureCode);
     }
-    if ((await guard.finishAction()) !== undefined) throw new DiscoveryReplayBrowserError("policy_blocked");
+    if ((await guard.finishAction()) !== undefined)
+      throw new DiscoveryReplayBrowserError("policy_blocked");
   }
 
   private requirePage(): Page {
@@ -246,8 +273,10 @@ async function inspectTarget(
       upload: input?.type.toLowerCase() === "file",
       submitsForm:
         control?.closest("form") !== null &&
-        ((control?.tagName === "BUTTON" && (explicitType === undefined || explicitType === "submit")) ||
-          (control?.tagName === "INPUT" && (explicitType === "submit" || explicitType === "image"))),
+        ((control?.tagName === "BUTTON" &&
+          (explicitType === undefined || explicitType === "submit")) ||
+          (control?.tagName === "INPUT" &&
+            (explicitType === "submit" || explicitType === "image"))),
     };
   });
   return {
