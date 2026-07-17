@@ -14,6 +14,7 @@ export {
   WalkthroughValidationRunnerError,
   type ValidatedWalkthroughPlan,
   type WalkthroughPlanValidation,
+  type WalkthroughPlanReplayValidation,
   type WalkthroughPlanValidationBlocker,
   type WalkthroughPlanValidationCheck,
   type WalkthroughPlanValidationReason,

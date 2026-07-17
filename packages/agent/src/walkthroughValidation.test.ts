@@ -90,6 +90,51 @@ describe("validateWalkthroughPlan", () => {
     expect(isWalkthroughPlan(mismatched)).toBe(false);
   });
 
+  it("requires replay metadata only for discovery replay validation", () => {
+    const discovered = plan("Verify Results.");
+    discovered.source = {
+      parser: "discovery-v1",
+      script: "Verify Results.",
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    discovered.state = "validated";
+    (discovered as unknown as { validation: unknown }).validation = {
+      status: "ready",
+      validatedAt: "2026-07-16T12:00:00.000Z",
+      mode: "discovery-replay",
+      checks: [
+        {
+          id: "check-1",
+          stepId: "step-1",
+          action: "assert",
+          status: "passed",
+          summary: "Validated: Verify Results.",
+        },
+      ],
+      blockers: [],
+      replay: {
+        replayId: "replay-1",
+        attempts: 2,
+        sourceSessionId: "session-repair-1",
+        selectedPathFingerprint: `sha256:${"b".repeat(64)}`,
+      },
+    };
+
+    expect(isWalkthroughPlan(discovered)).toBe(true);
+
+    const missing = structuredClone(discovered);
+    delete (missing.validation as unknown as { replay?: unknown }).replay;
+    expect(isWalkthroughPlan(missing)).toBe(false);
+
+    const dryRun = structuredClone(discovered);
+    (dryRun.validation as unknown as { mode: string }).mode = "dry-run";
+    expect(isWalkthroughPlan(dryRun)).toBe(false);
+  });
+
   it("rejects unknown discovery source, assertion, and provenance fields", () => {
     const discovered = plan("Verify Results.");
     discovered.source = {

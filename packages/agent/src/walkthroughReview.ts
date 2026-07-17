@@ -7,6 +7,7 @@ import {
   sanitizeWalkthroughUrl,
   type WalkthroughPlanValidationBlocker,
   type WalkthroughPlanValidationCheck,
+  type WalkthroughPlanReplayValidation,
   type WalkthroughValidationMatch,
 } from "./walkthroughValidation.js";
 
@@ -24,12 +25,20 @@ export type WalkthroughPlanReview = {
   }>;
   warnings: Array<{ code: string; message: string }>;
   questions: Array<{ id: string; stepId: string; prompt: string }>;
-  validation?: {
-    status: "ready" | "blocked";
-    validatedAt: string;
-    mode: "dry-run";
-    checks: WalkthroughPlanValidationCheck[];
-  };
+  validation?:
+    | {
+        status: "ready" | "blocked";
+        validatedAt: string;
+        mode: "dry-run";
+        checks: WalkthroughPlanValidationCheck[];
+      }
+    | {
+        status: "ready" | "blocked";
+        validatedAt: string;
+        mode: "discovery-replay";
+        checks: WalkthroughPlanValidationCheck[];
+        replay: WalkthroughPlanReplayValidation["replay"];
+      };
   blockers: WalkthroughPlanValidationBlocker[];
   approval: {
     eligible: boolean;
@@ -73,12 +82,20 @@ export function reviewWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlanRev
   const validation =
     plan.validation === undefined
       ? undefined
-      : {
+      : plan.validation.mode === "discovery-replay"
+        ? {
+            status: plan.validation.status,
+            validatedAt: plan.validation.validatedAt,
+            mode: "discovery-replay" as const,
+            checks: plan.validation.checks.map(sanitizeCheck),
+            replay: structuredClone(plan.validation.replay),
+          }
+        : {
           status: plan.validation.status,
           validatedAt: plan.validation.validatedAt,
           mode: "dry-run" as const,
           checks: plan.validation.checks.map(sanitizeCheck),
-        };
+          };
   const blockers = (plan.validation?.blockers ?? []).map(sanitizeBlocker);
   const approval = approvalEligibility(plan, blockers);
   const lines = [
@@ -96,6 +113,9 @@ export function reviewWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlanRev
       "Validation checks:",
       ...validation.checks.map((check) => `- ${check.stepId}: ${check.status} — ${check.summary}`),
     );
+    if (validation.mode === "discovery-replay") {
+      lines.push(`Fresh-context replay: passed after ${validation.replay.attempts} attempts.`);
+    }
   }
   if (questions.length > 0) {
     lines.push("Questions:", ...questions.map((question) => `- ${question.prompt}`));
