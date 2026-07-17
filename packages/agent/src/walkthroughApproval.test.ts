@@ -71,6 +71,40 @@ function legacyFingerprint(plan: WalkthroughPlan): string {
 }
 
 describe("walkthrough approval", () => {
+  it("invalidates approval when discovery replay evidence changes", () => {
+    const input = validatedPlan();
+    input.source = {
+      parser: "discovery-v1",
+      script: input.source.script,
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    input.validation = {
+      ...input.validation!,
+      mode: "discovery-replay",
+      replay: {
+        replayId: "replay-1",
+        attempts: 1,
+        sourceSessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    const approved = approveWalkthroughPlan(input);
+    if (!approved.ok) throw new Error("replayed plan should approve");
+    if (approved.plan.validation?.mode !== "discovery-replay") {
+      throw new Error("approved plan should retain replay evidence");
+    }
+    approved.plan.validation.replay.attempts = 2;
+
+    expect(verifyWalkthroughPlanApproval(approved.plan)).toMatchObject({
+      ok: false,
+      errors: [{ code: "stale_approval" }],
+    });
+  });
+
   it("fingerprints structured assertions and discovery provenance", () => {
     const input = createPlan("best-guess", "Verify Results.");
     input.steps[0].targetHint = { kind: "accessible", label: "Results" };

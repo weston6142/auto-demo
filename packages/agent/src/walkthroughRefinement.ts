@@ -89,8 +89,9 @@ export async function refineWalkthroughPlan(
   refined.approvals = { required: true, approved: false };
   refined.execution = { status: "not-started" };
   refined.state = refined.questions.length > 0 ? "needs-clarification" : "draft";
+  delete refined.validation;
 
-  if (refined.mode === "best-guess") {
+  if (refined.mode === "best-guess" || refined.source.parser === "discovery-v1") {
     return { ok: true, plan: refined, review: requiredReview(refined) };
   }
 

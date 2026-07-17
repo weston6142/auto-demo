@@ -107,6 +107,66 @@ function replacement(): Omit<WalkthroughPlanStep, "id" | "order" | "questionId">
 }
 
 describe("refineWalkthroughPlan", () => {
+  it("returns discovery replay refinements to draft without dry-run validation", async () => {
+    const input = createPlan();
+    input.source = {
+      parser: "discovery-v1",
+      script: input.source.script,
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    input.state = "validated";
+    input.steps[0]!.provenance = {
+      kind: "discovery",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+    };
+    input.validation = {
+      status: "ready",
+      validatedAt: "2026-07-16T12:00:00.000Z",
+      mode: "discovery-replay",
+      checks: [
+        {
+          id: "check-1",
+          stepId: "step-1",
+          action: "click",
+          status: "passed",
+          summary: "Validated: Click Get started.",
+        },
+      ],
+      blockers: [],
+      replay: {
+        replayId: "replay-1",
+        attempts: 1,
+        sourceSessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    let opened = false;
+    const validationRunner = runner();
+    validationRunner.open = async () => {
+      opened = true;
+    };
+
+    const result = await refineWalkthroughPlan(
+      input,
+      [{ kind: "replace-step", stepId: "step-1", replacement: replacement() }],
+      {},
+      { browser: validationRunner },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: { state: "draft", approvals: { approved: false } },
+      review: { approval: { eligible: false } },
+    });
+    expect(result.ok && result.plan.validation).toBeUndefined();
+    expect(opened).toBe(false);
+  });
+
   it("preserves candidate provenance and clears replacement provenance", async () => {
     const candidatePlan = ambiguousPlan();
     candidatePlan.steps[0].provenance = {
