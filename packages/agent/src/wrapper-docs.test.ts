@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   compileDiscoverySessionToWalkthroughPlan,
+  createPlaywrightDiscoveryReplayBrowserFactory,
   createPolicyEnforcedPlaywrightDiscoveryRehearsalController,
   createWalkthroughPlan,
   reviewWalkthroughPlan,
@@ -47,7 +48,27 @@ function section(markdown: string, heading: string): string {
 }
 
 describe("agent wrapper documentation", () => {
-  it("documents discovery compilation and its downstream lifecycle boundary", async () => {
+  it("documents deterministic discovery replay and bounded repair ownership", async () => {
+    const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
+    const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
+    const combined = `${agentReadme} ${rootReadme}`;
+
+    expect(typeof createPlaywrightDiscoveryReplayBrowserFactory).toBe("function");
+    for (const expected of [
+      "replayAndRepairDiscoveryPlan",
+      "createPlaywrightDiscoveryReplayBrowserFactory",
+      "fresh isolated browser context",
+      "at most two repair sessions",
+      "runtime-only input bindings",
+      "hard policy boundaries are never repaired around",
+      "reviewable and unapproved",
+      "WES-189",
+    ]) {
+      expect(combined).toContain(expected);
+    }
+  });
+
+  it("documents discovery compilation and its replay lifecycle boundary", async () => {
     const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
     const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
 
@@ -55,7 +76,7 @@ describe("agent wrapper documentation", () => {
     expect(agentReadme).toContain("compileDiscoverySessionToWalkthroughPlan");
     expect(agentReadme).toContain("draft and unapproved");
     expect(agentReadme).toContain("does not carry disposable-environment authority");
-    expect(rootReadme).toContain("WES-188 owns fresh-context replay and repair");
+    expect(rootReadme).toContain("WES-189 owns the host workflow and approval handoff");
   });
 
   it("documents the WES-183 discovery contract without claiming a live workflow", async () => {
