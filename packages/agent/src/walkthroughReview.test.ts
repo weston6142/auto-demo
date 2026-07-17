@@ -84,6 +84,45 @@ describe("reviewWalkthroughPlan", () => {
     expect(result.ok && result.review.summary).toContain("2. Click Get started.");
   });
 
+  it("summarizes fresh-context replay without exposing repair history", () => {
+    const replayed = validatedPlan();
+    replayed.source = {
+      parser: "discovery-v1",
+      script: replayed.source.script,
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-repair-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    replayed.validation = {
+      ...replayed.validation!,
+      mode: "discovery-replay",
+      replay: {
+        replayId: "replay-1",
+        attempts: 2,
+        sourceSessionId: "session-repair-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    } as unknown as WalkthroughPlan["validation"];
+
+    const result = reviewWalkthroughPlan(replayed);
+
+    expect(result).toMatchObject({
+      ok: true,
+      review: {
+        validation: {
+          mode: "discovery-replay",
+          replay: { attempts: 2 },
+        },
+      },
+    });
+    expect(result.ok && result.review.summary).toContain(
+      "Fresh-context replay: passed after 2 attempts.",
+    );
+    expect(JSON.stringify(result)).not.toContain("repair history");
+  });
+
   it("includes unresolved questions and names best-guess bypass explicitly", () => {
     const unresolved = reviewWalkthroughPlan(plan("Pick the best option."));
     const bestGuess = plan("Click Get started.");

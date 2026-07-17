@@ -88,6 +88,22 @@ function permit(policy: ValidatedDiscoveryPolicy): DiscoveryPolicyPermit {
 }
 
 describe("installPlaywrightDiscoveryPolicyGuard", () => {
+  it("retains and consumes an idle policy violation exactly once", async () => {
+    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+
+    await page.evaluate(() => fetch("/mutate", { method: "POST" }).catch(() => undefined));
+    await page.waitForTimeout(50);
+
+    expect(guard.checkForViolation()).toEqual({
+      code: "mutating_request_blocked",
+      summary: "Discovery blocked a server-mutating request.",
+    });
+    expect(guard.checkForViolation()).toBeUndefined();
+    expect(mutationCount).toBe(0);
+    await guard.dispose();
+  });
+
   it("blocks server-mutating requests in safe mode", async () => {
     const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
     const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);

@@ -15,6 +15,7 @@ export type DiscoveryPolicyViolation = {
 export type PlaywrightDiscoveryPolicyGuard = {
   arm(permit: DiscoveryPolicyPermit): void;
   finishAction(): Promise<DiscoveryPolicyViolation | undefined>;
+  checkForViolation(): DiscoveryPolicyViolation | undefined;
   dispose(): Promise<void>;
 };
 
@@ -59,6 +60,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
 
   let activePermit: DiscoveryPolicyPermit | undefined;
   let activeViolation: DiscoveryPolicyViolation | undefined;
+  let idleViolation: DiscoveryPolicyViolation | undefined;
   let disposed = false;
   let unhealthy = false;
   const consumedTokens = new Set<symbol>();
@@ -73,8 +75,12 @@ export async function installPlaywrightDiscoveryPolicyGuard(
   };
 
   const recordViolation = (code: DiscoveryPolicyOutcomeCode) => {
-    if (activePermit === undefined || activeViolation !== undefined) return;
-    activeViolation = { code, summary: DISCOVERY_POLICY_SUMMARIES[code] };
+    const violation = { code, summary: DISCOVERY_POLICY_SUMMARIES[code] };
+    if (activePermit === undefined) {
+      idleViolation ??= violation;
+    } else {
+      activeViolation ??= violation;
+    }
   };
 
   let cdpSession: CDPSession | undefined;
@@ -392,6 +398,11 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       const violation = activeViolation;
       activePermit = undefined;
       activeViolation = undefined;
+      return violation;
+    },
+    checkForViolation() {
+      const violation = idleViolation;
+      idleViolation = undefined;
       return violation;
     },
     async dispose() {

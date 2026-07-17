@@ -281,6 +281,25 @@ It does not carry disposable-environment authority into the plan, and its fixed 
 page content, runtime values, URLs, or exception details. WES-188 owns fresh-context replay,
 structured repair evidence, and promotion to a validated plan.
 
+## Deterministic Discovery Replay And Repair
+
+`replayAndRepairDiscoveryPlan()` verifies a compiled discovery plan in a fresh isolated browser
+context. Use `createPlaywrightDiscoveryReplayBrowserFactory()` for the policy-enforced Playwright
+adapter, and provide every declared type-step value through runtime-only input bindings. A passing
+run promotes the plan to validated, reviewable and unapproved state with compact replay evidence.
+
+Replay is fail-fast and bounded to the initial attempt plus at most two repair sessions. The host
+owns repair discovery and returns a completed direct-child `DiscoverySessionV1`; each changed path
+is recompiled and replayed from scratch. Declined repairs, invalid lineage, unchanged paths, and
+the attempt limit return stable sanitized errors. Credential entry, unsafe origins, mutating
+requests in safe mode, downloads, uploads, WebSockets, and other hard policy boundaries are never
+repaired around.
+
+Refining a replay-validated discovery plan clears its validation and approval and returns it to
+draft for another replay. Approval fingerprints include replay evidence, so changing the replay
+summary makes an approval stale. WES-189 owns the Codex-hosted discovery and approval handoff;
+this package does not embed a model or expose a discovery CLI.
+
 ## Structured Browser Observation Snapshots
 
 `createPlaywrightDiscoveryObservationExtractor()` inspects an existing Playwright page and

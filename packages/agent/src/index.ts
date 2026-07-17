@@ -14,6 +14,7 @@ export {
   WalkthroughValidationRunnerError,
   type ValidatedWalkthroughPlan,
   type WalkthroughPlanValidation,
+  type WalkthroughPlanReplayValidation,
   type WalkthroughPlanValidationBlocker,
   type WalkthroughPlanValidationCheck,
   type WalkthroughPlanValidationReason,
@@ -134,6 +135,32 @@ export {
   type DiscoveryPlanCompilationError,
   type DiscoveryPlanCompilationErrorCode,
 } from "./discoveryPlanCompiler.js";
+
+export {
+  DISCOVERY_REPLAY_LIMITS,
+  replayAndRepairDiscoveryPlan,
+  DiscoveryReplayBrowserError,
+  type DiscoveryPlanRepairProvider,
+  type DiscoveryReplayAttempt,
+  type DiscoveryReplayBrowser,
+  type DiscoveryReplayBrowserErrorCode,
+  type DiscoveryReplayBrowserFactory,
+  type DiscoveryReplayDependencies,
+  type DiscoveryReplayError,
+  type DiscoveryReplayErrorCode,
+  type DiscoveryReplayFailureCode,
+  type DiscoveryReplayFailureEvidence,
+  type DiscoveryReplayMatch,
+  type DiscoveryReplayResult,
+  type DiscoveryReplayStopReason,
+  type ReplayAndRepairDiscoveryPlanInput,
+  type ReplayAndRepairDiscoveryPlanOptions,
+} from "./discoveryReplay.js";
+
+export {
+  createPlaywrightDiscoveryReplayBrowserFactory,
+  type PlaywrightDiscoveryReplayOptions,
+} from "./playwrightDiscoveryReplay.js";
 
 export {
   createDiscoveryObservationExtractor,

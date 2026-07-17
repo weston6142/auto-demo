@@ -58,13 +58,25 @@ export type WalkthroughPlanValidationBlocker = {
   candidates?: WalkthroughValidationMatch[];
 };
 
-export type WalkthroughPlanValidation = {
+type WalkthroughPlanValidationBase = {
   status: WalkthroughPlanValidationStatus;
   validatedAt: string;
-  mode: "dry-run";
   checks: WalkthroughPlanValidationCheck[];
   blockers: WalkthroughPlanValidationBlocker[];
 };
+
+export type WalkthroughPlanReplayValidation = WalkthroughPlanValidationBase & {
+  mode: "discovery-replay";
+  replay: {
+    replayId: string;
+    attempts: 1 | 2 | 3;
+    sourceSessionId: string;
+    selectedPathFingerprint: string;
+  };
+};
+
+export type WalkthroughPlanValidation =
+  (WalkthroughPlanValidationBase & { mode: "dry-run" }) | WalkthroughPlanReplayValidation;
 
 export type ValidatedWalkthroughPlan = WalkthroughPlan & {
   validation: WalkthroughPlanValidation;
@@ -686,15 +698,38 @@ function isWalkthroughPlanValidation(value: unknown): value is WalkthroughPlanVa
     return false;
   }
   const validation = value as Partial<WalkthroughPlanValidation>;
-  return (
+  const commonValid =
     (validation.status === "ready" || validation.status === "blocked") &&
     typeof validation.validatedAt === "string" &&
     !Number.isNaN(Date.parse(validation.validatedAt)) &&
-    validation.mode === "dry-run" &&
     Array.isArray(validation.checks) &&
     validation.checks.every(isWalkthroughPlanValidationCheck) &&
     Array.isArray(validation.blockers) &&
-    validation.blockers.every(isWalkthroughPlanValidationBlocker)
+    validation.blockers.every(isWalkthroughPlanValidationBlocker);
+  if (!commonValid) return false;
+  if (validation.mode === "dry-run") {
+    return hasExactKeys(validation, ["status", "validatedAt", "mode", "checks", "blockers"]);
+  }
+  if (validation.mode !== "discovery-replay") return false;
+  return (
+    hasExactKeys(validation, ["status", "validatedAt", "mode", "checks", "blockers", "replay"]) &&
+    isWalkthroughPlanReplaySummary(validation.replay)
+  );
+}
+
+function isWalkthroughPlanReplaySummary(value: unknown): boolean {
+  if (
+    !hasExactKeys(value, ["replayId", "attempts", "sourceSessionId", "selectedPathFingerprint"])
+  ) {
+    return false;
+  }
+  const replay = value as Partial<WalkthroughPlanReplayValidation["replay"]>;
+  return (
+    isSafeIdentifier(replay.replayId) &&
+    (replay.attempts === 1 || replay.attempts === 2 || replay.attempts === 3) &&
+    isSafeIdentifier(replay.sourceSessionId) &&
+    typeof replay.selectedPathFingerprint === "string" &&
+    /^sha256:[a-f0-9]{64}$/.test(replay.selectedPathFingerprint)
   );
 }
 
@@ -1109,10 +1144,9 @@ export function sanitizeWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlan 
 export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): WalkthroughPlan {
   const sanitized = sanitizePlan(plan);
   if (plan.validation !== undefined) {
-    sanitized.validation = {
+    const common = {
       status: plan.validation.status,
       validatedAt: plan.validation.validatedAt,
-      mode: "dry-run",
       checks: plan.validation.checks.map((check) => ({
         id: sanitizeText(check.id),
         stepId: sanitizeText(check.stepId),
@@ -1131,6 +1165,19 @@ export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): Walkthro
           : { candidates: blocker.candidates.map(sanitizeMatch) }),
       })),
     };
+    sanitized.validation =
+      plan.validation.mode === "discovery-replay"
+        ? {
+            ...common,
+            mode: "discovery-replay",
+            replay: {
+              replayId: sanitizeText(plan.validation.replay.replayId),
+              attempts: plan.validation.replay.attempts,
+              sourceSessionId: sanitizeText(plan.validation.replay.sourceSessionId),
+              selectedPathFingerprint: plan.validation.replay.selectedPathFingerprint,
+            },
+          }
+        : { ...common, mode: "dry-run" };
   }
   return sanitized;
 }
