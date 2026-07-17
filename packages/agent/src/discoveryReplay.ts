@@ -18,9 +18,12 @@ import type {
   WalkthroughPlanTargetHint,
 } from "./index.js";
 import { walkthroughPlanFingerprint } from "./walkthroughApproval.js";
-import type { WalkthroughPlanReview } from "./walkthroughReview.js";
+import { reviewWalkthroughPlan, type WalkthroughPlanReview } from "./walkthroughReview.js";
 import {
   isWalkthroughPlan,
+  sanitizeWalkthroughPlanArtifact,
+  sanitizeWalkthroughText,
+  sanitizeWalkthroughUrl,
   type ValidatedWalkthroughPlan,
   type WalkthroughPlanValidationCheck,
 } from "./walkthroughValidation.js";
@@ -190,6 +193,8 @@ type PreparedReplay = {
   policy: DiscoveryPolicy;
   validatedPolicy: ValidatedDiscoveryPolicy;
   maxRepairs: 0 | 1 | 2;
+  now: () => Date;
+  replayId: string;
 };
 
 type PreflightResult =
@@ -211,12 +216,16 @@ export async function replayAndRepairDiscoveryPlan(
       attempt: 1,
     });
     await browser.open(preflight.prepared.plan.target.url);
+    const attempt = await runReplayAttempt(preflight.prepared, browser, 1);
+    if (attempt.status === "passed") {
+      return promoteReplaySuccess(preflight.prepared, [attempt]);
+    }
+    return replayBlocked(preflight.prepared, [attempt]);
   } catch {
     return replayFailure(preflight.prepared, "replay_setup_failed", "Discovery replay setup failed.");
   } finally {
     await browser?.close().catch(() => undefined);
   }
-  return replayFailure(preflight.prepared, "replay_setup_failed", "Discovery replay attempt failed.");
 }
 
 function prepareReplay(
@@ -288,6 +297,16 @@ function prepareReplay(
   const bindings = prepareBindings(input.plan, input.inputBindings ?? {});
   if (!bindings.ok) return { ok: false, result: bindings.result };
 
+  let replayId: string;
+  try {
+    replayId = options.replayIdGenerator?.() ?? `${input.plan.id}-replay`;
+  } catch {
+    return preflightFailure("invalid_replay_options", "Discovery replay options are invalid.");
+  }
+  if (!/^[a-z0-9][a-z0-9_-]*$/i.test(replayId)) {
+    return preflightFailure("invalid_replay_options", "Discovery replay options are invalid.");
+  }
+
   return {
     ok: true,
     prepared: {
@@ -297,7 +316,239 @@ function prepareReplay(
       policy: structuredClone(policy),
       validatedPolicy: policyValidation.policy,
       maxRepairs,
+      now: options.now ?? (() => new Date()),
+      replayId,
     },
+  };
+}
+
+export type DiscoveryReplayBrowserErrorCode =
+  | DiscoveryReplayFailureCode
+  | "candidate_not_found"
+  | "browser_closed";
+
+export class DiscoveryReplayBrowserError extends Error {
+  constructor(
+    readonly code: DiscoveryReplayBrowserErrorCode,
+    readonly candidates?: DiscoveryReplayMatch[],
+  ) {
+    super(code);
+    this.name = "DiscoveryReplayBrowserError";
+  }
+}
+
+async function runReplayAttempt(
+  prepared: PreparedReplay,
+  browser: DiscoveryReplayBrowser,
+  attemptNumber: 1 | 2 | 3,
+): Promise<DiscoveryReplayAttempt> {
+  const checks: WalkthroughPlanValidationCheck[] = [];
+  for (const step of prepared.plan.steps) {
+    try {
+      if (step.action === "navigate") {
+        if (step.navigationUrl === undefined) throw new DiscoveryReplayBrowserError("navigation_failed");
+        await browser.navigate(step.navigationUrl);
+      } else if (step.action === "click") {
+        await browser.click(await requireReplayMatch(browser, step.targetHint));
+      } else if (step.action === "type") {
+        if (step.inputBinding === undefined) throw new DiscoveryReplayBrowserError("action_failed");
+        await browser.type(
+          await requireReplayMatch(browser, step.targetHint),
+          prepared.bindings[step.inputBinding]!,
+        );
+      } else if (step.action === "wait") {
+        if (step.waitDurationMs === undefined) throw new DiscoveryReplayBrowserError("timing_failure");
+        await browser.wait(step.waitDurationMs);
+      } else if (step.action === "assert") {
+        if (step.assertion?.kind === "visible-state") {
+          await browser.assertVisible(step.assertion);
+        } else if (step.assertion?.kind === "navigation") {
+          await browser.assertNavigation(step.assertion);
+        } else {
+          throw new DiscoveryReplayBrowserError("action_failed");
+        }
+      } else {
+        throw new DiscoveryReplayBrowserError("action_failed");
+      }
+      if (step.action !== "assert") await browser.waitForSettled();
+      checks.push({
+        id: `check-${step.order}`,
+        stepId: step.id,
+        action: step.action,
+        status: "passed",
+        summary: sanitizeWalkthroughText(`Validated: ${step.public.summary}`),
+      });
+    } catch (error) {
+      const code = replayFailureCode(step, error);
+      return {
+        ...attemptIdentity(prepared, attemptNumber),
+        status: "failed",
+        checks,
+        failure: await failureEvidence(browser, step, code, error),
+      };
+    }
+  }
+  return { ...attemptIdentity(prepared, attemptNumber), status: "passed", checks };
+}
+
+async function requireReplayMatch(
+  browser: DiscoveryReplayBrowser,
+  target: WalkthroughPlanTargetHint | undefined,
+): Promise<DiscoveryReplayMatch> {
+  if (target === undefined) throw new DiscoveryReplayBrowserError("target_not_found");
+  const matches = await browser.findMatches(target);
+  if (target.occurrence !== undefined) {
+    const selected = matches[target.occurrence - 1];
+    if (selected === undefined) throw new DiscoveryReplayBrowserError("target_not_found", matches);
+    return selected;
+  }
+  if (matches.length === 0) throw new DiscoveryReplayBrowserError("target_not_found");
+  if (matches.length > 1) throw new DiscoveryReplayBrowserError("ambiguous_target", matches);
+  return matches[0]!;
+}
+
+function replayFailureCode(
+  step: WalkthroughPlan["steps"][number],
+  error: unknown,
+): DiscoveryReplayFailureCode {
+  if (error instanceof DiscoveryReplayBrowserError) {
+    if (error.code === "candidate_not_found" || error.code === "browser_closed") {
+      return "action_failed";
+    }
+    return error.code;
+  }
+  if (step.action === "assert") {
+    return step.assertion?.kind === "navigation" ? "navigation_mismatch" : "visible_state_mismatch";
+  }
+  if (step.action === "navigate") return "navigation_failed";
+  if (step.action === "wait") return "timing_failure";
+  return "action_failed";
+}
+
+async function failureEvidence(
+  browser: DiscoveryReplayBrowser,
+  step: WalkthroughPlan["steps"][number],
+  code: DiscoveryReplayFailureCode,
+  error: unknown,
+): Promise<DiscoveryReplayFailureEvidence> {
+  const page = await browser.inspectPage().catch(() => undefined);
+  const candidates =
+    error instanceof DiscoveryReplayBrowserError && error.candidates !== undefined
+      ? sanitizeMatches(error.candidates)
+      : undefined;
+  return {
+    schemaVersion: 1,
+    code,
+    repairability: code === "policy_blocked" || code === "replay_setup_failed" ? "hard-boundary" : "repairable",
+    step: {
+      id: step.id,
+      order: step.order,
+      action: step.action,
+      summary: sanitizeWalkthroughText(step.public.summary),
+      ...(step.provenance === undefined ? {} : { provenance: structuredClone(step.provenance) }),
+    },
+    ...(step.assertion !== undefined
+      ? { expected: structuredClone(step.assertion) }
+      : step.targetHint === undefined
+        ? {}
+        : { expected: structuredClone(step.targetHint) }),
+    observed: {
+      ...(page === undefined ? {} : { url: sanitizeWalkthroughUrl(page.url) }),
+      ...(candidates === undefined || candidates.length === 0 ? {} : { candidates }),
+    },
+    recommendation: recommendationFor(code),
+  };
+}
+
+function sanitizeMatches(matches: DiscoveryReplayMatch[]): DiscoveryReplayMatch[] {
+  return matches.slice(0, DISCOVERY_REPLAY_LIMITS.candidates).map((match, index) => ({
+    id: `candidate-${index + 1}`,
+    label: sanitizeWalkthroughText(match.label),
+    ...(match.role === undefined ? {} : { role: sanitizeWalkthroughText(match.role) }),
+    ...(match.occurrence === undefined ? {} : { occurrence: match.occurrence }),
+  }));
+}
+
+function recommendationFor(code: DiscoveryReplayFailureCode): DiscoveryReplayFailureEvidence["recommendation"] {
+  if (code === "target_not_found" || code === "ambiguous_target") return "rediscover-target";
+  if (code === "navigation_failed" || code === "navigation_mismatch") return "rediscover-route";
+  if (code === "visible_state_mismatch") return "refresh-expectation";
+  if (code === "policy_blocked") return "request-policy-boundary";
+  return "retry-after-stability";
+}
+
+function attemptIdentity(prepared: PreparedReplay, attempt: 1 | 2 | 3) {
+  const source = prepared.plan.source;
+  if (source.parser !== "discovery-v1") throw new Error("prepared replay source must be discovery-v1");
+  return {
+    attempt,
+    replayId: prepared.replayId,
+    planId: prepared.plan.id,
+    sourceSessionId: source.discovery.sessionId,
+    selectedPathFingerprint: source.discovery.selectedPathFingerprint,
+  };
+}
+
+function promoteReplaySuccess(
+  prepared: PreparedReplay,
+  attempts: DiscoveryReplayAttempt[],
+): DiscoveryReplayResult {
+  const finalAttempt = attempts.at(-1);
+  if (finalAttempt === undefined || finalAttempt.status !== "passed") {
+    return replayFailure(prepared, "invalid_promoted_plan", "Discovery replay promotion failed.");
+  }
+  const plan = sanitizeWalkthroughPlanArtifact(prepared.plan);
+  plan.state = "validated";
+  plan.approvals = { required: true, approved: false };
+  plan.execution = { status: "not-started" };
+  const source = plan.source;
+  if (source.parser !== "discovery-v1") {
+    return replayFailure(prepared, "invalid_promoted_plan", "Discovery replay promotion failed.");
+  }
+  plan.validation = {
+    status: "ready",
+    validatedAt: prepared.now().toISOString(),
+    mode: "discovery-replay",
+    checks: structuredClone(finalAttempt.checks),
+    blockers: [],
+    replay: {
+      replayId: prepared.replayId,
+      attempts: attempts.length as 1 | 2 | 3,
+      sourceSessionId: source.discovery.sessionId,
+      selectedPathFingerprint: source.discovery.selectedPathFingerprint,
+    },
+  };
+  if (!isWalkthroughPlan(plan)) {
+    return replayFailure(prepared, "invalid_promoted_plan", "Discovery replay promotion failed.");
+  }
+  const review = reviewWalkthroughPlan(plan);
+  if (!review.ok) {
+    return replayFailure(prepared, "invalid_promoted_plan", "Discovery replay promotion failed.");
+  }
+  return {
+    ok: true,
+    plan: plan as ValidatedWalkthroughPlan,
+    sourceSession: structuredClone(prepared.sourceSession),
+    attempts: structuredClone(attempts),
+    review: review.review,
+  };
+}
+
+function replayBlocked(
+  prepared: PreparedReplay,
+  attempts: DiscoveryReplayAttempt[],
+): Extract<DiscoveryReplayResult, { ok: false }> {
+  return {
+    ok: false,
+    phase: "replay",
+    plan: structuredClone(prepared.plan),
+    sourceSession: structuredClone(prepared.sourceSession),
+    attempts: structuredClone(attempts),
+    errors: [
+      prepared.maxRepairs === 0
+        ? { code: "repair_limit_reached", message: "Discovery replay repair limit was reached." }
+        : { code: "repair_not_available", message: "Discovery replay repair is not available." },
+    ],
   };
 }
 

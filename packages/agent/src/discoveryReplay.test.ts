@@ -3,10 +3,59 @@ import { describe, expect, it } from "vitest";
 import {
   compileDiscoverySessionToWalkthroughPlan,
   replayAndRepairDiscoveryPlan,
+  type DiscoveryReplayBrowser,
   type DiscoveryReplayBrowserFactory,
+  type DiscoveryReplayMatch,
   type DiscoverySessionV1,
   type WalkthroughPlan,
 } from "./index.js";
+
+class FakeReplayBrowser implements DiscoveryReplayBrowser {
+  readonly calls: string[] = [];
+  readonly typedValues: string[] = [];
+  closeCalls = 0;
+  matches: DiscoveryReplayMatch[] = [
+    { id: "candidate-1", label: "Checkout", role: "button" },
+  ];
+  failNavigationAssertion = false;
+
+  async open(url: string) {
+    this.calls.push(`open:${url}`);
+  }
+  async findMatches() {
+    this.calls.push("findMatches");
+    return structuredClone(this.matches);
+  }
+  async navigate(url: string) {
+    this.calls.push(`navigate:${url}`);
+  }
+  async click(match: DiscoveryReplayMatch) {
+    this.calls.push(`click:${match.id}`);
+  }
+  async type(match: DiscoveryReplayMatch, value: string) {
+    this.calls.push(`type:${match.id}`);
+    this.typedValues.push(value);
+  }
+  async wait(durationMs: number) {
+    this.calls.push(`wait:${durationMs}`);
+  }
+  async waitForSettled() {
+    this.calls.push("settled");
+  }
+  async assertVisible() {
+    this.calls.push("assertVisible");
+  }
+  async assertNavigation() {
+    this.calls.push("assertNavigation");
+    if (this.failNavigationAssertion) throw new Error("private page failure");
+  }
+  async inspectPage() {
+    return { url: "https://example.com/payment?token=private" };
+  }
+  async close() {
+    this.closeCalls += 1;
+  }
+}
 
 async function compiledFixture(): Promise<{
   sourceSession: DiscoverySessionV1;
@@ -23,6 +72,17 @@ async function compiledFixture(): Promise<{
   return { sourceSession, plan: compiled.plan };
 }
 
+async function safeCompiledFixture(): Promise<{
+  sourceSession: DiscoverySessionV1;
+  plan: WalkthroughPlan;
+}> {
+  const input = await compiledFixture();
+  input.sourceSession.observations[0].interactiveTargets[0].label = "Continue";
+  const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
+  if (!compiled.ok) throw new Error("safe replay fixture must compile");
+  return { sourceSession: input.sourceSession, plan: compiled.plan };
+}
+
 function countingFactory(counter: { creates: number }): DiscoveryReplayBrowserFactory {
   return {
     async create() {
@@ -30,6 +90,10 @@ function countingFactory(counter: { creates: number }): DiscoveryReplayBrowserFa
       throw new Error("preflight tests must not create a browser");
     },
   };
+}
+
+function browserFactory(browser: DiscoveryReplayBrowser): DiscoveryReplayBrowserFactory {
+  return { async create() { return browser; } };
 }
 
 describe("replayAndRepairDiscoveryPlan preflight", () => {
@@ -132,5 +196,128 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
       errors: [{ code: "replay_navigation_out_of_scope" }],
     });
     expect(counter.creates).toBe(0);
+  });
+});
+
+describe("replayAndRepairDiscoveryPlan single attempt", () => {
+  it("validates a blocker-free replay without approving or capturing", async () => {
+    const input = await safeCompiledFixture();
+    const browser = new FakeReplayBrowser();
+    browser.matches = [{ id: "candidate-1", label: "Continue", role: "button" }];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      {
+        maxRepairs: 0,
+        now: () => new Date("2026-07-16T12:00:00.000Z"),
+        replayIdGenerator: () => "replay-1",
+      },
+      { browserFactory: browserFactory(browser) },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        state: "validated",
+        approvals: { required: true, approved: false },
+        execution: { status: "not-started" },
+        validation: {
+          status: "ready",
+          mode: "discovery-replay",
+          replay: { replayId: "replay-1", attempts: 1 },
+        },
+      },
+      attempts: [{ attempt: 1, status: "passed" }],
+      review: { approval: { eligible: true, basis: "validated" } },
+    });
+    expect(browser.calls).toEqual([
+      "open:https://example.com/checkout",
+      "findMatches",
+      "click:candidate-1",
+      "settled",
+      "assertNavigation",
+      "assertVisible",
+    ]);
+    expect(browser.closeCalls).toBe(1);
+  });
+
+  it("uses runtime input without serializing its value", async () => {
+    const input = await compiledFixture();
+    input.sourceSession.attempts[0].action = {
+      kind: "type",
+      targetId: "target-checkout",
+      inputBinding: "demo-name",
+      valueClass: "demo-data",
+    };
+    const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
+    if (!compiled.ok) throw new Error("type replay fixture must compile");
+    input.plan = compiled.plan;
+    const browser = new FakeReplayBrowser();
+
+    const result = await replayAndRepairDiscoveryPlan(
+      { ...input, inputBindings: { "demo-name": "Demo Person" } },
+      { maxRepairs: 0 },
+      { browserFactory: browserFactory(browser) },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(browser.typedValues).toEqual(["Demo Person"]);
+    expect(JSON.stringify(result)).not.toContain("Demo Person");
+  });
+
+  it("returns provenance-linked failure evidence and stops at the failed step", async () => {
+    const input = await compiledFixture();
+    const browser = new FakeReplayBrowser();
+    browser.matches = [];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      { maxRepairs: 0, replayIdGenerator: () => "replay-failed" },
+      { browserFactory: browserFactory(browser) },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "replay",
+      attempts: [
+        {
+          attempt: 1,
+          status: "failed",
+          failure: {
+            code: "target_not_found",
+            repairability: "repairable",
+            step: {
+              id: "step-1",
+              provenance: { attemptId: "attempt-checkout" },
+            },
+            recommendation: "rediscover-target",
+          },
+        },
+      ],
+      errors: [{ code: "repair_limit_reached" }],
+    });
+    expect(browser.calls).toEqual(["open:https://example.com/checkout", "findMatches"]);
+    expect(browser.closeCalls).toBe(1);
+    expect(JSON.stringify(result)).not.toContain("token=private");
+  });
+
+  it("sanitizes assertion failures and always closes the browser", async () => {
+    const input = await compiledFixture();
+    const browser = new FakeReplayBrowser();
+    browser.failNavigationAssertion = true;
+
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      { maxRepairs: 0 },
+      { browserFactory: browserFactory(browser) },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      attempts: [{ failure: { code: "navigation_mismatch" } }],
+    });
+    expect(JSON.stringify(result)).not.toContain("private page failure");
+    expect(JSON.stringify(result)).not.toContain("token=private");
+    expect(browser.closeCalls).toBe(1);
   });
 });

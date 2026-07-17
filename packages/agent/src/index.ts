@@ -139,9 +139,11 @@ export {
 export {
   DISCOVERY_REPLAY_LIMITS,
   replayAndRepairDiscoveryPlan,
+  DiscoveryReplayBrowserError,
   type DiscoveryPlanRepairProvider,
   type DiscoveryReplayAttempt,
   type DiscoveryReplayBrowser,
+  type DiscoveryReplayBrowserErrorCode,
   type DiscoveryReplayBrowserFactory,
   type DiscoveryReplayDependencies,
   type DiscoveryReplayError,
