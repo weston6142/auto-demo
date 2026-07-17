@@ -137,6 +137,25 @@ export {
 } from "./discoveryPlanCompiler.js";
 
 export {
+  DISCOVERY_REPLAY_LIMITS,
+  replayAndRepairDiscoveryPlan,
+  type DiscoveryPlanRepairProvider,
+  type DiscoveryReplayAttempt,
+  type DiscoveryReplayBrowser,
+  type DiscoveryReplayBrowserFactory,
+  type DiscoveryReplayDependencies,
+  type DiscoveryReplayError,
+  type DiscoveryReplayErrorCode,
+  type DiscoveryReplayFailureCode,
+  type DiscoveryReplayFailureEvidence,
+  type DiscoveryReplayMatch,
+  type DiscoveryReplayResult,
+  type DiscoveryReplayStopReason,
+  type ReplayAndRepairDiscoveryPlanInput,
+  type ReplayAndRepairDiscoveryPlanOptions,
+} from "./discoveryReplay.js";
+
+export {
   createDiscoveryObservationExtractor,
   type DiscoveryObservationArtifactSink,
   type DiscoveryObservationDiagnostic,

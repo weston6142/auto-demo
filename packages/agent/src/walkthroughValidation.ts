@@ -1154,10 +1154,9 @@ export function sanitizeWalkthroughPlan(plan: WalkthroughPlan): WalkthroughPlan 
 export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): WalkthroughPlan {
   const sanitized = sanitizePlan(plan);
   if (plan.validation !== undefined) {
-    sanitized.validation = {
+    const common = {
       status: plan.validation.status,
       validatedAt: plan.validation.validatedAt,
-      mode: plan.validation.mode,
       checks: plan.validation.checks.map((check) => ({
         id: sanitizeText(check.id),
         stepId: sanitizeText(check.stepId),
@@ -1175,8 +1174,12 @@ export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): Walkthro
           ? {}
           : { candidates: blocker.candidates.map(sanitizeMatch) }),
       })),
-      ...(plan.validation.mode === "discovery-replay"
+    };
+    sanitized.validation =
+      plan.validation.mode === "discovery-replay"
         ? {
+            ...common,
+            mode: "discovery-replay",
             replay: {
               replayId: sanitizeText(plan.validation.replay.replayId),
               attempts: plan.validation.replay.attempts,
@@ -1184,8 +1187,7 @@ export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): Walkthro
               selectedPathFingerprint: plan.validation.replay.selectedPathFingerprint,
             },
           }
-        : {}),
-    };
+        : { ...common, mode: "dry-run" };
   }
   return sanitized;
 }
