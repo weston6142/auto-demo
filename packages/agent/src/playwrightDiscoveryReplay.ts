@@ -8,7 +8,7 @@ import {
   type Route,
 } from "playwright";
 import { hasCredentialLikeUrlData } from "./actionSafety.js";
-import type { DiscoveryInteractiveTarget } from "./discoveryContract.js";
+import { DISCOVERY_LIMITS, type DiscoveryInteractiveTarget } from "./discoveryContract.js";
 import {
   authorizeDiscoveryPolicyAction,
   validateDiscoveryPolicy,
@@ -30,7 +30,7 @@ import {
 import type { WalkthroughPlanAssertion, WalkthroughPlanTargetHint } from "./index.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const MAX_RUNTIME_MATCHES = 50;
+const MAX_RUNTIME_MATCHES = DISCOVERY_LIMITS.interactiveTargetsPerObservation;
 
 export type PlaywrightDiscoveryReplayOptions = {
   viewport?: { width: number; height: number };
@@ -38,12 +38,19 @@ export type PlaywrightDiscoveryReplayOptions = {
   stabilityDurationMs?: number;
 };
 
+type ResolvedPlaywrightDiscoveryReplayOptions = {
+  viewport: { width: number; height: number };
+  actionTimeoutMs: number;
+  stabilityDurationMs: number;
+};
+
 export function createPlaywrightDiscoveryReplayBrowserFactory(
   options: PlaywrightDiscoveryReplayOptions = {},
 ): DiscoveryReplayBrowserFactory {
+  const resolvedOptions = validateOptions(options);
   return {
     async create({ policy }) {
-      return new PlaywrightDiscoveryReplayBrowser(policy, options);
+      return new PlaywrightDiscoveryReplayBrowser(policy, resolvedOptions);
     },
   };
 }
@@ -55,11 +62,12 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   private guard?: PlaywrightDiscoveryPolicyGuard;
   private validatedPolicy?: ValidatedDiscoveryPolicy;
   private readonly locators = new Map<string, Locator>();
+  private routedWebSocketViolation = false;
   private nextMatchId = 1;
 
   constructor(
     private readonly policy: DiscoveryPolicy,
-    private readonly options: PlaywrightDiscoveryReplayOptions,
+    private readonly options: ResolvedPlaywrightDiscoveryReplayOptions,
   ) {}
 
   async open(url: string): Promise<void> {
@@ -74,12 +82,15 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       this.browser = await chromium.launch({ headless: true });
       this.context = await this.browser.newContext({
         serviceWorkers: "block",
-        viewport: this.options.viewport ?? { width: 1280, height: 720 },
+        viewport: this.options.viewport,
       });
-      this.context.setDefaultTimeout(this.options.actionTimeoutMs ?? 5_000);
+      this.context.setDefaultTimeout(this.options.actionTimeoutMs);
+      this.context.setDefaultNavigationTimeout(this.options.actionTimeoutMs);
       let bootstrapActive = true;
-      await this.context.routeWebSocket("**/*", () => {
+      await this.context.routeWebSocket("**/*", async (socket) => {
+        this.routedWebSocketViolation = true;
         if (bootstrapActive) bootstrapViolation = true;
+        await socket.close({ code: 1008, reason: "blocked" });
       });
       this.page = await this.context.newPage();
       const popup = (popupPage: Page) => {
@@ -99,7 +110,10 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       };
       await this.context.route("**/*", bootstrap);
       try {
-        await this.page.goto(url, { waitUntil: "domcontentloaded" });
+        await this.page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: this.options.actionTimeoutMs,
+        });
         let finalOrigin: string | undefined;
         try {
           finalOrigin = new URL(this.page.url()).origin;
@@ -109,7 +123,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
         if (finalOrigin === undefined || !validation.policy.allowedOrigins.has(finalOrigin)) {
           bootstrapViolation = true;
         }
-        await this.page.waitForTimeout(this.options.stabilityDurationMs ?? 200);
+        await this.page.waitForTimeout(this.options.stabilityDurationMs);
         this.guard = await installPlaywrightDiscoveryPolicyGuard(this.page, validation.policy);
         if (bootstrapViolation) throw new DiscoveryReplayBrowserError("policy_blocked");
       } finally {
@@ -198,7 +212,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
 
   async waitForSettled(): Promise<void> {
     await this.requirePage().waitForLoadState("domcontentloaded");
-    await this.requirePage().waitForTimeout(this.options.stabilityDurationMs ?? 200);
+    await this.requirePage().waitForTimeout(this.options.stabilityDurationMs);
     this.assertNoIdleViolation();
   }
 
@@ -302,10 +316,12 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       const violation = await guard
         .finishAction()
         .catch(() => ({ code: "policy_guard_unavailable" }));
-      if (violation !== undefined) throw new DiscoveryReplayBrowserError("policy_blocked");
+      if (violation !== undefined || this.consumeRoutedWebSocketViolation()) {
+        throw new DiscoveryReplayBrowserError("policy_blocked");
+      }
       throw new DiscoveryReplayBrowserError(failureCode);
     }
-    if ((await guard.finishAction()) !== undefined)
+    if ((await guard.finishAction()) !== undefined || this.consumeRoutedWebSocketViolation())
       throw new DiscoveryReplayBrowserError("policy_blocked");
   }
 
@@ -321,10 +337,37 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   }
 
   private assertNoIdleViolation(): void {
-    if (this.guard?.checkForViolation() !== undefined) {
+    if (this.guard?.checkForViolation() !== undefined || this.consumeRoutedWebSocketViolation()) {
       throw new DiscoveryReplayBrowserError("policy_blocked");
     }
   }
+
+  private consumeRoutedWebSocketViolation(): boolean {
+    const violation = this.routedWebSocketViolation;
+    this.routedWebSocketViolation = false;
+    return violation;
+  }
+}
+
+function validateOptions(
+  options: PlaywrightDiscoveryReplayOptions,
+): ResolvedPlaywrightDiscoveryReplayOptions {
+  const viewport = options.viewport ?? { width: 1280, height: 720 };
+  const actionTimeoutMs = options.actionTimeoutMs ?? 5_000;
+  const stabilityDurationMs = options.stabilityDurationMs ?? 200;
+  if (
+    !boundedInteger(viewport.width, 1, 4096) ||
+    !boundedInteger(viewport.height, 1, 4096) ||
+    !boundedInteger(actionTimeoutMs, 1, 60_000) ||
+    !boundedInteger(stabilityDurationMs, 1, 5_000)
+  ) {
+    throw new DiscoveryReplayBrowserError("replay_setup_failed");
+  }
+  return { viewport: { ...viewport }, actionTimeoutMs, stabilityDurationMs };
+}
+
+function boundedInteger(value: number, minimum: number, maximum: number): boolean {
+  return Number.isFinite(value) && Number.isInteger(value) && value >= minimum && value <= maximum;
 }
 
 async function inspectTarget(

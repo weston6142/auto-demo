@@ -60,6 +60,16 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
 
     await expect(browser.inspectPage()).resolves.toEqual({ url: `${origin}/next` });
     await expect(
+      browser.assertNavigation({ kind: "navigation", url: `${origin}/next`, match: "exact-url" }),
+    ).resolves.toBeUndefined();
+    await expect(
+      browser.assertNavigation({
+        kind: "navigation",
+        url: `${origin}/next?ignored=yes`,
+        match: "same-origin-path",
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
       browser.assertVisible({ kind: "visible-state", condition: "Finished", role: "heading" }),
     ).resolves.toBeUndefined();
   });
@@ -162,6 +172,25 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     await expect(browser.open(origin)).rejects.toMatchObject({ code: "policy_blocked" });
   });
 
+  it("blocks a WebSocket opened by a replay action", async () => {
+    const origin = await fixture(
+      '<!doctype html><button onclick="new WebSocket(`ws://${location.host}/socket`)">Connect</button>',
+    );
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Connect",
+      role: "button",
+    });
+
+    await expect(browser.click(matches[0]!)).rejects.toMatchObject({ code: "policy_blocked" });
+  });
+
   it("fails initial navigation when the page starts a download", async () => {
     const origin = await fixture(
       "<!doctype html><a id='download' download href='/file'>file</a><script>download.click()</script>",
@@ -257,5 +286,33 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     await expect(
       second.assertVisible({ kind: "visible-state", condition: "1", role: "heading" }),
     ).resolves.toBeUndefined();
+  });
+
+  it("supports the discovery target occurrence boundary", async () => {
+    const origin = await fixture(
+      `<!doctype html>${Array.from({ length: 100 }, () => "<button>Choice</button>").join("")}`,
+    );
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    await expect(
+      browser.findMatches({ kind: "accessible", label: "Choice", role: "button" }),
+    ).resolves.toHaveLength(100);
+  });
+
+  it("rejects unbounded factory options", () => {
+    expect(() =>
+      createPlaywrightDiscoveryReplayBrowserFactory({ actionTimeoutMs: 0 }),
+    ).toThrowError(DiscoveryReplayBrowserError);
+    expect(() =>
+      createPlaywrightDiscoveryReplayBrowserFactory({ stabilityDurationMs: 60_001 }),
+    ).toThrowError(DiscoveryReplayBrowserError);
+    expect(() =>
+      createPlaywrightDiscoveryReplayBrowserFactory({ viewport: { width: 0, height: 720 } }),
+    ).toThrowError(DiscoveryReplayBrowserError);
   });
 });
