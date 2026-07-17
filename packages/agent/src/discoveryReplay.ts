@@ -109,16 +109,20 @@ export type DiscoveryReplayFailureEvidence = {
     | "request-policy-boundary";
 };
 
-export type DiscoveryReplayAttempt = {
+type DiscoveryReplayAttemptBase = {
   attempt: 1 | 2 | 3;
   replayId: string;
   planId: string;
   sourceSessionId: string;
   selectedPathFingerprint: string;
-  status: "passed" | "failed";
   checks: WalkthroughPlanValidationCheck[];
-  failure?: DiscoveryReplayFailureEvidence;
 };
+
+export type DiscoveryReplayAttempt = DiscoveryReplayAttemptBase &
+  (
+    | { status: "passed"; failure?: never }
+    | { status: "failed"; failure: DiscoveryReplayFailureEvidence }
+  );
 
 export type DiscoveryReplayStopReason = "manual_review_required" | "repair_declined";
 
@@ -195,6 +199,7 @@ type PreparedReplay = {
   maxRepairs: 0 | 1 | 2;
   now: () => Date;
   replayId: string;
+  inputBindings: Record<string, unknown>;
 };
 
 type PreflightResult =
@@ -206,26 +211,94 @@ export async function replayAndRepairDiscoveryPlan(
   options: ReplayAndRepairDiscoveryPlanOptions = {},
   dependencies: DiscoveryReplayDependencies,
 ): Promise<DiscoveryReplayResult> {
+  const result = await runReplayAndRepairDiscoveryPlan(input, options, dependencies);
+  if (
+    new TextEncoder().encode(JSON.stringify(result)).byteLength <=
+    DISCOVERY_REPLAY_LIMITS.serializedBytes
+  ) {
+    return result;
+  }
+  return {
+    ok: false,
+    phase: result.ok ? "replay" : result.phase,
+    attempts: [],
+    errors: [
+      {
+        code: "replay_result_limit_exceeded",
+        message: "Discovery replay result exceeded its size limit.",
+      },
+    ],
+  };
+}
+
+async function runReplayAndRepairDiscoveryPlan(
+  input: ReplayAndRepairDiscoveryPlanInput,
+  options: ReplayAndRepairDiscoveryPlanOptions,
+  dependencies: DiscoveryReplayDependencies,
+): Promise<DiscoveryReplayResult> {
   const preflight = prepareReplay(input, options);
   if (!preflight.ok) return preflight.result;
 
-  let browser: DiscoveryReplayBrowser | undefined;
-  try {
-    browser = await dependencies.browserFactory.create({
-      policy: preflight.prepared.policy,
-      attempt: 1,
-    });
-    await browser.open(preflight.prepared.plan.target.url);
-    const attempt = await runReplayAttempt(preflight.prepared, browser, 1);
-    if (attempt.status === "passed") {
-      return promoteReplaySuccess(preflight.prepared, [attempt]);
+  let current = preflight.prepared;
+  const attempts: DiscoveryReplayAttempt[] = [];
+  for (let attemptNumber = 1; attemptNumber <= current.maxRepairs + 1; attemptNumber += 1) {
+    const attemptIndex = attemptNumber as 1 | 2 | 3;
+    let browser: DiscoveryReplayBrowser | undefined;
+    let attempt: DiscoveryReplayAttempt;
+    try {
+      browser = await dependencies.browserFactory.create({
+        policy: current.policy,
+        attempt: attemptIndex,
+      });
+      await browser.open(current.plan.target.url);
+      attempt = await runReplayAttempt(current, browser, attemptIndex);
+    } catch {
+      return replayFailure(current, "replay_setup_failed", "Discovery replay setup failed.", attempts);
+    } finally {
+      await browser?.close().catch(() => undefined);
     }
-    return replayBlocked(preflight.prepared, [attempt]);
-  } catch {
-    return replayFailure(preflight.prepared, "replay_setup_failed", "Discovery replay setup failed.");
-  } finally {
-    await browser?.close().catch(() => undefined);
+    attempts.push(attempt);
+    if (attempt.status === "passed") {
+      return promoteReplaySuccess(current, attempts);
+    }
+    if (attempt.failure.repairability === "hard-boundary") {
+      return replayBlocked(current, attempts, {
+        code: "repair_not_available",
+        message: "Discovery replay stopped at a hard policy boundary.",
+      });
+    }
+    if (attemptNumber > current.maxRepairs) {
+      return replayBlocked(current, attempts, {
+        code: "repair_limit_reached",
+        message: "Discovery replay repair limit was reached.",
+      });
+    }
+    if (dependencies.repair === undefined) {
+      return replayBlocked(current, attempts, {
+        code: "repair_not_available",
+        message: "Discovery replay repair is not available.",
+      });
+    }
+
+    let decision: Awaited<ReturnType<DiscoveryPlanRepairProvider["repair"]>>;
+    try {
+      decision = await dependencies.repair.repair({
+        repairNumber: attemptNumber as 1 | 2,
+        parentSession: structuredClone(current.sourceSession),
+        failedPlan: structuredClone(current.plan),
+        failure: structuredClone(attempt.failure),
+      });
+    } catch {
+      return repairFailure(current, attempts, "repair_provider_failed", "Discovery replay repair failed.");
+    }
+    if (decision.decision === "stop") {
+      return repairFailure(current, attempts, "repair_declined", "Discovery replay repair was declined.");
+    }
+    const repaired = prepareRepair(current, decision.session);
+    if (!repaired.ok) return repairFailure(current, attempts, repaired.code, repaired.message);
+    current = repaired.prepared;
   }
+  return replayFailure(current, "repair_limit_reached", "Discovery replay repair limit was reached.", attempts);
 }
 
 function prepareReplay(
@@ -318,8 +391,98 @@ function prepareReplay(
       maxRepairs,
       now: options.now ?? (() => new Date()),
       replayId,
+      inputBindings: structuredClone(input.inputBindings ?? {}),
     },
   };
+}
+
+function prepareRepair(
+  current: PreparedReplay,
+  value: unknown,
+):
+  | { ok: true; prepared: PreparedReplay }
+  | { ok: false; code: DiscoveryReplayErrorCode; message: string } {
+  const validated = validateDiscoverySession(value);
+  if (!validated.ok || validated.session.status !== "completed") {
+    return {
+      ok: false,
+      code: "invalid_repair_session",
+      message: "Discovery replay repair requires a completed child session.",
+    };
+  }
+  if (
+    validated.session.parentSessionId !== current.sourceSession.id ||
+    validated.session.id === current.sourceSession.id
+  ) {
+    return {
+      ok: false,
+      code: "repair_lineage_mismatch",
+      message: "Discovery replay repair session lineage is invalid.",
+    };
+  }
+  if (validated.session.goal !== current.sourceSession.goal) {
+    return {
+      ok: false,
+      code: "repair_goal_mismatch",
+      message: "Discovery replay repair session changed the discovery goal.",
+    };
+  }
+  if (!policyAllowsUrl(current.validatedPolicy, validated.session.target.startUrl)) {
+    return {
+      ok: false,
+      code: "repair_target_out_of_scope",
+      message: "Discovery replay repair target is outside the approved policy scope.",
+    };
+  }
+  const compiled = compileDiscoverySessionToWalkthroughPlan(validated.session);
+  if (!compiled.ok || compiled.plan.source.parser !== "discovery-v1") {
+    return {
+      ok: false,
+      code: "invalid_repair_session",
+      message: "Discovery replay repair session could not be compiled.",
+    };
+  }
+  const currentSource = current.plan.source;
+  if (
+    currentSource.parser !== "discovery-v1" ||
+    compiled.plan.source.discovery.selectedPathFingerprint ===
+      currentSource.discovery.selectedPathFingerprint
+  ) {
+    return {
+      ok: false,
+      code: "unchanged_repair_path",
+      message: "Discovery replay repair did not change the selected path.",
+    };
+  }
+  if (!planNavigationIsAllowed(compiled.plan, current.validatedPolicy)) {
+    return {
+      ok: false,
+      code: "repair_target_out_of_scope",
+      message: "Discovery replay repair navigation is outside the approved policy scope.",
+    };
+  }
+  const bindings = prepareBindings(compiled.plan, current.inputBindings);
+  if (!bindings.ok) {
+    return {
+      ok: false,
+      code: "invalid_repair_session",
+      message: "Discovery replay repair input bindings are invalid.",
+    };
+  }
+  return {
+    ok: true,
+    prepared: {
+      ...current,
+      plan: compiled.plan,
+      sourceSession: structuredClone(validated.session),
+      bindings: bindings.bindings,
+    },
+  };
+}
+
+function policyAllowsUrl(policy: ValidatedDiscoveryPolicy, value: string): boolean {
+  const origin = normalizeHttpOrigin(value);
+  return origin !== undefined && policy.allowedOrigins.has(origin);
 }
 
 export type DiscoveryReplayBrowserErrorCode =
@@ -537,6 +700,7 @@ function promoteReplaySuccess(
 function replayBlocked(
   prepared: PreparedReplay,
   attempts: DiscoveryReplayAttempt[],
+  error?: DiscoveryReplayError,
 ): Extract<DiscoveryReplayResult, { ok: false }> {
   return {
     ok: false,
@@ -545,10 +709,27 @@ function replayBlocked(
     sourceSession: structuredClone(prepared.sourceSession),
     attempts: structuredClone(attempts),
     errors: [
-      prepared.maxRepairs === 0
-        ? { code: "repair_limit_reached", message: "Discovery replay repair limit was reached." }
-        : { code: "repair_not_available", message: "Discovery replay repair is not available." },
+      error ??
+        (prepared.maxRepairs === 0
+          ? { code: "repair_limit_reached", message: "Discovery replay repair limit was reached." }
+          : { code: "repair_not_available", message: "Discovery replay repair is not available." }),
     ],
+  };
+}
+
+function repairFailure(
+  prepared: PreparedReplay,
+  attempts: DiscoveryReplayAttempt[],
+  code: DiscoveryReplayErrorCode,
+  message: string,
+): Extract<DiscoveryReplayResult, { ok: false }> {
+  return {
+    ok: false,
+    phase: "repair",
+    plan: structuredClone(prepared.plan),
+    sourceSession: structuredClone(prepared.sourceSession),
+    attempts: structuredClone(attempts),
+    errors: [{ code, message }],
   };
 }
 
@@ -642,13 +823,14 @@ function replayFailure(
   prepared: PreparedReplay,
   code: DiscoveryReplayErrorCode,
   message: string,
+  attempts: DiscoveryReplayAttempt[] = [],
 ): Extract<DiscoveryReplayResult, { ok: false }> {
   return {
     ok: false,
     phase: "replay",
     plan: prepared.plan,
     sourceSession: prepared.sourceSession,
-    attempts: [],
+    attempts: structuredClone(attempts),
     errors: [{ code, message }],
   };
 }
