@@ -20,7 +20,6 @@ import {
   isWalkthroughPlan,
   sanitizeWalkthroughPlanArtifact,
   sanitizeWalkthroughText,
-  sanitizeWalkthroughUrl,
   type ValidatedWalkthroughPlan,
   type WalkthroughPlanValidationCheck,
 } from "./walkthroughValidation.js";
@@ -197,6 +196,8 @@ type PreparedReplay = {
   now: () => Date;
   replayId: string;
   inputBindings: Record<string, unknown>;
+  seenSessionIds: ReadonlySet<string>;
+  seenPathFingerprints: ReadonlySet<string>;
 };
 
 type PreflightResult =
@@ -249,7 +250,18 @@ async function runReplayAndRepairDiscoveryPlan(
       });
       await browser.open(current.plan.target.url);
       attempt = await runReplayAttempt(current, browser, attemptIndex);
-    } catch {
+    } catch (error) {
+      const code =
+        error instanceof DiscoveryReplayBrowserError && error.code === "policy_blocked"
+          ? "policy_blocked"
+          : "replay_setup_failed";
+      attempts.push(setupFailureAttempt(current, attemptIndex, code));
+      if (code === "policy_blocked") {
+        return replayBlocked(current, attempts, {
+          code: "repair_not_available",
+          message: "Discovery replay stopped at a hard policy boundary.",
+        });
+      }
       return replayFailure(
         current,
         "replay_setup_failed",
@@ -412,6 +424,8 @@ function prepareReplay(
       now: options.now ?? (() => new Date()),
       replayId,
       inputBindings: structuredClone(input.inputBindings ?? {}),
+      seenSessionIds: new Set([validatedSession.session.id]),
+      seenPathFingerprints: new Set([input.plan.source.discovery.selectedPathFingerprint]),
     },
   };
 }
@@ -432,7 +446,7 @@ function prepareRepair(
   }
   if (
     validated.session.parentSessionId !== current.sourceSession.id ||
-    validated.session.id === current.sourceSession.id
+    current.seenSessionIds.has(validated.session.id)
   ) {
     return {
       ok: false,
@@ -465,8 +479,7 @@ function prepareRepair(
   const currentSource = current.plan.source;
   if (
     currentSource.parser !== "discovery-v1" ||
-    compiled.plan.source.discovery.selectedPathFingerprint ===
-      currentSource.discovery.selectedPathFingerprint
+    current.seenPathFingerprints.has(compiled.plan.source.discovery.selectedPathFingerprint)
   ) {
     return {
       ok: false,
@@ -496,6 +509,11 @@ function prepareRepair(
       plan: compiled.plan,
       sourceSession: structuredClone(validated.session),
       bindings: bindings.bindings,
+      seenSessionIds: new Set([...current.seenSessionIds, validated.session.id]),
+      seenPathFingerprints: new Set([
+        ...current.seenPathFingerprints,
+        compiled.plan.source.discovery.selectedPathFingerprint,
+      ]),
     },
   };
 }
@@ -637,11 +655,16 @@ async function failureEvidence(
         ? {}
         : { expected: structuredClone(step.targetHint) }),
     observed: {
-      ...(page === undefined ? {} : { url: sanitizeWalkthroughUrl(page.url) }),
+      ...(page === undefined ? {} : { url: sanitizeReplayObservedUrl(page.url) }),
       ...(candidates === undefined || candidates.length === 0 ? {} : { candidates }),
     },
     recommendation: recommendationFor(code),
   };
+}
+
+function sanitizeReplayObservedUrl(value: string): string {
+  const origin = normalizeHttpOrigin(value);
+  return origin === undefined ? "[redacted-url]" : `${origin}/[redacted-path]`;
 }
 
 function sanitizeMatches(matches: DiscoveryReplayMatch[]): DiscoveryReplayMatch[] {
@@ -676,6 +699,26 @@ function attemptIdentity(prepared: PreparedReplay, attempt: 1 | 2 | 3) {
   };
 }
 
+function setupFailureAttempt(
+  prepared: PreparedReplay,
+  attempt: 1 | 2 | 3,
+  code: "policy_blocked" | "replay_setup_failed",
+): DiscoveryReplayAttempt {
+  return {
+    ...attemptIdentity(prepared, attempt),
+    status: "failed",
+    checks: [],
+    failure: {
+      schemaVersion: 1,
+      code,
+      repairability: "hard-boundary",
+      observed: {},
+      recommendation:
+        code === "policy_blocked" ? "request-policy-boundary" : "retry-after-stability",
+    },
+  };
+}
+
 function promoteReplaySuccess(
   prepared: PreparedReplay,
   attempts: DiscoveryReplayAttempt[],
@@ -692,9 +735,15 @@ function promoteReplaySuccess(
   if (source.parser !== "discovery-v1") {
     return replayFailure(prepared, "invalid_promoted_plan", "Discovery replay promotion failed.");
   }
+  let validatedAt: string;
+  try {
+    validatedAt = prepared.now().toISOString();
+  } catch {
+    return replayFailure(prepared, "invalid_promoted_plan", "Discovery replay promotion failed.");
+  }
   plan.validation = {
     status: "ready",
-    validatedAt: prepared.now().toISOString(),
+    validatedAt,
     mode: "discovery-replay",
     checks: structuredClone(finalAttempt.checks),
     blockers: [],

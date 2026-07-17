@@ -157,7 +157,10 @@ export {
   type ReplayAndRepairDiscoveryPlanOptions,
 } from "./discoveryReplay.js";
 
-export { createPlaywrightDiscoveryReplayBrowserFactory } from "./playwrightDiscoveryReplay.js";
+export {
+  createPlaywrightDiscoveryReplayBrowserFactory,
+  type PlaywrightDiscoveryReplayOptions,
+} from "./playwrightDiscoveryReplay.js";
 
 export {
   createDiscoveryObservationExtractor,

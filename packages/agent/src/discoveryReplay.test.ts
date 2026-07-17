@@ -367,6 +367,59 @@ describe("replayAndRepairDiscoveryPlan single attempt", () => {
     expect(JSON.stringify(result)).not.toContain("token=private");
     expect(browser.closeCalls).toBe(1);
   });
+
+  it("records setup policy failures as hard-boundary attempts", async () => {
+    const input = await safeCompiledFixture();
+    const browser = new FakeReplayBrowser();
+    browser.open = async () => {
+      throw new DiscoveryReplayBrowserError("policy_blocked");
+    };
+
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      {},
+      {
+        browserFactory: browserFactory(browser),
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "replay",
+      attempts: [
+        {
+          status: "failed",
+          checks: [],
+          failure: { code: "policy_blocked", repairability: "hard-boundary" },
+        },
+      ],
+    });
+  });
+
+  it("never includes runtime input values embedded in observed paths", async () => {
+    const input = await compiledFixture();
+    input.sourceSession.attempts[0].action = {
+      kind: "type",
+      targetId: "target-checkout",
+      inputBinding: "demo-name",
+      valueClass: "demo-data",
+    };
+    const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
+    if (!compiled.ok) throw new Error("type replay fixture must compile");
+    input.plan = compiled.plan;
+    const browser = new FakeReplayBrowser();
+    browser.matches = [];
+    browser.inspectPage = async () => ({ url: "https://example.com/users/Demo%20Person" });
+
+    const result = await replayAndRepairDiscoveryPlan(
+      { ...input, inputBindings: { "demo-name": "Demo Person" } },
+      { maxRepairs: 0 },
+      { browserFactory: browserFactory(browser) },
+    );
+
+    expect(JSON.stringify(result)).not.toContain("Demo%20Person");
+    expect(JSON.stringify(result)).not.toContain("Demo Person");
+  });
 });
 
 describe("replayAndRepairDiscoveryPlan repairs", () => {
@@ -441,6 +494,36 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     });
     expect(repairCount).toBe(2);
     expect(browsers.map((browser) => browser.closeCalls)).toEqual([1, 1, 1]);
+  });
+
+  it("rejects a repair chain that reuses an earlier session identity", async () => {
+    const root = await safeCompiledFixture();
+    const child1 = completedChild(root.sourceSession, "session-repair-1", "Next");
+    const cycle = completedChild(child1, root.sourceSession.id, "Finish");
+    const browsers = [new FakeReplayBrowser(), new FakeReplayBrowser()];
+    browsers[0]!.matches = [];
+    browsers[1]!.matches = [];
+    let repairs = 0;
+
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: sequentialFactory(browsers),
+        repair: {
+          async repair() {
+            repairs += 1;
+            return { decision: "repaired", session: repairs === 1 ? child1 : cycle };
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "repair",
+      errors: [{ code: "repair_lineage_mismatch" }],
+    });
   });
 
   it("rejects repair sessions that are not direct changed children", async () => {

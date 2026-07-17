@@ -2,10 +2,12 @@ import {
   chromium,
   type Browser,
   type BrowserContext,
+  type Download,
   type Locator,
   type Page,
   type Route,
 } from "playwright";
+import { hasCredentialLikeUrlData } from "./actionSafety.js";
 import type { DiscoveryInteractiveTarget } from "./discoveryContract.js";
 import {
   authorizeDiscoveryPolicyAction,
@@ -28,11 +30,20 @@ import {
 import type { WalkthroughPlanAssertion, WalkthroughPlanTargetHint } from "./index.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const MAX_RUNTIME_MATCHES = 50;
 
-export function createPlaywrightDiscoveryReplayBrowserFactory(): DiscoveryReplayBrowserFactory {
+export type PlaywrightDiscoveryReplayOptions = {
+  viewport?: { width: number; height: number };
+  actionTimeoutMs?: number;
+  stabilityDurationMs?: number;
+};
+
+export function createPlaywrightDiscoveryReplayBrowserFactory(
+  options: PlaywrightDiscoveryReplayOptions = {},
+): DiscoveryReplayBrowserFactory {
   return {
     async create({ policy }) {
-      return new PlaywrightDiscoveryReplayBrowser(policy);
+      return new PlaywrightDiscoveryReplayBrowser(policy, options);
     },
   };
 }
@@ -46,28 +57,71 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   private readonly locators = new Map<string, Locator>();
   private nextMatchId = 1;
 
-  constructor(private readonly policy: DiscoveryPolicy) {}
+  constructor(
+    private readonly policy: DiscoveryPolicy,
+    private readonly options: PlaywrightDiscoveryReplayOptions,
+  ) {}
 
   async open(url: string): Promise<void> {
     if (this.browser !== undefined) throw new DiscoveryReplayBrowserError("replay_setup_failed");
     const validation = validateDiscoveryPolicy(this.policy, url);
-    if (!validation.ok) throw new DiscoveryReplayBrowserError("policy_blocked");
+    if (!validation.ok || hasCredentialLikeUrlData(url)) {
+      throw new DiscoveryReplayBrowserError("policy_blocked");
+    }
     this.validatedPolicy = validation.policy;
+    let bootstrapViolation = false;
     try {
       this.browser = await chromium.launch({ headless: true });
-      this.context = await this.browser.newContext({ serviceWorkers: "block" });
+      this.context = await this.browser.newContext({
+        serviceWorkers: "block",
+        viewport: this.options.viewport ?? { width: 1280, height: 720 },
+      });
+      this.context.setDefaultTimeout(this.options.actionTimeoutMs ?? 5_000);
+      let bootstrapActive = true;
+      await this.context.routeWebSocket("**/*", () => {
+        if (bootstrapActive) bootstrapViolation = true;
+      });
       this.page = await this.context.newPage();
-      const bootstrap = (route: Route) => this.bootstrapRoute(route, validation.policy);
+      const popup = (popupPage: Page) => {
+        if (!bootstrapActive || popupPage === this.page) return;
+        bootstrapViolation = true;
+        void popupPage.close().catch(() => undefined);
+      };
+      const download = (value: Download) => {
+        if (!bootstrapActive) return;
+        bootstrapViolation = true;
+        void value.cancel().catch(() => undefined);
+      };
+      this.context.on("page", popup);
+      this.page.on("download", download);
+      const bootstrap = async (route: Route) => {
+        if (!(await this.bootstrapRoute(route, validation.policy))) bootstrapViolation = true;
+      };
       await this.context.route("**/*", bootstrap);
       try {
         await this.page.goto(url, { waitUntil: "domcontentloaded" });
+        let finalOrigin: string | undefined;
+        try {
+          finalOrigin = new URL(this.page.url()).origin;
+        } catch {
+          finalOrigin = undefined;
+        }
+        if (finalOrigin === undefined || !validation.policy.allowedOrigins.has(finalOrigin)) {
+          bootstrapViolation = true;
+        }
+        await this.page.waitForTimeout(this.options.stabilityDurationMs ?? 200);
+        this.guard = await installPlaywrightDiscoveryPolicyGuard(this.page, validation.policy);
+        if (bootstrapViolation) throw new DiscoveryReplayBrowserError("policy_blocked");
       } finally {
+        bootstrapActive = false;
         await this.context.unroute("**/*", bootstrap);
+        this.context.off("page", popup);
+        this.page.off("download", download);
       }
-      this.guard = await installPlaywrightDiscoveryPolicyGuard(this.page, validation.policy);
     } catch (error) {
       await this.close();
       if (error instanceof DiscoveryReplayBrowserError) throw error;
+      if (bootstrapViolation) throw new DiscoveryReplayBrowserError("policy_blocked");
       throw new DiscoveryReplayBrowserError("replay_setup_failed");
     }
   }
@@ -82,11 +136,17 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       });
     } else {
       const labelled = page.getByLabel(target.label, { exact: true });
+      const button = page.getByRole("button", { name: target.label, exact: true });
       locator =
-        (await labelled.count()) > 0 ? labelled : page.getByText(target.label, { exact: true });
+        (await labelled.count()) > 0
+          ? labelled
+          : (await button.count()) > 0
+            ? button
+            : page.getByText(target.label, { exact: true });
     }
     const matches: DiscoveryReplayMatch[] = [];
-    for (let index = 0; index < (await locator.count()); index += 1) {
+    const count = Math.min(await locator.count(), MAX_RUNTIME_MATCHES);
+    for (let index = 0; index < count; index += 1) {
       const candidate = locator.nth(index);
       if (!(await candidate.isVisible().catch(() => false))) continue;
       const id = `match-${this.nextMatchId++}`;
@@ -133,10 +193,13 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
 
   async wait(durationMs: number): Promise<void> {
     await this.requirePage().waitForTimeout(durationMs);
+    this.assertNoIdleViolation();
   }
 
   async waitForSettled(): Promise<void> {
     await this.requirePage().waitForLoadState("domcontentloaded");
+    await this.requirePage().waitForTimeout(this.options.stabilityDurationMs ?? 200);
+    this.assertNoIdleViolation();
   }
 
   async assertVisible(
@@ -161,6 +224,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     ) {
       throw new DiscoveryReplayBrowserError("visible_state_mismatch");
     }
+    this.assertNoIdleViolation();
   }
 
   async assertNavigation(
@@ -173,6 +237,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
         ? actual.href === expected.href
         : actual.origin === expected.origin && actual.pathname === expected.pathname;
     if (!matches) throw new DiscoveryReplayBrowserError("navigation_mismatch");
+    this.assertNoIdleViolation();
   }
 
   async inspectPage(): Promise<{ url: string }> {
@@ -190,20 +255,21 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     this.locators.clear();
   }
 
-  private async bootstrapRoute(route: Route, policy: ValidatedDiscoveryPolicy): Promise<void> {
+  private async bootstrapRoute(route: Route, policy: ValidatedDiscoveryPolicy): Promise<boolean> {
     const request = route.request();
     let origin: string;
     try {
       origin = new URL(request.url()).origin;
     } catch {
       await route.abort("blockedbyclient");
-      return;
+      return false;
     }
     if (!policy.allowedOrigins.has(origin) || !SAFE_METHODS.has(request.method().toUpperCase())) {
       await route.abort("blockedbyclient");
-      return;
+      return false;
     }
-    await route.continue();
+    await route.fallback();
+    return true;
   }
 
   private authorize(
@@ -252,6 +318,12 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     const locator = this.locators.get(match.id);
     if (locator === undefined) throw new DiscoveryReplayBrowserError("candidate_not_found");
     return locator;
+  }
+
+  private assertNoIdleViolation(): void {
+    if (this.guard?.checkForViolation() !== undefined) {
+      throw new DiscoveryReplayBrowserError("policy_blocked");
+    }
   }
 }
 
