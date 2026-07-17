@@ -106,7 +106,7 @@ Milestones 1–8 retain the order defined by the balanced MVP design spec. Miles
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: WES-188. WES-187 is complete and merged into `develop` via PR #40 (`8d30a83`), satisfying WES-188's final dependency.
+Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: WES-189. WES-188 is complete and merged into `develop` via PR #41 (`fa0200e`), satisfying WES-189's replay-and-repair dependency.
 
 ## Issues By Milestone
 
@@ -195,12 +195,12 @@ Linear milestone: `Agentic Flow Discovery` (`58dc5c96-c449-4900-b495-1bbf5ac61f5
 - WES-185: Drive rehearsal actions and capture discovery evidence - Done; merged in PR #38 (`9b191c6`) - https://linear.app/weston-bushyeager/issue/WES-185/drive-rehearsal-actions-and-capture-discovery-evidence
 - WES-186: Enforce safe and explicitly disposable discovery policies - Done; merged in PR #39 (`f75e8c2`) - https://linear.app/weston-bushyeager/issue/WES-186/enforce-safe-and-explicitly-disposable-discovery-policies
 - WES-187: Compile discovery traces into executable walkthrough plans - Done; merged in PR #40 (`8d30a83`) - https://linear.app/weston-bushyeager/issue/WES-187/compile-discovery-traces-into-executable-walkthrough-plans
-- WES-188: Add deterministic replay verification and agent repair loop - In Progress - https://linear.app/weston-bushyeager/issue/WES-188/add-deterministic-replay-verification-and-agent-repair-loop
+- WES-188: Add deterministic replay verification and agent repair loop - Done; merged in PR #41 (`fa0200e`) - https://linear.app/weston-bushyeager/issue/WES-188/add-deterministic-replay-verification-and-agent-repair-loop
 - WES-189: Add Codex YOLO-discovery workflow and approval handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-189/add-codex-yolo-discovery-workflow-and-approval-handoff
 - WES-191: Reconcile and retire legacy deterministic walkthrough intake paths - Backlog - https://linear.app/weston-bushyeager/issue/WES-191/reconcile-and-retire-legacy-deterministic-walkthrough-intake-paths
 - WES-190: Validate agentic discovery through recording and project handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-190/validate-agentic-discovery-through-recording-and-project-handoff
 
-Dependency order: WES-183 through WES-187 are Done and durable on `develop`. WES-188 is the current next-task pointer and sole dependency-ready implementation issue; WES-189 remains blocked by WES-188, WES-191 by WES-189, WES-190 by WES-191, and tracker WES-182 by WES-190.
+Dependency order: WES-183 through WES-188 are Done and durable on `develop`. WES-189 is the current next-task pointer and sole dependency-ready implementation issue; WES-191 remains blocked by WES-189, WES-190 by WES-191, and tracker WES-182 by WES-190.
 
 ## Investigation Notes
 
@@ -430,6 +430,7 @@ capture-dir/
 - 2026-07-05 WES-159 completion-gate sync: PR #21 passed no-mistakes review, test, document, lint, push, PR creation, and GitHub CI `validate` on head `5a977bc4`. No-mistakes fixed update rollback safety and copy-form preservation across save/re-render flows. Completion evidence was added to WES-159 and WES-140, both issues were moved to Done, and WES-160 received a readiness note to build the agent-facing workflow handoff on saved browser-edited variants.
 
 - 2026-07-16 WES-188 local implementation and verification: branch `fm/wes-188-deterministic-replay-repair` at `41bcd71` adds fail-closed replay preflight and source fingerprinting, runtime-only bindings, deterministic fresh policy-enforced Playwright replay, bounded sanitized failure evidence, and at most two direct-child repair sessions with recompilation plus lineage, goal, and policy checks. Successful replay produces reviewable, unapproved `discovery-replay` validation evidence; refinements clear that evidence and approval fingerprints cover it. Fresh `npm run validate` passes build, all workspace typechecks, ESLint, 565 Vitest tests plus 2 Node tests, and repository-wide Prettier; `git diff --check` passes. WES-188 remains In Progress pending focused code review, PR integration, and passing CI; WES-189 remains blocked until durable integration.
+- 2026-07-16 WES-188 completion-gate sync: PR #41 merged to `develop` at `2026-07-17T01:03:22Z` as `fa0200eacf732802228176926995d60299937d51`. GitHub `CI / validate` completed successfully on exact head `fed2c27ab7386bcfc9b6b42bf7060f2307f0a655`. Fresh local validation passed build, all workspace typechecks, ESLint, 299 agent, 68 capture, 89 CLI, 22 editor, 20 polish, 60 project, and 22 render Vitest tests plus 2 Node tests, and repository-wide Prettier. Independent final review reported Ready to merge with no Critical, Important, or merge-relevant Minor findings. WES-188 moved to Done, WES-189 received a dependency-readiness note, and WES-189 is now the next-task pointer.
 
 ## Update Rules
 
