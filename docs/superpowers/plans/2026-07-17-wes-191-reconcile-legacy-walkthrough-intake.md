@@ -370,10 +370,10 @@ Stage explicit WES-191 paths, excluding `.gitignore`. Commit with `WES-191: reti
 
 Use `gh pr checks <number> --watch`. Diagnose failures before changes, apply issue-scoped fixes with TDD, and resolve only addressed or technically invalidated feedback.
 
-- [ ] **Step 5: Update the map and squash merge**
+- [x] **Step 5: Update the map and squash merge**
 
 Before merge, record passing CI, review disposition, completion evidence, and next-task pointer WES-190 in the project map and include that change in the PR. Squash merge only when required checks pass and no actionable findings remain.
 
-- [ ] **Step 6: Synchronize local develop and Linear**
+- [x] **Step 6: Synchronize local develop and Linear**
 
 Switch to `develop`, fetch the verified base remote/ref, run `rtk git pull --ff-only origin develop`, confirm the squash commit locally, run the completion sync audit, add concise Linear completion evidence, move WES-191 to Done, add a readiness note to WES-190 and tracker update to WES-182, and reconcile the map pointer. Preserve `.gitignore` throughout.
