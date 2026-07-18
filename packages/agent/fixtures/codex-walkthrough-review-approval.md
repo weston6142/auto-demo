@@ -1,5 +1,9 @@
 # Codex Walkthrough Review And Approval
 
+> Legacy migration example: this transcript reviews and approves an existing
+> `deterministic-v1` artifact. New walkthrough plans come from evidence-backed
+> discovery compilation and require fresh-context replay before approval.
+
 ## User request
 
 > Show me the validated signup walkthrough before recording it.

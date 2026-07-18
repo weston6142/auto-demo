@@ -47,38 +47,24 @@ The logical `autodemo` subcommands stay the same:
 - `generate`
 - `open`
 - `agent run`
-- `agent plan`
 - `agent validate`
 - `export`
 - `validate`
 
 ## Agent Plan Intake
 
-`autodemo agent plan` turns a target browser URL and natural-language demo
-script into deterministic JSON-ready walkthrough plan data:
-
-```bash
-npm run autodemo -- agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
-```
-
-The command currently requires `--json`. `--mode` defaults to `validate-first`;
-`best-guess` preserves the same plan shape and adds a warning for review. Plans
-contain draft or needs-clarification state, resolved navigate, click, type,
-wait, and assert steps, unresolved questions for ambiguous instructions,
-approval and execution placeholders, and public redaction for typed values.
-
-The intake contract does not validate page state, approve plans, execute browser
-actions, record captures, automate credentials, perform destructive production
-actions, or create Auto Demo projects.
+New walkthrough plans come from evidence-backed discovery compilation. Persist
+the compiled plan before using the CLI lifecycle below; the CLI does not create a
+plan from unobserved natural-language text.
 
 ## Agent Walkthrough Validation
 
-`autodemo agent validate` rehearses a walkthrough plan against browser page
-state without recording a capture or creating an Auto Demo project:
+`autodemo agent validate` rehearses an existing legacy `deterministic-v1`
+walkthrough plan against browser page state without recording a capture or
+creating an Auto Demo project:
 
 ```bash
 npm run autodemo -- agent validate --plan <plan-json-file> --json
-npm run autodemo -- agent validate --url <target-url> --script <script-text> --json
 ```
 
 The command prints JSON with the validated plan, step checks, and every blocker
@@ -88,9 +74,14 @@ unreadable or malformed plan files, browser setup failures, and navigation
 failures return structured errors and exit `1`. User-facing blocker resolution
 is deferred to WES-177's review workflow.
 
-The two input forms are mutually exclusive. Validate mode also refuses
-credential-bearing target URLs and blocks potentially destructive actions or
-credential-like field input instead of exercising them in the browser.
+Plan-file validation accepts existing `deterministic-v1` artifacts for migration
+compatibility. Discovery plans use fresh-context replay instead; dry-run
+validation rejects them. Review, refinement, approval, and execution retain both
+supported artifact lifecycles. Existing best-guess artifacts still require an
+explicit bypass approval, but discovery plans never use the best-guess bypass.
+Validate mode refuses credential-bearing target URLs and blocks
+potentially destructive actions or credential-like field input instead of
+exercising them in the browser.
 
 ## Agent Walkthrough Review And Approval
 

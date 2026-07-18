@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   approveWalkthroughPlan,
-  createWalkthroughPlan,
   executeWalkthroughPlan,
   isWalkthroughPlan,
   verifyWalkthroughPlanApproval,
@@ -10,13 +9,17 @@ import {
   type WalkthroughExecutionDependencies,
   type WalkthroughPlan,
 } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 function plan(script = "Click Get started. Verify Results."): WalkthroughPlan {
-  const created = createWalkthroughPlan({
-    targetUrl: "https://example.com/start",
-    script,
-    mode: "best-guess",
-  });
+  const created = {
+    ok: true as const,
+    plan: legacyWalkthroughPlanFixture({
+      targetUrl: "https://example.com/start",
+      script,
+      mode: "best-guess",
+    }),
+  };
   if (!created.ok) throw new Error("test plan should be valid");
   for (const step of created.plan.steps) {
     if (step.action === "click") step.targetHint = { kind: "accessible", label: "Get started" };

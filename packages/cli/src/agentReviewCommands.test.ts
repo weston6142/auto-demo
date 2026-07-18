@@ -2,8 +2,9 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createWalkthroughPlan, type WalkthroughPlan } from "@auto-demo/agent";
+import { type WalkthroughPlan } from "@auto-demo/agent";
 import { runCliAsync, type CliDependencies } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 function dependencies(): CliDependencies {
   return {
@@ -35,11 +36,14 @@ function dependencies(): CliDependencies {
 }
 
 function createPlan(mode: "validate-first" | "best-guess", script: string): WalkthroughPlan {
-  const result = createWalkthroughPlan({
-    targetUrl: "https://example.com/signup",
-    script,
-    mode,
-  });
+  const result = {
+    ok: true as const,
+    plan: legacyWalkthroughPlanFixture({
+      targetUrl: "https://example.com/signup",
+      script,
+      mode,
+    }),
+  };
   if (!result.ok) throw new Error("test plan should be valid");
   return result.plan;
 }

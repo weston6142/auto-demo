@@ -73,56 +73,28 @@ through `autodemo export`.
 
 ## Walkthrough Plan Intake
 
-`createWalkthroughPlan()` is the WES-181 intake contract for user-described
-browser demo scripts. It accepts a target URL, natural-language script text, and
-a mode of `validate-first` or `best-guess`, then returns deterministic
-JSON-ready plan data for later validation, review, execution, and project
-handoff.
+New plans must come from evidence-backed discovery compilation through
+`compileDiscoverySessionToWalkthroughPlan()`, followed by fresh-context replay
+and repair. Persist the resulting durable `WalkthroughPlan` artifact before
+using the shared review, refinement, approval, execution, and handoff lifecycle.
 
-```ts
-import { createWalkthroughPlan } from "@auto-demo/agent";
-
-const result = createWalkthroughPlan({
-  targetUrl: "https://example.com/signup",
-  script: "Go to the signup page. Click Get started. Verify pricing appears.",
-  mode: "validate-first",
-});
-```
-
-The CLI exposes the same first contract:
-
-```bash
-autodemo agent plan --url https://example.com/signup --script "Click Get started" --mode validate-first --json
-```
-
-The deterministic parser recognizes simple browser-oriented steps such as
-navigate, click, type, wait, and assert. Ambiguous instructions are preserved as
-unresolved questions instead of being treated as executable actions. Public type
-step summaries redact typed values, and expected failures use stable error codes
-such as `missing_target_url`, `invalid_target_url`, `missing_script`,
-`unsupported_plan_mode`, and `unknown_agent_argument`.
-
-WES-181 intentionally does not validate page state, approve plans, execute
-browser actions, automate credentials, operate arbitrary OS apps, perform
-destructive production actions, record captures, or create projects. Those
-behaviors remain assigned to the downstream script workflow issues.
+Plan-file dry-run validation accepts existing `deterministic-v1` artifacts for
+migration compatibility and rejects discovery plans, which require
+fresh-context replay. Review, refinement, approval, and execution retain both
+supported artifact lifecycles. Existing best-guess artifacts still require an
+explicit bypass approval, but discovery plans never use the best-guess bypass.
+No public API or CLI creates new deterministic or best-guess plans from
+unobserved natural-language text.
 
 ## Walkthrough Validate Mode
 
-Validate mode is the WES-178 dry-run layer after walkthrough plan intake. It
-rehearses a resolved `WalkthroughPlan` against a browser target and annotates the
-plan with `validation.status`, step checks, and transcript-safe blockers.
-
-Use an existing plan artifact:
+Validate mode is the WES-178 legacy migration dry-run layer. It rehearses a
+resolved `deterministic-v1` `WalkthroughPlan` against a browser target and
+annotates the plan with `validation.status`, step checks, and transcript-safe
+blockers. Discovery plans use fresh-context replay and are rejected here.
 
 ```bash
 npm run autodemo -- agent validate --plan <plan-json-file> --json
-```
-
-Or create and validate a plan in one command:
-
-```bash
-npm run autodemo -- agent validate --url <target-url> --script <script-text> --json
 ```
 
 Validation returns `ready` only when all resolved steps pass and no blockers

@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { createPlaywrightValidationRunner, createWalkthroughPlan } from "./index.js";
+import { createPlaywrightValidationRunner } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 function step(script: string) {
-  const result = createWalkthroughPlan({
-    targetUrl: "https://example.com",
-    script,
-    mode: "validate-first",
-  });
+  const result = {
+    ok: true as const,
+    plan: legacyWalkthroughPlanFixture({
+      targetUrl: "https://example.com",
+      script,
+      mode: "validate-first",
+    }),
+  };
   if (!result.ok || result.plan.steps[0] === undefined) {
     throw new Error("test step should be valid");
   }

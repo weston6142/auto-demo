@@ -2,18 +2,21 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   approveWalkthroughPlan,
-  createWalkthroughPlan,
   reviewWalkthroughPlan,
   verifyWalkthroughPlanApproval,
   type WalkthroughPlan,
 } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 function createPlan(mode: "validate-first" | "best-guess", script = "Click Get started.") {
-  const result = createWalkthroughPlan({
-    targetUrl: "https://example.com/signup",
-    script,
-    mode,
-  });
+  const result = {
+    ok: true as const,
+    plan: legacyWalkthroughPlanFixture({
+      targetUrl: "https://example.com/signup",
+      script,
+      mode,
+    }),
+  };
   if (!result.ok) {
     throw new Error("test plan should be valid");
   }
@@ -71,6 +74,38 @@ function legacyFingerprint(plan: WalkthroughPlan): string {
 }
 
 describe("walkthrough approval", () => {
+  it("rejects discovery plans without matching replay validation", () => {
+    const dryRun = validatedPlan();
+    dryRun.source = {
+      parser: "discovery-v1",
+      script: dryRun.source.script,
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    expect(approveWalkthroughPlan(dryRun)).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_plan" }],
+    });
+
+    const bestGuess = createPlan("best-guess");
+    bestGuess.source = {
+      parser: "discovery-v1",
+      script: bestGuess.source.script,
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+    expect(approveWalkthroughPlan(bestGuess, { allowBestGuessBypass: true })).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_plan" }],
+    });
+  });
+
   it("invalidates approval when discovery replay evidence changes", () => {
     const input = validatedPlan();
     input.source = {

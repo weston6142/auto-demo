@@ -1,21 +1,21 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { approveWalkthroughPlan, createWalkthroughPlan } from "@auto-demo/agent";
+import { approveWalkthroughPlan } from "@auto-demo/agent";
 import type { ControllableBrowserCaptureAdapter } from "@auto-demo/capture";
 import { describe, expect, it } from "vitest";
 import { runCliAsync, type CliDependencies } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 async function approvedPlanFile(root: string): Promise<{ path: string; text: string }> {
-  const created = createWalkthroughPlan({
+  const plan = legacyWalkthroughPlanFixture({
     targetUrl: "https://example.com/start",
     script: "Type launch demo into Search. Verify Results.",
     mode: "best-guess",
   });
-  if (!created.ok) throw new Error("test plan should be valid");
-  created.plan.steps[0].targetHint = { kind: "accessible", label: "Search" };
-  created.plan.steps[1].targetHint = { kind: "accessible", label: "Results" };
-  const approved = approveWalkthroughPlan(created.plan, { allowBestGuessBypass: true });
+  plan.steps[0].targetHint = { kind: "accessible", label: "Search" };
+  plan.steps[1].targetHint = { kind: "accessible", label: "Results" };
+  const approved = approveWalkthroughPlan(plan, { allowBestGuessBypass: true });
   if (!approved.ok) throw new Error("test plan should approve");
   const text = `${JSON.stringify({ ok: true, plan: approved.plan }, null, 2)}\n`;
   const path = join(root, "approved-plan.json");

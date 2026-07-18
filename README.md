@@ -8,7 +8,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 ## Status
 
-This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata and expose baseline-only headless dry-run, selected-save, and save-all JSON summaries. `autodemo open` now serves a local browser editor that loads validated projects, previews saved variants with approximate browser fidelity, provides schema-backed draft controls for trims, viewport framing, captions, callouts, cursor/click emphasis, and direct style fields, and saves browser edits back as updated or copied project variants. `autodemo agent run` provides the first noninteractive agent handoff summary for selecting or generating saved variants and optionally starting the editor. `@auto-demo/agent` also exposes `createWalkthroughPlan()` and `autodemo agent plan` for deterministic browser script intake plans. It publishes the bounded `DiscoverySessionV1` evidence contract, structured Playwright observations, authorized rehearsal actions, and policy-enforced safe/disposable discovery. `compileDiscoverySessionToWalkthroughPlan()` turns a completed selected path into a deterministic draft plan, while `replayAndRepairDiscoveryPlan()` and `createPlaywrightDiscoveryReplayBrowserFactory()` verify it in a fresh isolated browser context with runtime-only input bindings and at most two repair sessions. Passing plans remain reviewable and unapproved, and hard policy boundaries are never repaired around. The repository-owned skill now provides Codex-hosted YOLO discovery from a natural-language goal through safe structured rehearsal, bounded repair, explicit approval, and the existing deterministic execute and handoff path. The repository does not expose a discovery CLI. `@auto-demo/render` and `autodemo export --project <project> --json` render saved variants with the MVP `mp4-demo` preset: MP4 container, H.264 video, `yuv420p`, 30 frames per second, 1280x720 for 16:9 saved variants, and adjacent render summary metadata for the repo-owned `fixtures/export/basic-saved-variant` validation fixture shape.
+This repository is in early capture-to-project setup. The package structure exists, and `autodemo capture` now launches a Playwright-controlled Chromium browser for viewport media recording, writes browser interaction metadata to JSONL, emits a temporary capture bundle manifest, and preserves non-secret failed/interrupted diagnostics when artifacts exist. `@auto-demo/project` can import a validated capture bundle into the first normalized Auto Demo project layout, validate/load project directories or manifests, save manifests atomically before revalidation, validate MVP polish variant definitions, and persist saved variants under `variants/`. `@auto-demo/polish` can generate a deterministic baseline variant from project event metadata and expose baseline-only headless dry-run, selected-save, and save-all JSON summaries. `autodemo open` now serves a local browser editor that loads validated projects, previews saved variants with approximate browser fidelity, provides schema-backed draft controls for trims, viewport framing, captions, callouts, cursor/click emphasis, and direct style fields, and saves browser edits back as updated or copied project variants. `autodemo agent run` provides the first noninteractive agent handoff summary for selecting or generating saved variants and optionally starting the editor. `@auto-demo/agent` publishes the bounded `DiscoverySessionV1` evidence contract, structured Playwright observations, authorized rehearsal actions, and policy-enforced safe/disposable discovery. `compileDiscoverySessionToWalkthroughPlan()` turns a completed selected path into a deterministic draft plan, while `replayAndRepairDiscoveryPlan()` and `createPlaywrightDiscoveryReplayBrowserFactory()` verify it in a fresh isolated browser context with runtime-only input bindings and at most two repair sessions. Passing plans remain reviewable and unapproved, and hard policy boundaries are never repaired around. The repository-owned skill now provides Codex-hosted YOLO discovery from a natural-language goal through safe structured rehearsal, bounded repair, explicit approval, and the existing deterministic execute and handoff path. The repository does not expose a discovery CLI. `@auto-demo/render` and `autodemo export --project <project> --json` render saved variants with the MVP `mp4-demo` preset: MP4 container, H.264 video, `yuv420p`, 30 frames per second, 1280x720 for 16:9 saved variants, and adjacent render summary metadata for the repo-owned `fixtures/export/basic-saved-variant` validation fixture shape.
 
 ## Quick Start
 
@@ -55,13 +55,13 @@ and other standalone distribution artifact work are deferred from the MVP.
 
 ## Packages
 
-- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, local editor startup, agent workflow handoff, walkthrough planning and execution, JSON export routing, and the repo-root clean-checkout wrapper contract for WES-164, with the workspace-scoped command retained as a diagnostic fallback.
+- `@auto-demo/cli`: `autodemo` command entrypoint, command routing, async `capture` lifecycle, capture bundle validation, the baseline-only dry-run/save `generate` JSON contract, local editor startup, agent workflow handoff, durable walkthrough-plan validation and execution, JSON export routing, and the repo-root clean-checkout wrapper contract for WES-164, with the workspace-scoped command retained as a diagnostic fallback.
 - `@auto-demo/project`: Auto Demo schema v1 project manifest types, strict validation with accumulated structured errors, MVP polish variant definition and saved-file validation, capture-bundle import into the normalized project layout, and project load/save/generated/browser variant persistence APIs.
 - `@auto-demo/capture`: browser-first capture adapter contract, default Playwright viewport recorder, same-page execution controller, interaction metadata JSONL capture, temporary capture manifest APIs, capture output paths, and unsupported-backend fallback.
 - `@auto-demo/polish`: deterministic baseline edit-decision generation from project event metadata, the baseline-only MVP style preset contract, and headless dry-run/save batch summaries.
 - `@auto-demo/render`: export and render orchestration for saved variants, including the WES-167 `mp4-demo` preset, local ffmpeg runner boundary, and render summary metadata.
 - `@auto-demo/editor`: local browser editor server, approximate variant preview, schema-backed local finishing UI, and update/copy saves for browser-edited variants.
-- `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, deterministic walkthrough planning, approval-aware recorded execution, the versioned discovery-session evidence contract, and repository-owned Codex-hosted YOLO discovery and approval artifacts. Claude production wrapper remains follow-up scope.
+- `@auto-demo/agent`: agent-facing workflow helpers, JSON handoff summaries, evidence-backed walkthrough compilation, approval-aware recorded execution, the versioned discovery-session evidence contract, and repository-owned Codex-hosted YOLO discovery and approval artifacts. Claude production wrapper remains follow-up scope.
 
 ## CLI
 
@@ -75,7 +75,7 @@ autodemo generate --project <project-dir-or-manifest> --json --save <variant-id|
 autodemo agent run --project <project-dir-or-manifest> --json [--variant <variant-id>]
 autodemo agent run --project <project-dir-or-manifest> --json --generate baseline --source-variant <source-variant-id> --save <baseline-polish|all>
 autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--host 127.0.0.1] [--port 0] [--no-browser]
-autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
+autodemo agent validate --plan <plan-json-file> --json
 autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json
 autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json
 autodemo export --project <project-dir-or-manifest> --json [--variant baseline-polish] [--preset mp4-demo]
@@ -147,25 +147,13 @@ autodemo agent run --project <project-dir-or-manifest> --json --open-editor [--h
 
 The command validates the project, selects an existing saved variant or saves a generated baseline variant, and prints one JSON summary with the project manifest path, selected variant id, variant artifact path, warnings, and next-step hints for agent logs. The WES-160 baseline-only MVP accepts `--save baseline-polish` or `--save all`; arbitrary generated variant ids are not part of this agent contract, and `--save` or `--source-variant` require `--generate baseline`. `--open-editor` starts the existing local editor, includes its URL in the same JSON output, and keeps the local editor server alive until the process is stopped; `--host` and `--port` override the bind address, while `--no-browser` is accepted as a no-op compatibility flag because the workflow does not auto-launch a browser. The WES-160 agent workflow requires JSON output and returns structured non-secret errors for unknown agent subcommands or arguments, missing projects, invalid projects, missing variants, unsupported generation requests, generation failures, and unavailable editor handoff. Successful handoffs exit `0`; expected validation, generation, or handoff failures exit `1`. The WES-169 MVP host decision treats a Codex production wrapper as acceptance-critical for the first demo. Claude wrapper parity is documented follow-up scope.
 
-Plan a browser walkthrough from script text with:
-
-```bash
-autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
-```
-
-The command returns a deterministic JSON-ready walkthrough plan with the target
-URL, original script, parser metadata, draft or needs-clarification state,
-resolved navigate/click/type/wait/assert steps, unresolved questions for
-ambiguous instructions, approval and execution placeholders, and non-secret
-warnings. Public type-step summaries redact typed values. `--mode` defaults to
-`validate-first`; `best-guess` adds a review warning. Expected failures exit `1`
-and return stable planning error codes for missing or invalid target URLs,
-missing scripts, unsupported modes, and unknown plan arguments. The agent
-workflow can validate, review, refine, approve, and execute the resulting plan
-under browser capture. Execution requires verified approval, uses strict target
-matching and deterministic `natural-v1` pacing, accepts optional runtime inputs
-containing only non-secret demo data, and preserves a failed capture bundle when
-a step breaks.
+New walkthrough plans come from evidence-backed discovery compilation. Persist
+the compiled plan artifact, replay and repair it in a fresh context, then use the
+shared plan-file review, refine, approve, execute, and handoff commands.
+Plan-file dry-run validation accepts existing `deterministic-v1` artifacts for
+migration compatibility and rejects discovery plans, which require
+fresh-context replay. Existing best-guess artifacts still require an explicit
+bypass approval, but discovery plans never use the best-guess bypass.
 
 Persist a successful execution result and create its final project with:
 

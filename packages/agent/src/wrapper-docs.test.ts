@@ -5,7 +5,6 @@ import {
   compileDiscoverySessionToWalkthroughPlan,
   createPlaywrightDiscoveryReplayBrowserFactory,
   createPolicyEnforcedPlaywrightDiscoveryRehearsalController,
-  createWalkthroughPlan,
   reviewWalkthroughPlan,
   validateDiscoverySession,
   verifyWalkthroughPlanApproval,
@@ -378,81 +377,12 @@ describe("agent wrapper documentation", () => {
     expect(combined).toContain("final MP4 export");
   });
 
-  it("publishes walkthrough plan fixtures for simple and ambiguous scripts", async () => {
-    const simple = JSON.parse(await readAgentDoc("fixtures/walkthrough-plan-simple.json")) as {
-      ok: boolean;
-      plan: {
-        state: string;
-        target: { url: string };
-        mode: "validate-first" | "best-guess";
-        source: { script: string };
-        steps: Array<{ action: string }>;
-        questions: unknown[];
-      };
-    };
-    const ambiguous = JSON.parse(
-      await readAgentDoc("fixtures/walkthrough-plan-ambiguous.json"),
-    ) as {
-      ok: boolean;
-      plan: {
-        state: string;
-        target: { url: string };
-        mode: "validate-first" | "best-guess";
-        source: { script: string };
-        steps: Array<{ action: string }>;
-        questions: unknown[];
-      };
-    };
-
-    expect(simple).toEqual(
-      createWalkthroughPlan({
-        targetUrl: simple.plan.target.url,
-        script: simple.plan.source.script,
-        mode: simple.plan.mode,
-      }),
-    );
-    expect(ambiguous).toEqual(
-      createWalkthroughPlan({
-        targetUrl: ambiguous.plan.target.url,
-        script: ambiguous.plan.source.script,
-        mode: ambiguous.plan.mode,
-      }),
-    );
-
-    expect(simple.ok).toBe(true);
-    expect(simple.plan.state).toBe("draft");
-    expect(simple.plan.steps.map((step) => step.action)).toEqual(["navigate", "click", "assert"]);
-    expect(simple.plan.questions).toEqual([]);
-
-    expect(ambiguous.ok).toBe(true);
-    expect(ambiguous.plan.state).toBe("needs-clarification");
-    expect(ambiguous.plan.steps.map((step) => step.action)).toContain("question");
-    expect(ambiguous.plan.questions.length).toBeGreaterThan(0);
-  });
-
-  it("documents only structured error codes emitted by walkthrough plan intake", async () => {
-    const agentReadme = await readAgentDoc("README.md");
-    const planIntake = section(agentReadme, "## Walkthrough Plan Intake");
-
-    for (const code of [
-      "missing_target_url",
-      "invalid_target_url",
-      "missing_script",
-      "unsupported_plan_mode",
-      "unknown_agent_argument",
-    ]) {
-      expect(planIntake).toContain(code);
-    }
-    expect(planIntake).not.toContain("unsupported_agent_output");
-  });
-
   it("documents validate mode blockers and WES-177 handoff", async () => {
     const agentReadme = await readAgentDoc("README.md");
     const validateMode = section(agentReadme, "## Walkthrough Validate Mode");
 
     for (const required of [
       "npm run autodemo -- agent validate --plan <plan-json-file> --json",
-      "npm run autodemo -- agent validate --url <target-url> --script <script-text> --json",
       "multiple_matching_elements",
       "missing_element",
       "unresolved_plan_question",
@@ -461,6 +391,27 @@ describe("agent wrapper documentation", () => {
     ]) {
       expect(validateMode).toContain(required);
     }
+    expect(validateMode).not.toContain("agent validate --url");
+  });
+
+  it("publishes discovery compilation as the only new-plan intake", async () => {
+    const documents = await Promise.all([
+      readRootDoc("README.md"),
+      readAgentDoc("README.md"),
+      readAgentDoc("../cli/README.md"),
+      readAgentDoc("skills/codex-auto-demo/SKILL.md"),
+      readAgentDoc("claude-wrapper-parity.md"),
+    ]);
+    const combined = documents.join("\n");
+
+    expect(combined).not.toContain("agent plan --url");
+    expect(combined).not.toContain("agent validate --url");
+    expect(combined).not.toContain("createWalkthroughPlan()");
+    expect(combined).toContain("existing `deterministic-v1` artifacts");
+    expect(combined).toContain("New plans must come from evidence-backed discovery compilation");
+    expect(combined).toContain("discovery plans never use the best-guess bypass");
+    expect(combined).toContain("dry-run validation accepts existing");
+    expect(combined).toContain("rejects discovery plans");
   });
 
   it("documents conversational refinement and explicit plan approval", async () => {
@@ -468,6 +419,9 @@ describe("agent wrapper documentation", () => {
     const parity = await readAgentDoc("claude-wrapper-parity.md");
     const approvalFixture = await readAgentDoc("fixtures/codex-walkthrough-review-approval.md");
     const refinementFixture = await readAgentDoc("fixtures/codex-walkthrough-refinement.md");
+
+    expect(approvalFixture).toContain("Legacy migration example");
+    expect(refinementFixture).toContain("Legacy migration example");
 
     for (const required of [
       "autodemo agent review --plan <plan-json-file> --json",
