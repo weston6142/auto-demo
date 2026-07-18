@@ -178,6 +178,56 @@ describe("agent wrapper documentation", () => {
     }
   });
 
+  it("publishes policy-bounded Codex YOLO discovery through explicit approval", async () => {
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const discovery = section(skill, "## Goal-Driven YOLO Discovery");
+    const transcript = await readAgentDoc("fixtures/codex-yolo-discovery-approval.md");
+    const combined = normalizeWhitespace(`${discovery} ${transcript}`);
+
+    for (const required of [
+      "natural-language goal",
+      "createPolicyEnforcedPlaywrightDiscoveryRehearsalController",
+      "safe exact-origin",
+      "environment-is-disposable",
+      "structured action",
+      "compileDiscoverySessionToWalkthroughPlan",
+      "replayAndRepairDiscoveryPlan",
+      "at most two",
+      "hard policy boundary",
+      "explicit approval",
+      "agent execute",
+      "agent handoff",
+      "never carries into final capture",
+    ]) {
+      expect(combined).toContain(required);
+    }
+
+    expect(discovery).not.toContain("--allow-best-guess-bypass");
+    expect(discovery).not.toContain("autodemo agent discover");
+    expect(jsonBlock(transcript, "Replay asks Codex for a bounded repair")).toMatchObject({
+      ok: false,
+      phase: "replay",
+      attempts: [{ status: "failed", failure: { repairability: "repairable" } }],
+    });
+    expect(jsonBlock(transcript, "Codex presents the replay-validated plan")).toMatchObject({
+      ok: true,
+      plan: {
+        state: "validated",
+        validation: { mode: "discovery-replay", status: "ready" },
+        approvals: { required: true, approved: false },
+      },
+    });
+    expect(jsonBlock(transcript, "Approval command returns")).toMatchObject({
+      ok: true,
+      plan: { state: "approved", approvals: { approved: true, basis: "validated" } },
+    });
+    expect(jsonBlock(transcript, "Handoff command returns")).toMatchObject({
+      ok: true,
+      project: { manifestPath: "projects/profile-demo/autodemo.project.json" },
+      variant: { id: "baseline-polish" },
+    });
+  });
+
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
 

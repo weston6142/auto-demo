@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ## Project
 
@@ -431,6 +431,9 @@ capture-dir/
 
 - 2026-07-16 WES-188 local implementation and verification: branch `fm/wes-188-deterministic-replay-repair` at `41bcd71` adds fail-closed replay preflight and source fingerprinting, runtime-only bindings, deterministic fresh policy-enforced Playwright replay, bounded sanitized failure evidence, and at most two direct-child repair sessions with recompilation plus lineage, goal, and policy checks. Successful replay produces reviewable, unapproved `discovery-replay` validation evidence; refinements clear that evidence and approval fingerprints cover it. Fresh `npm run validate` passes build, all workspace typechecks, ESLint, 565 Vitest tests plus 2 Node tests, and repository-wide Prettier; `git diff --check` passes. WES-188 remains In Progress pending focused code review, PR integration, and passing CI; WES-189 remains blocked until durable integration.
 - 2026-07-16 WES-188 completion-gate sync: PR #41 merged to `develop` at `2026-07-17T01:03:22Z` as `fa0200eacf732802228176926995d60299937d51`. GitHub `CI / validate` completed successfully on exact head `fed2c27ab7386bcfc9b6b42bf7060f2307f0a655`. Fresh local validation passed build, all workspace typechecks, ESLint, 299 agent, 68 capture, 89 CLI, 22 editor, 20 polish, 60 project, and 22 render Vitest tests plus 2 Node tests, and repository-wide Prettier. Independent final review reported Ready to merge with no Critical, Important, or merge-relevant Minor findings. WES-188 moved to Done, WES-189 received a dependency-readiness note, and WES-189 is now the next-task pointer.
+- 2026-07-17 WES-189 pre-task sync: live Linear and local `develop` at `8ef4cb1` agree that WES-183 through WES-188 are Done and durable, no Agentic Flow Discovery issue is started, and WES-189 is the sole dependency-ready issue. WES-191 remains downstream of WES-189, WES-190 downstream of WES-191, and WES-182 remains the tracker. No WES-189 branch, PR, design spec, implementation plan, or implementation exists; the unrelated `.gitignore` modification is preserved.
+- WES-189 readiness: ready for brainstorming. Define the repository-owned Codex YOLO-discovery host workflow over structured observation/action, policy-bounded autonomous exploration and backtracking, bounded replay/repair, compiled-plan presentation, explicit approval, and the existing deterministic execute/project-handoff path. Resolve workflow artifact ownership, host/model boundary, pause-worthy policy failures, transcript-safe review output, runtime input handling, final-capture authority reset, and Claude-parity documentation; approval bypass remains out of scope.
+- 2026-07-17 WES-189 skill baseline: a fresh agent using the pre-change repository-owned Codex skill interpreted “YOLO discovery” as legacy `best-guess` plan intake, skipped structured observation, policy-enforced rehearsal, compilation, and replay/repair, and proposed `--allow-best-guess-bypass`. This is the expected failing behavior that the WES-189 skill change must replace.
 
 ## Update Rules
 
