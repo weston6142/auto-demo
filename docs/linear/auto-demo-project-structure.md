@@ -113,7 +113,7 @@ Milestones 1–8 retain the order defined by the balanced MVP design spec. Miles
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: WES-190. WES-191 is complete and merged into `develop` via PR #44 (`733c150`), satisfying WES-190's workflow dependency.
+Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: none. The recorded Auto Demo Balanced MVP milestones have no remaining incomplete issue; wait for newly created or reprioritized work.
 
 ## Issues By Milestone
 
@@ -196,7 +196,7 @@ Completion note for WES-176/WES-180: PR #35 completes the capture-to-project imp
 
 Linear milestone: `Agentic Flow Discovery` (`58dc5c96-c449-4900-b495-1bbf5ac61f5a`). The milestone moves walkthrough intake from literal deterministic text parsing toward host-agent discovery while retaining deterministic approved final recording. Safe rehearsal is the default. Mutation-capable discovery requires the user to explicitly identify a disposable environment; that authority never carries into final capture.
 
-- WES-182: Milestone 9: Agentic flow discovery - Backlog - https://linear.app/weston-bushyeager/issue/WES-182/milestone-9-agentic-flow-discovery
+- WES-182: Milestone 9: Agentic flow discovery - Done - https://linear.app/weston-bushyeager/issue/WES-182/milestone-9-agentic-flow-discovery
 - WES-183: Define agentic discovery session and evidence trace contract - Done; durable on `develop` at `fe17aa6` via PR #37 - https://linear.app/weston-bushyeager/issue/WES-183/define-agentic-discovery-session-and-evidence-trace-contract
 - WES-184: Expose structured browser observation snapshots for host agents - Done; merged in PR #37 (`44dde68`) - https://linear.app/weston-bushyeager/issue/WES-184/expose-structured-browser-observation-snapshots-for-host-agents
 - WES-185: Drive rehearsal actions and capture discovery evidence - Done; merged in PR #38 (`9b191c6`) - https://linear.app/weston-bushyeager/issue/WES-185/drive-rehearsal-actions-and-capture-discovery-evidence
@@ -205,9 +205,9 @@ Linear milestone: `Agentic Flow Discovery` (`58dc5c96-c449-4900-b495-1bbf5ac61f5
 - WES-188: Add deterministic replay verification and agent repair loop - Done; merged in PR #41 (`fa0200e`) - https://linear.app/weston-bushyeager/issue/WES-188/add-deterministic-replay-verification-and-agent-repair-loop
 - WES-189: Add Codex YOLO-discovery workflow and approval handoff - Done; merged in PR #42 (`f787aa9`) - https://linear.app/weston-bushyeager/issue/WES-189/add-codex-yolo-discovery-workflow-and-approval-handoff
 - WES-191: Reconcile and retire legacy deterministic walkthrough intake paths - Done; merged in PR #44 (`733c150`) - https://linear.app/weston-bushyeager/issue/WES-191/reconcile-and-retire-legacy-deterministic-walkthrough-intake-paths
-- WES-190: Validate agentic discovery through recording and project handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-190/validate-agentic-discovery-through-recording-and-project-handoff
+- WES-190: Validate agentic discovery through recording and project handoff - Done; merged in PR #46 (`1f3ff7a`) - https://linear.app/weston-bushyeager/issue/WES-190/validate-agentic-discovery-through-recording-and-project-handoff
 
-Dependency order: WES-183 through WES-191 are Done and durable on `develop`. WES-190 is the sole remaining dependency-ready issue and current next-task pointer; tracker WES-182 remains incomplete until WES-190 completes.
+Dependency order: WES-183 through WES-191 and tracker WES-182 are Done. The Agentic Flow Discovery milestone is complete and has no remaining child or next-task pointer.
 
 ## Investigation Notes
 
@@ -456,6 +456,7 @@ capture-dir/
 - 2026-07-18 WES-190 local implementation: deterministic local acceptance coverage now composes semantic first-occurrence selection among duplicate links, cross-page navigation and visible evidence, stale-target direct-child repair, fresh replay, explicit approval, completed and failed real capture bundles, and loadable project handoff with `baseline-polish` plus editor/export next steps. A separate safe-versus-disposable scenario proves exact-origin mutation authority. The acceptance RED exposed UUID-shaped discovery provenance being text-redacted during replay promotion; owning regressions now preserve only known runtime-generated structural UUID identifiers while redacting secret-shaped prefixes. Focused acceptance passes 3/3, the agent suite passes 297/297, and independent review reports Ready with no actionable findings. WES-190 remains In Progress pending final repository verification, PR integration, and passing CI; WES-182 remains open.
 - 2026-07-18 WES-190 local verification: fresh `npm run validate` passes build, every workspace typecheck, ESLint, 577 Vitest tests plus 2 Node tests, and repository-wide Prettier. Fresh `npm run validate:demo-ready` and `git diff --check` also pass. WES-190 remains In Progress pending PR integration and passing CI; WES-182 remains open.
 - 2026-07-18 WES-190 PR verification: PR #46 targets `develop`; GitHub `CI / validate` passed on implementation head `faea7c9b77f6f8a11e006f96ba38dca8c23a4466`, and there are no actionable comments, reviews, or review threads. This map-only evidence update must pass the same required check before squash merge. Because WES-190 is the final Agentic Flow Discovery child, the deterministic next pointer is WES-182 tracker completion rather than another product issue.
+- 2026-07-18 WES-190 completion-gate sync: PR #46 merged to `develop` at `2026-07-18T14:18:01Z` as `1f3ff7a339edb7b5066030dcc0dea6159659f8cc`. GitHub `CI / validate` passed on exact final head `834d913d77232bb09f5746d1ea6417a84449818d`; fresh local validation passed build, every workspace typecheck, ESLint, 577 Vitest tests plus 2 Node tests, repository-wide Prettier, demo-ready export validation, and `git diff --check`. Independent review reported Ready with no actionable findings, and the fresh completion auditor cleared both transitions. Completion evidence was added to WES-190 and WES-182, both moved to Done, and no project issue remains in the next-task pointer.
 
 ## Update Rules
 

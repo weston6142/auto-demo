@@ -280,10 +280,10 @@ Stage explicit issue-owned paths, excluding `.gitignore`. Commit, push `wes-190-
 
 Diagnose failures from logs before changes. Apply technically valid in-scope feedback, re-run affected checks, push, and wait until required checks pass and no actionable review thread remains.
 
-- [ ] **Step 5: Record completion evidence before squash merge**
+- [x] **Step 5: Record completion evidence before squash merge**
 
 Update the project map with the PR, exact final head, passing checks, tests, review outcome, and deterministic next-task pointer. Because WES-190 is the last child, the completion pointer is the WES-182 tracker completion rather than a second product issue. Include the map update in the PR and re-wait for checks.
 
-- [ ] **Step 6: Squash merge and run the completion sync gate**
+- [x] **Step 6: Squash merge and run the completion sync gate**
 
 Squash merge into `develop`, fast-forward local `develop` from the verified base remote, confirm the squash commit locally, add concise completion evidence to WES-190, move WES-190 to Done, reconcile WES-182 to Done only if every child and tracker criterion is verified, and update the final project pointer to no remaining task.
