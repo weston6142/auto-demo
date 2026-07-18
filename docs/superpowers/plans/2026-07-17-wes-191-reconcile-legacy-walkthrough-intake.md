@@ -362,11 +362,11 @@ Run: `rtk git diff --check`
 
 Expected: both exit 0.
 
-- [ ] **Step 3: Commit only issue-owned paths and publish the PR**
+- [x] **Step 3: Commit only issue-owned paths and publish the PR**
 
 Stage explicit WES-191 paths, excluding `.gitignore`. Commit with `WES-191: retire legacy walkthrough intake`, push `wes-191-reconcile-legacy-intake`, and create a squash-merge PR against `develop` containing issue/spec/plan links and exact verification evidence.
 
-- [ ] **Step 4: Monitor checks and review threads**
+- [x] **Step 4: Monitor checks and review threads**
 
 Use `gh pr checks <number> --watch`. Diagnose failures before changes, apply issue-scoped fixes with TDD, and resolve only addressed or technically invalidated feedback.
 
