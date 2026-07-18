@@ -1,6 +1,6 @@
 # Auto Demo Linear Project Map
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 ## Project
 
@@ -88,6 +88,8 @@ Last updated: 2026-07-17
 - WES-188 deterministic replay and repair-loop implementation plan: `docs/superpowers/plans/2026-07-16-wes-188-deterministic-replay-repair-loop.md`
 - WES-189 Codex YOLO-discovery workflow design spec: `docs/superpowers/specs/2026-07-17-wes-189-codex-yolo-discovery-workflow-design.md`
 - WES-189 Codex YOLO-discovery workflow implementation plan: `docs/superpowers/plans/2026-07-17-wes-189-codex-yolo-discovery-workflow.md`
+- WES-191 legacy walkthrough intake reconciliation design spec: `docs/superpowers/specs/2026-07-17-wes-191-reconcile-legacy-walkthrough-intake-design.md`
+- WES-191 legacy walkthrough intake reconciliation implementation plan: `docs/superpowers/plans/2026-07-17-wes-191-reconcile-legacy-walkthrough-intake.md`
 - WES-163 MP4 render artifacts design spec: `docs/superpowers/specs/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts-design.md`
 - WES-163 MP4 render artifacts implementation plan: `docs/superpowers/plans/2026-07-06-wes-163-render-saved-variants-to-mp4-artifacts.md`
 - Linear sync gate design spec: `docs/superpowers/specs/2026-06-28-linear-sync-gate-design.md`
@@ -109,7 +111,7 @@ Milestones 1–8 retain the order defined by the balanced MVP design spec. Miles
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: WES-191. WES-189 is complete and merged into `develop` via PR #42 (`f787aa9`), satisfying WES-191's workflow dependency.
+Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: WES-190. WES-191 is complete and merged into `develop` via PR #44 (`733c150`), satisfying WES-190's workflow dependency.
 
 ## Issues By Milestone
 
@@ -200,10 +202,10 @@ Linear milestone: `Agentic Flow Discovery` (`58dc5c96-c449-4900-b495-1bbf5ac61f5
 - WES-187: Compile discovery traces into executable walkthrough plans - Done; merged in PR #40 (`8d30a83`) - https://linear.app/weston-bushyeager/issue/WES-187/compile-discovery-traces-into-executable-walkthrough-plans
 - WES-188: Add deterministic replay verification and agent repair loop - Done; merged in PR #41 (`fa0200e`) - https://linear.app/weston-bushyeager/issue/WES-188/add-deterministic-replay-verification-and-agent-repair-loop
 - WES-189: Add Codex YOLO-discovery workflow and approval handoff - Done; merged in PR #42 (`f787aa9`) - https://linear.app/weston-bushyeager/issue/WES-189/add-codex-yolo-discovery-workflow-and-approval-handoff
-- WES-191: Reconcile and retire legacy deterministic walkthrough intake paths - In Progress - https://linear.app/weston-bushyeager/issue/WES-191/reconcile-and-retire-legacy-deterministic-walkthrough-intake-paths
+- WES-191: Reconcile and retire legacy deterministic walkthrough intake paths - Done; merged in PR #44 (`733c150`) - https://linear.app/weston-bushyeager/issue/WES-191/reconcile-and-retire-legacy-deterministic-walkthrough-intake-paths
 - WES-190: Validate agentic discovery through recording and project handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-190/validate-agentic-discovery-through-recording-and-project-handoff
 
-Dependency order: WES-183 through WES-189 are Done and durable on `develop`. WES-191 is the current next-task pointer and sole dependency-ready issue; WES-190 remains downstream of WES-191, and tracker WES-182 remains incomplete until WES-190 completes.
+Dependency order: WES-183 through WES-191 are Done and durable on `develop`. WES-190 is the sole remaining dependency-ready issue and current next-task pointer; tracker WES-182 remains incomplete until WES-190 completes.
 
 ## Investigation Notes
 
@@ -446,6 +448,7 @@ capture-dir/
 - 2026-07-17 WES-191 approved design and planning: new walkthrough plans come only from evidence-backed discovery compilation. The deterministic text parser, `agent plan`, and URL/script validation are removed; durable plan-file validation and the review/refine/approve/execute/handoff lifecycle remain supported. Existing `deterministic-v1` and best-guess plan artifacts remain explicit migration compatibility, with discovery plans prohibited from best-guess bypass. The design is in `docs/superpowers/specs/2026-07-17-wes-191-reconcile-legacy-walkthrough-intake-design.md` and the inline TDD plan is in `docs/superpowers/plans/2026-07-17-wes-191-reconcile-legacy-walkthrough-intake.md`.
 - 2026-07-18 WES-191 local implementation and verification: branch `wes-191-reconcile-legacy-intake` removes `createWalkthroughPlan()`, `normalizeStep()`, the `agent plan` route, direct URL/script validate intake, obsolete parser fixtures, and their public instructions. Existing `deterministic-v1` artifacts retain explicit migration-only dry-run validation and lifecycle support; discovery plans are constrained to `validate-first`, require source-matched fresh-context replay before approval, and cannot use best-guess bypass. Retired and unknown validation arguments no longer echo raw values. Fresh `npm run validate` exits 0 with build, every workspace typecheck, ESLint, 295 agent, 68 capture, 85 CLI, 22 editor, 20 polish, 60 project, and 22 render Vitest tests plus 2 Node tests, and repository-wide Prettier. Independent final review reports Ready with no remaining Critical or Important findings, and `git diff --check` passes. WES-191 remains In Progress pending PR integration and passing CI; WES-190 is the deterministic next-task pointer after merge.
 - 2026-07-18 WES-191 PR verification: PR #44 targets `develop`; GitHub `CI / validate` passed on implementation head `97e0a0ce95d0a396382b48aedc52670711b03300`, and there are no actionable review threads. This map-only evidence update must pass the same required check before squash merge. WES-190 remains the deterministic next-task pointer after merge.
+- 2026-07-18 WES-191 completion-gate sync: PR #44 merged to `develop` at `2026-07-18T12:46:44Z` as `733c150458b698a81e5550a56e5378a6dc49495f`. GitHub `CI / validate` passed on exact final head `85ee7b20eac4a501c7437183f53f1341e6150881`. Fresh local validation passed build, every workspace typecheck, ESLint, 295 agent, 68 capture, 85 CLI, 22 editor, 20 polish, 60 project, and 22 render Vitest tests plus 2 Node tests, and repository-wide Prettier; `git diff --check` passed. Independent final review and the fresh completion auditor both reported Ready with no remaining Critical or Important findings. Completion evidence was added to WES-191 and it moved to Done; WES-190 received the dependency-readiness handoff, WES-182 received the tracker update, and WES-190 is now the sole remaining child and next-task pointer.
 
 ## Update Rules
 
