@@ -1,13 +1,13 @@
 ---
 name: codex-auto-demo
-description: Use when Codex needs to run the Auto Demo agent workflow for a validated project, create a walkthrough plan from a browser demo script, select or generate a saved variant, open the local editor handoff, or prepare a local MP4 export handoff.
+description: Use when Codex needs to prepare or record an Auto Demo project, discover a browser walkthrough from a natural-language goal, run the agent workflow, review or approve a plan, select or generate a saved variant, open the editor, or prepare an MP4 export.
 ---
 
 # Auto Demo Codex Workflow
 
 Use this skill when working in an Auto Demo repository or project directory and
-the task is to prepare a demo variant through the agent-facing workflow or turn
-a browser demo script into a walkthrough plan.
+the task is to discover, approve, record, edit, or export a browser demo through
+the agent-facing workflow.
 
 ## Prerequisites
 
@@ -37,6 +37,46 @@ autodemo agent run --project <project-dir-or-manifest> --json
 The command validates the project, selects a saved variant, and prints one JSON
 handoff summary for agent logs. Parse the JSON result and report the selected
 variant id, variant path, project manifest path, warnings, and next-step hints.
+
+## Goal-Driven YOLO Discovery
+
+When the user supplies a target URL plus a natural-language goal and opts into
+YOLO or autonomous discovery, use the public `@auto-demo/agent` library
+contracts directly. There is no discovery CLI, and YOLO discovery is not legacy
+`best-guess` planning.
+
+1. Start safe exact-origin discovery unless the user freshly identifies an
+   `environment-is-disposable` scope and exact allowed origins. Credential,
+   payment, upload, unsafe-origin, download, and WebSocket policy denials are a
+   hard policy boundary: stop and report the sanitized result instead of
+   repairing around it.
+2. Own an isolated Playwright page and create
+   `createPolicyEnforcedPlaywrightDiscoveryRehearsalController(...)`. Read only
+   its bounded observations. Choose one structured action with declared
+   expectations per `perform()` call. Do not use selectors, raw DOM, arbitrary
+   page evaluation, or a parallel browser-action path.
+3. Preserve failed exploration as evidence. Use explicit back, refresh, retry,
+   or alternative-target actions when the evidence supports them, and complete
+   only one continuous successful selected path. Resolve named runtime bindings
+   in memory with non-secret demo data.
+4. Compile with `compileDiscoverySessionToWalkthroughPlan()`, then call
+   `replayAndRepairDiscoveryPlan()` in fresh isolated browsers. Supply only
+   completed direct-child sessions for repair, at most two. Never edit a
+   compiled plan or repair a hard policy boundary.
+5. Present the returned transcript-safe review. Only an `ok: true`,
+   replay-validated, blocker-free plan may reach explicit approval. The initial
+   YOLO request is not approval, and a discovery plan cannot use the best-guess
+   approval bypass.
+6. After the user explicitly approves the displayed plan, use the existing
+   `agent approve`, `agent execute`, and `agent handoff` commands below. A
+   disposable acknowledgement, policy permit, discovery page, repair authority,
+   or runtime value never carries into final capture.
+
+Keep sessions, replay results, validated and approved plans, execution results,
+and runtime inputs in separate local artifacts. Never paste raw observations,
+DOM, selectors, screenshots, request data, manifest contents, or runtime values
+into conversation. See `fixtures/codex-yolo-discovery-approval.md` for the full
+host transcript.
 
 ## Walkthrough Plan Intake
 
