@@ -68,6 +68,15 @@ strings, typed values, credentials, or secret-bearing local paths.
 
 ## Walkthrough Review Parity
 
+A future Claude host must use evidence-backed discovery compilation as the only
+new-plan intake. Plan-file dry-run validation accepts existing
+`deterministic-v1` artifacts for migration compatibility and rejects discovery
+plans, which require fresh-context replay. Review, refinement, approval, and
+execution retain both supported artifact lifecycles. New plans must come from
+evidence-backed discovery compilation.
+Existing best-guess artifacts still require an explicit bypass approval, but
+discovery plans never use the best-guess bypass.
+
 A future Claude wrapper should use the same review, refinement, and approval
 contract as Codex. It should invoke `autodemo agent review`, translate user
 answers into structured refinement arrays for `autodemo agent refine`, present

@@ -2,14 +2,15 @@ import { createServer, type Server } from "node:http";
 import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  approveWalkthroughPlan,
-  createWalkthroughPlan,
-  type WalkthroughPlan,
-} from "@auto-demo/agent";
+import { approveWalkthroughPlan, type WalkthroughPlan } from "@auto-demo/agent";
 import { loadProject } from "@auto-demo/project";
 import { afterEach, describe, expect, it } from "vitest";
 import { runCliAsync } from "./index.js";
+import {
+  legacyWalkthroughPlanFixture,
+  resolved,
+  type LegacyStepFixture,
+} from "./walkthroughTestFixtures.js";
 
 let server: Server | undefined;
 
@@ -41,20 +42,10 @@ async function serveFixture(): Promise<string> {
   return `http://127.0.0.1:${address.port}`;
 }
 
-function approvePlan(targetUrl: string, script: string): WalkthroughPlan {
-  const created = createWalkthroughPlan({ targetUrl, script, mode: "best-guess" });
-  if (!created.ok) throw new Error("test plan should be valid");
-  for (const step of created.plan.steps) {
-    if (step.action === "click" && step.public.summary.includes("Get started")) {
-      step.targetHint = { kind: "accessible", label: "Get started", role: "button" };
-    }
-    if (step.action === "click" && step.public.summary.includes("Missing")) {
-      step.targetHint = { kind: "accessible", label: "Missing", role: "button" };
-    }
-    if (step.action === "type") step.targetHint = { kind: "accessible", label: "Search" };
-    if (step.action === "assert") step.targetHint = { kind: "accessible", label: "Results" };
-  }
-  const approved = approveWalkthroughPlan(created.plan, { allowBestGuessBypass: true });
+function approvePlan(targetUrl: string, steps: LegacyStepFixture[]): WalkthroughPlan {
+  const script = steps.map((step) => step.sourceText).join(" ");
+  const plan = legacyWalkthroughPlanFixture({ targetUrl, script, steps, mode: "best-guess" });
+  const approved = approveWalkthroughPlan(plan, { allowBestGuessBypass: true });
   if (!approved.ok) throw new Error("test plan should approve");
   return approved.plan;
 }
@@ -75,10 +66,22 @@ describe("autodemo agent execute smoke", () => {
     const targetUrl = await serveFixture();
     const root = await mkdtemp(join(tmpdir(), "auto-demo-execute-smoke-"));
     const captureDir = join(root, "capture");
-    const plan = approvePlan(
-      targetUrl,
-      `Go to ${targetUrl}. Click Get started. Type launch demo into Search. Wait 100 ms. Verify Results.`,
-    );
+    const plan = approvePlan(targetUrl, [
+      resolved("navigate", `Go to ${targetUrl}.`, { navigationUrl: targetUrl }),
+      {
+        ...resolved("click", "Click Get started."),
+        targetHint: { kind: "accessible", label: "Get started", role: "button" },
+      },
+      {
+        ...resolved("type", "Type [redacted] into Search."),
+        targetHint: { kind: "accessible", label: "Search" },
+      },
+      resolved("wait", "Wait 100 ms.", { waitDurationMs: 100 }),
+      {
+        ...resolved("assert", "Verify Results."),
+        targetHint: { kind: "accessible", label: "Results" },
+      },
+    ]);
     const files = await writeExecutionFiles(root, plan);
 
     const result = await runCliAsync([
@@ -136,10 +139,21 @@ describe("autodemo agent execute smoke", () => {
     const targetUrl = await serveFixture();
     const root = await mkdtemp(join(tmpdir(), "auto-demo-execute-failure-"));
     const captureDir = join(root, "capture");
-    const plan = approvePlan(
-      targetUrl,
-      `Go to ${targetUrl}. Click Get started. Click Missing. Verify Results.`,
-    );
+    const plan = approvePlan(targetUrl, [
+      resolved("navigate", `Go to ${targetUrl}.`, { navigationUrl: targetUrl }),
+      {
+        ...resolved("click", "Click Get started."),
+        targetHint: { kind: "accessible", label: "Get started", role: "button" },
+      },
+      {
+        ...resolved("click", "Click Missing."),
+        targetHint: { kind: "accessible", label: "Missing", role: "button" },
+      },
+      {
+        ...resolved("assert", "Verify Results."),
+        targetHint: { kind: "accessible", label: "Results" },
+      },
+    ]);
     const planPath = join(root, "approved-plan.json");
     await writeFile(planPath, `${JSON.stringify({ ok: true, plan }, null, 2)}\n`);
 

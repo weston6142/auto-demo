@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { createWalkthroughPlan, reviewWalkthroughPlan, type WalkthroughPlan } from "./index.js";
+import { reviewWalkthroughPlan, type WalkthroughPlan } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 function plan(script = "Go to https://example.com/signup. Click Get started."): WalkthroughPlan {
-  const result = createWalkthroughPlan({
-    targetUrl: "https://example.com/signup",
-    script,
-    mode: "validate-first",
-  });
+  const result = {
+    ok: true as const,
+    plan: legacyWalkthroughPlanFixture({
+      targetUrl: "https://example.com/signup",
+      script,
+      mode: "validate-first",
+    }),
+  };
   if (!result.ok) {
     throw new Error("test plan should be valid");
   }

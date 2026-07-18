@@ -83,7 +83,11 @@ export type ValidatedWalkthroughPlan = WalkthroughPlan & {
 };
 
 export type WalkthroughValidationErrorCode =
-  "invalid_plan" | "unsafe_target_url" | "browser_setup_failed" | "navigation_failed";
+  | "invalid_plan"
+  | "discovery_replay_required"
+  | "unsafe_target_url"
+  | "browser_setup_failed"
+  | "navigation_failed";
 
 export type WalkthroughValidationError = {
   code: WalkthroughValidationErrorCode;
@@ -160,6 +164,13 @@ export async function validateWalkthroughPlan(
 ): Promise<WalkthroughValidationResult> {
   if (!isWalkthroughPlan(plan)) {
     return failure("invalid_plan", "Walkthrough validation requires a valid walkthrough plan.");
+  }
+
+  if (plan.source.parser === "discovery-v1") {
+    return failure(
+      "discovery_replay_required",
+      "Discovery plans require fresh-context replay validation before approval.",
+    );
   }
 
   if (hasCredentialLikeUrlData(plan.target.url)) {
@@ -803,6 +814,20 @@ function hasExactKeys(value: unknown, allowed: readonly string[]): boolean {
 function hasConsistentPlanRelationships(plan: WalkthroughPlan): boolean {
   if (plan.source.script.trim().length === 0) {
     return false;
+  }
+
+  if (plan.source.parser === "discovery-v1") {
+    if (plan.mode !== "validate-first") return false;
+    if (plan.validation !== undefined) {
+      if (plan.validation.mode !== "discovery-replay") return false;
+      if (
+        plan.validation.replay.sourceSessionId !== plan.source.discovery.sessionId ||
+        plan.validation.replay.selectedPathFingerprint !==
+          plan.source.discovery.selectedPathFingerprint
+      ) {
+        return false;
+      }
+    }
   }
 
   const stepIds = new Set(plan.steps.map((step) => step.id));

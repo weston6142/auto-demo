@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   approveWalkthroughPlan,
-  createWalkthroughPlan,
   isWalkthroughPlan,
   validateWalkthroughPlan,
   WalkthroughValidationRunnerError,
@@ -9,13 +8,17 @@ import {
   type WalkthroughValidationMatch,
   type WalkthroughValidationPageState,
 } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 function plan(script: string) {
-  const result = createWalkthroughPlan({
-    targetUrl: "https://example.com/signup",
-    script,
-    mode: "validate-first",
-  });
+  const result = {
+    ok: true as const,
+    plan: legacyWalkthroughPlanFixture({
+      targetUrl: "https://example.com/signup",
+      script,
+      mode: "validate-first",
+    }),
+  };
   if (!result.ok) {
     throw new Error("test plan should be valid");
   }
@@ -59,6 +62,47 @@ function runner(
 }
 
 describe("validateWalkthroughPlan", () => {
+  it("requires validate-first mode for discovery plans", () => {
+    const discovered = plan("Verify Results.");
+    discovered.mode = "best-guess";
+    discovered.source = {
+      parser: "discovery-v1",
+      script: "Verify Results.",
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+
+    expect(isWalkthroughPlan(discovered)).toBe(false);
+  });
+
+  it("requires fresh-context replay instead of dry-run validation for discovery plans", async () => {
+    const discovered = plan("Verify Results.");
+    discovered.source = {
+      parser: "discovery-v1",
+      script: "Verify Results.",
+      discovery: {
+        schemaVersion: 1,
+        sessionId: "session-1",
+        selectedPathFingerprint: `sha256:${"a".repeat(64)}`,
+      },
+    };
+
+    await expect(validateWalkthroughPlan(discovered, {}, { browser: runner({}) })).resolves.toEqual(
+      {
+        ok: false,
+        errors: [
+          {
+            code: "discovery_replay_required",
+            message: "Discovery plans require fresh-context replay validation before approval.",
+          },
+        ],
+      },
+    );
+  });
+
   it("accepts bounded discovery source, assertion, and provenance fields", () => {
     const discovered = plan("Verify Results.");
     discovered.source = {
@@ -124,6 +168,13 @@ describe("validateWalkthroughPlan", () => {
       },
     };
 
+    expect(isWalkthroughPlan(discovered)).toBe(false);
+
+    if (discovered.validation?.mode !== "discovery-replay") {
+      throw new Error("test plan should carry replay evidence");
+    }
+    discovered.validation.replay.sourceSessionId = "session-1";
+    discovered.validation.replay.selectedPathFingerprint = `sha256:${"a".repeat(64)}`;
     expect(isWalkthroughPlan(discovered)).toBe(true);
 
     const missing = structuredClone(discovered);
@@ -227,11 +278,14 @@ describe("validateWalkthroughPlan", () => {
   });
 
   it("accepts only consistent completed and failed execution lifecycles", () => {
-    const created = createWalkthroughPlan({
-      targetUrl: "https://example.com",
-      script: "Click Get started.",
-      mode: "best-guess",
-    });
+    const created = {
+      ok: true as const,
+      plan: legacyWalkthroughPlanFixture({
+        targetUrl: "https://example.com",
+        script: "Click Get started.",
+        mode: "best-guess",
+      }),
+    };
     if (!created.ok) throw new Error("test plan should be valid");
     const approved = approveWalkthroughPlan(created.plan, { allowBestGuessBypass: true });
     if (!approved.ok) throw new Error("test plan should approve");

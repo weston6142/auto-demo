@@ -1,5 +1,9 @@
 # Codex Walkthrough Refinement
 
+> Legacy migration example: this transcript refines an existing
+> `deterministic-v1` artifact. New walkthrough plans come from evidence-backed
+> discovery compilation and use the discovery replay/repair path.
+
 ## Blocked review
 
 Codex reviews a validated plan and explains one ambiguity: validation found two visible Get started buttons.
@@ -29,7 +33,9 @@ Codex runs:
 npm run autodemo -- agent refine --plan plans/signup.blocked.json --refinements plans/signup.refinements.json --json
 ```
 
-The command applies the refinement, invalidates any prior approval, and automatically revalidates the `validate-first` plan.
+For this legacy migration artifact, the command applies the refinement,
+invalidates any prior approval, and automatically revalidates the
+`validate-first` plan.
 
 ## Revalidated plan artifact
 

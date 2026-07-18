@@ -23,10 +23,9 @@ the agent-facing workflow.
 - Treat `autodemo agent run --project <project-dir-or-manifest> --json` as the
   source of truth. Do not inspect or rewrite Auto Demo project internals to
   duplicate selection, generation, validation, or editor behavior.
-- Treat `autodemo agent plan --url <target-url> --script <script-text> --json`
-  as the source of truth for script intake. Use the validate, review, refine, and
-  approve commands for later plan lifecycle changes. Do not invent execution,
-  capture, or project-handoff behavior in this wrapper.
+- Treat evidence-backed discovery compilation as the only new-plan intake. Use
+  durable plan files with validate, review, refine, approve, execute, and handoff.
+  Do not invent execution, capture, or project-handoff behavior in this wrapper.
 
 ## Primary Command
 
@@ -80,29 +79,25 @@ host transcript.
 
 ## Walkthrough Plan Intake
 
-When the user provides a target browser URL and natural-language demo script,
-create a plan before validation or capture work:
-
-```bash
-autodemo agent plan --url <target-url> --script <script-text> [--mode validate-first|best-guess] --json
-```
-
-Parse the JSON result and report the plan id, state, resolved step actions,
-unresolved questions, warnings, and approval/execution placeholders. Public type
-step summaries redact typed values. `--mode` defaults to `validate-first`;
-`best-guess` adds a review warning. This command does not validate page state,
-approve plans, execute browser actions, record captures, automate credentials,
-perform destructive production actions, or create Auto Demo projects.
+New plans must come from evidence-backed discovery compilation, followed by
+fresh-context replay and repair. Persist the durable plan artifact before using
+the commands below. Plan-file dry-run validation accepts existing
+`deterministic-v1` artifacts for migration compatibility and rejects discovery
+plans, which require fresh-context replay. Review, refinement, approval, and
+execution retain both supported artifact lifecycles. Existing best-guess
+artifacts still require an explicit bypass approval, but discovery plans never
+use the best-guess bypass.
 
 ## Walkthrough Review, Refinement, And Approval
 
 For `validate-first`, follow this sequence:
 
 ```text
-plan -> validate -> review -> conversational clarification -> refine -> review -> explicit confirmation -> approve
+discover -> compile -> replay/repair -> review -> conversational clarification -> refine -> review -> explicit confirmation -> approve
 ```
 
-Validate and review an existing plan artifact:
+Validate an existing legacy migration artifact, or review either supported plan
+artifact:
 
 ```bash
 autodemo agent validate --plan <plan-json-file> --json
@@ -222,8 +217,9 @@ and non-secret message. Common workflow codes include `missing_project_path`,
 `unsupported_agent_command`, `unsupported_agent_output`,
 `unknown_agent_argument`, `invalid_project`, `missing_variant`,
 `variant_not_found`, `unsupported_generation`, `generation_failed`, and
-`editor_unavailable`. Common planning codes include `missing_target_url`,
-`invalid_target_url`, `missing_script`, `unsupported_plan_mode`, and
+`editor_unavailable`. Plan-file validation codes include `missing_validate_input`,
+`missing_plan_file`, `invalid_plan_json`, `invalid_plan`,
+`discovery_replay_required`, `retired_validate_input`, and
 `unknown_agent_argument`. Review workflow codes include `invalid_plan`,
 `invalid_refinement`, `unknown_refinement_step`, `stale_validation_blocker`,
 `unknown_validation_candidate`, `candidate_not_persistable`,

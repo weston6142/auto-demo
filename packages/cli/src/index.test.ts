@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createWalkthroughPlan, type WalkthroughValidationBrowserRunner } from "@auto-demo/agent";
+import { type WalkthroughValidationBrowserRunner } from "@auto-demo/agent";
 import { writeCaptureManifest, type CaptureOutput } from "@auto-demo/capture";
 import { runCli, runCliAsync, type CliDependencies } from "./index.js";
+import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
 function testDependencies(
   createValidationRunner?: () => WalkthroughValidationBrowserRunner,
@@ -217,6 +218,17 @@ describe("runCli", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toContain("Usage: autodemo <command>");
     expect(result.stderr).toBe("Unknown command: wat\n");
+  });
+
+  it("describes legacy walkthrough compatibility without advertising retired intake", async () => {
+    const result = await runCliAsync(["agent", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Explicitly approve an existing legacy best-guess artifact");
+    expect(result.stdout).not.toContain("autodemo agent plan");
+    expect(result.stdout).not.toContain("--url");
+    expect(result.stdout).not.toContain("--script");
+    expect(result.stderr).toBe("");
   });
 });
 
@@ -595,7 +607,7 @@ describe("runCliAsync agent", () => {
     }
   });
 
-  it("prints a walkthrough plan as JSON", async () => {
+  it("rejects the retired agent plan command", async () => {
     const result = await runCliAsync([
       "agent",
       "plan",
@@ -605,144 +617,19 @@ describe("runCliAsync agent", () => {
       "Go to https://example.com/signup. Click Get started.",
       "--json",
     ]);
-    const output = JSON.parse(result.stdout) as {
-      ok: boolean;
-      plan: { state: string; mode: string; steps: Array<{ action: string }> };
-    };
-
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("");
-    expect(output.ok).toBe(true);
-    expect(output.plan.state).toBe("draft");
-    expect(output.plan.mode).toBe("validate-first");
-    expect(output.plan.steps.map((step) => step.action)).toEqual(["navigate", "click"]);
-  });
-
-  it("redacts typed values from the walkthrough plan artifact", async () => {
-    const result = await runCliAsync([
-      "agent",
-      "plan",
-      "--url",
-      "https://example.com/login",
-      "--script",
-      "Type hunter2 into the password field.",
-      "--json",
-    ]);
-    const output = JSON.parse(result.stdout) as {
-      ok: boolean;
-      plan: { source: { script: string }; steps: Array<{ sourceText: string }> };
-    };
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(output.ok).toBe(true);
-    expect(output.plan.source.script).toBe("Type [redacted] into the password field.");
-    expect(output.plan.steps[0]?.sourceText).toBe("Type [redacted] into the password field.");
-  });
-
-  it("requires JSON output for walkthrough planning", async () => {
-    const result = await runCliAsync([
-      "agent",
-      "plan",
-      "--url",
-      "https://example.com",
-      "--script",
-      "Click Get started",
-    ]);
-
-    expect(result).toEqual({
-      exitCode: 1,
-      stdout: "",
-      stderr: "autodemo agent plan currently requires --json output.\n",
+    expect(JSON.parse(result.stdout)).toEqual({
+      ok: false,
+      project: { projectPath: "" },
+      errors: [
+        {
+          code: "unsupported_agent_command",
+          message:
+            "Unsupported autodemo agent command. Use autodemo agent run, validate, review, refine, approve, execute, or handoff.",
+        },
+      ],
     });
-  });
-
-  it("returns structured JSON errors for invalid walkthrough plan input", async () => {
-    const result = await runCliAsync([
-      "agent",
-      "plan",
-      "--url",
-      "notaurl",
-      "--script",
-      "",
-      "--mode",
-      "fast",
-      "--json",
-    ]);
-    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe("");
-    expect(output.ok).toBe(false);
-    expect(output.errors).toEqual([
-      { code: "invalid_target_url", message: expect.any(String) },
-      { code: "missing_script", message: expect.any(String) },
-      { code: "unsupported_plan_mode", message: expect.any(String) },
-    ]);
-  });
-
-  it("reports a missing walkthrough plan URL value as missing_target_url", async () => {
-    const result = await runCliAsync([
-      "agent",
-      "plan",
-      "--url",
-      "--script",
-      "Click Get started",
-      "--json",
-    ]);
-    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe("");
-    expect(output.ok).toBe(false);
-    expect(output.errors).toEqual([{ code: "missing_target_url", message: expect.any(String) }]);
-  });
-
-  it("reports unknown walkthrough plan arguments distinctly from mode validation", async () => {
-    const result = await runCliAsync([
-      "agent",
-      "plan",
-      "--url",
-      "https://example.com",
-      "--script",
-      "Click Get started",
-      "--wat",
-      "--json",
-    ]);
-    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe("");
-    expect(output.ok).toBe(false);
-    expect(output.errors).toEqual([
-      { code: "unknown_agent_argument", message: expect.any(String) },
-    ]);
-  });
-
-  it("orders unsafe navigation errors before other walkthrough plan errors", async () => {
-    const secret = "navigation-private-value";
-    const result = await runCliAsync([
-      "agent",
-      "plan",
-      "--wat",
-      "--url",
-      "https://example.com",
-      "--script",
-      `Go to https://example.com/dashboard?token=${secret}.`,
-      "--mode",
-      "fast",
-      "--json",
-    ]);
-    const output = JSON.parse(result.stdout) as { ok: boolean; errors: Array<{ code: string }> };
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toBe("");
-    expect(output.errors).toEqual([
-      { code: "invalid_navigation_url", message: expect.any(String) },
-      { code: "unsupported_plan_mode", message: expect.any(String) },
-      { code: "unknown_agent_argument", message: expect.any(String) },
-    ]);
-    expect(result.stdout).not.toContain(secret);
   });
 
   it("validates a walkthrough plan file as JSON", async () => {
@@ -750,13 +637,14 @@ describe("runCliAsync agent", () => {
     const planPath = join(tempDir, "plan.json");
     await writeFile(
       planPath,
-      JSON.stringify(
-        createWalkthroughPlan({
+      JSON.stringify({
+        ok: true,
+        plan: legacyWalkthroughPlanFixture({
           targetUrl: "https://example.com/signup",
           script: "Click Get started.",
           mode: "validate-first",
         }),
-      ),
+      }),
     );
 
     try {
@@ -787,7 +675,7 @@ describe("runCliAsync agent", () => {
     }
   });
 
-  it("validates URL and script input and returns ambiguity blockers", async () => {
+  it("requires a durable plan file for walkthrough validation", async () => {
     const result = await runCliAsync(
       [
         "agent",
@@ -798,31 +686,60 @@ describe("runCliAsync agent", () => {
         "Click Get started.",
         "--json",
       ],
-      testDependencies(() =>
-        validationRunner([
-          { id: "candidate-1", label: "Header: Get started", role: "button" },
-          { id: "candidate-2", label: "Hero: Get started", role: "button" },
-        ]),
-      ),
+      testDependencies(),
     );
     const output = JSON.parse(result.stdout) as {
       ok: boolean;
-      plan: { validation: { status: string; blockers: Array<{ reason: string }> } };
+      errors: Array<{ code: string; message: string }>;
     };
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("");
-    expect(output.ok).toBe(true);
-    expect(output.plan.validation.status).toBe("blocked");
-    expect(output.plan.validation.blockers).toEqual([
-      {
-        id: "blocker-1",
-        stepId: "step-1",
-        reason: "multiple_matching_elements",
-        question: expect.any(String),
-        candidates: expect.any(Array),
-      },
+    expect(output).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "retired_validate_input",
+          message: "Direct URL walkthrough validation is retired; provide a plan artifact.",
+        },
+        {
+          code: "retired_validate_input",
+          message: "Script walkthrough intake is retired; provide a plan artifact.",
+        },
+        {
+          code: "missing_validate_input",
+          message: "autodemo agent validate requires --plan <plan-json-file>.",
+        },
+      ],
+    });
+  });
+
+  it("never echoes retired walkthrough intake values in validation errors", async () => {
+    const secretScript = "Type sk-secretvalue123 into password";
+    const result = await runCliAsync([
+      "agent",
+      "validate",
+      "--url=https://user:password@example.com",
+      `--script=${secretScript}`,
+      "--json",
     ]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).not.toContain(secretScript);
+    expect(result.stdout).not.toContain("user:password");
+    expect(result.stderr).toBe("");
+
+    const optionShapedValue = await runCliAsync([
+      "agent",
+      "validate",
+      "--script",
+      "--api-key=sk-secretvalue123",
+      "--json",
+    ]);
+    expect(optionShapedValue.exitCode).toBe(1);
+    expect(optionShapedValue.stdout).not.toContain("sk-secretvalue123");
+    expect(optionShapedValue.stdout).toContain("Unknown agent validate argument: --api-key");
+    expect(optionShapedValue.stderr).toBe("");
   });
 
   it("requires JSON output for walkthrough validation", async () => {
@@ -903,14 +820,20 @@ describe("runCliAsync agent", () => {
     expect(JSON.parse(result.stdout)).toEqual({
       ok: false,
       errors: [
-        { code: "unsupported_plan_mode", message: expect.any(String) },
-        { code: "unknown_agent_argument", message: expect.any(String) },
-        { code: "missing_validate_input", message: expect.any(String) },
+        {
+          code: "retired_validate_input",
+          message: "Walkthrough planning modes are retired; provide a plan artifact.",
+        },
+        { code: "unknown_agent_argument", message: "Unknown agent validate argument: --wat" },
+        {
+          code: "missing_validate_input",
+          message: "autodemo agent validate requires --plan <plan-json-file>.",
+        },
       ],
     });
   });
 
-  it("rejects conflicting walkthrough validation input forms", async () => {
+  it("rejects retired URL and script flags alongside a plan file", async () => {
     const result = await runCliAsync([
       "agent",
       "validate",
@@ -927,7 +850,16 @@ describe("runCliAsync agent", () => {
     expect(result.stderr).toBe("");
     expect(JSON.parse(result.stdout)).toEqual({
       ok: false,
-      errors: [{ code: "conflicting_validate_input", message: expect.any(String) }],
+      errors: [
+        {
+          code: "retired_validate_input",
+          message: "Direct URL walkthrough validation is retired; provide a plan artifact.",
+        },
+        {
+          code: "retired_validate_input",
+          message: "Script walkthrough intake is retired; provide a plan artifact.",
+        },
+      ],
     });
   });
 });
