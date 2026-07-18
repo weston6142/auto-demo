@@ -108,7 +108,7 @@ Milestones 1–8 retain the order defined by the balanced MVP design spec. Miles
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: WES-189. WES-188 is complete and merged into `develop` via PR #41 (`fa0200e`), satisfying WES-189's replay-and-repair dependency. After WES-189 merges, advance the pointer to WES-191.
+Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: WES-191. WES-189 is complete and merged into `develop` via PR #42 (`f787aa9`), satisfying WES-191's workflow dependency.
 
 ## Issues By Milestone
 
@@ -198,11 +198,11 @@ Linear milestone: `Agentic Flow Discovery` (`58dc5c96-c449-4900-b495-1bbf5ac61f5
 - WES-186: Enforce safe and explicitly disposable discovery policies - Done; merged in PR #39 (`f75e8c2`) - https://linear.app/weston-bushyeager/issue/WES-186/enforce-safe-and-explicitly-disposable-discovery-policies
 - WES-187: Compile discovery traces into executable walkthrough plans - Done; merged in PR #40 (`8d30a83`) - https://linear.app/weston-bushyeager/issue/WES-187/compile-discovery-traces-into-executable-walkthrough-plans
 - WES-188: Add deterministic replay verification and agent repair loop - Done; merged in PR #41 (`fa0200e`) - https://linear.app/weston-bushyeager/issue/WES-188/add-deterministic-replay-verification-and-agent-repair-loop
-- WES-189: Add Codex YOLO-discovery workflow and approval handoff - In Progress - https://linear.app/weston-bushyeager/issue/WES-189/add-codex-yolo-discovery-workflow-and-approval-handoff
+- WES-189: Add Codex YOLO-discovery workflow and approval handoff - Done; merged in PR #42 (`f787aa9`) - https://linear.app/weston-bushyeager/issue/WES-189/add-codex-yolo-discovery-workflow-and-approval-handoff
 - WES-191: Reconcile and retire legacy deterministic walkthrough intake paths - Backlog - https://linear.app/weston-bushyeager/issue/WES-191/reconcile-and-retire-legacy-deterministic-walkthrough-intake-paths
 - WES-190: Validate agentic discovery through recording and project handoff - Backlog - https://linear.app/weston-bushyeager/issue/WES-190/validate-agentic-discovery-through-recording-and-project-handoff
 
-Dependency order: WES-183 through WES-188 are Done and durable on `develop`. WES-189 is the current next-task pointer and sole dependency-ready implementation issue; WES-191 remains blocked by WES-189, WES-190 by WES-191, and tracker WES-182 by WES-190.
+Dependency order: WES-183 through WES-189 are Done and durable on `develop`. WES-191 is the current next-task pointer and sole dependency-ready issue; WES-190 remains downstream of WES-191, and tracker WES-182 remains incomplete until WES-190 completes.
 
 ## Investigation Notes
 
@@ -440,6 +440,7 @@ capture-dir/
 - 2026-07-17 WES-189 local verification: focused wrapper behavior passes 20/20; `@auto-demo/agent` typecheck and build pass; the bundled skill validator reports `Skill is valid!`; targeted formatting and `git diff --check` pass. Fresh `npm run validate` exits 0 after repository build, all workspace typechecks, ESLint, 301 agent, 68 capture, 89 CLI, 22 editor, 20 polish, 60 project, and 22 render Vitest tests plus 2 Node tests, and repository-wide Prettier. The unrelated `.gitignore` change remains preserved and unstaged. WES-189 remains In Progress pending independent review, PR integration, passing CI, and the completion gate.
 - 2026-07-17 WES-189 review correction: independent review found that the first synthetic transcript implied a successful profile-save mutation while discovery still used safe policy. The example now stops at that policy boundary, records a fresh exact-origin disposable acknowledgement before mutating discovery, requests a separate fresh disposable acknowledgement before replay repair, distinguishes the approval command's public summary from its full returned artifact, and writes successful execute JSON before handoff. A regression parses the disposable policy artifact, verifies acknowledgement precedes mutation, and requires persisted execute evidence. Post-correction focused wrapper behavior passes 20/20 and a fresh full `npm run validate` exits 0 with build, every workspace typecheck, ESLint, 301 agent, 68 capture, 89 CLI, 22 editor, 20 polish, 60 project, and 22 render Vitest tests plus 2 Node tests, and repository-wide Prettier.
 - 2026-07-17 WES-189 independent re-review: Ready with no Critical, Important, or merge-relevant Minor findings. The reviewer confirmed that the exact-origin disposable acknowledgement precedes mutation and matches the policy guard, replay and repair use fresh authority rather than discovery carryover, approval and execution artifacts are reproducible, and the regression covers the user-visible acknowledgement-to-mutation sequence plus execute-result persistence. WES-189 remains In Progress pending PR integration, passing CI, and the completion gate; WES-191 is the deterministic next-task pointer after merge.
+- 2026-07-17 WES-189 completion-gate sync: PR #42 merged to `develop` at `2026-07-18T01:02:47Z` as `f787aa910a1cb7dd1b87437a56220e1c6269121f`. GitHub `CI / validate` completed successfully on exact head `237d1c44c3acac760da80afb667900031f777fe3`. Fresh local validation passed build, every workspace typecheck, ESLint, 301 agent, 68 capture, 89 CLI, 22 editor, 20 polish, 60 project, and 22 render Vitest tests plus 2 Node tests, and repository-wide Prettier. Independent final review and the fresh completion auditor both reported Ready with no merge-relevant findings. WES-189 moved to Done, WES-191 received its dependency-readiness handoff, WES-182 received the tracker update, and WES-191 is now the next-task pointer.
 
 ## Update Rules
 
