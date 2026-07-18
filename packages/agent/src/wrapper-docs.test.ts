@@ -62,7 +62,7 @@ describe("agent wrapper documentation", () => {
       "runtime-only input bindings",
       "hard policy boundaries are never repaired around",
       "reviewable and unapproved",
-      "WES-189",
+      "Codex-hosted YOLO discovery",
     ]) {
       expect(combined).toContain(expected);
     }
@@ -76,7 +76,7 @@ describe("agent wrapper documentation", () => {
     expect(agentReadme).toContain("compileDiscoverySessionToWalkthroughPlan");
     expect(agentReadme).toContain("draft and unapproved");
     expect(agentReadme).toContain("does not carry disposable-environment authority");
-    expect(rootReadme).toContain("WES-189 owns the host workflow and approval handoff");
+    expect(rootReadme).toContain("Codex-hosted YOLO discovery");
   });
 
   it("documents the WES-183 discovery contract without claiming a live workflow", async () => {
@@ -176,6 +176,97 @@ describe("agent wrapper documentation", () => {
     ]) {
       expect(agentReadme).toContain(expected);
     }
+  });
+
+  it("publishes policy-bounded Codex YOLO discovery through explicit approval", async () => {
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const discovery = section(skill, "## Goal-Driven YOLO Discovery");
+    const transcript = await readAgentDoc("fixtures/codex-yolo-discovery-approval.md");
+    const combined = normalizeWhitespace(`${discovery} ${transcript}`);
+
+    for (const required of [
+      "natural-language goal",
+      "createPolicyEnforcedPlaywrightDiscoveryRehearsalController",
+      "safe exact-origin",
+      "environment-is-disposable",
+      "structured action",
+      "compileDiscoverySessionToWalkthroughPlan",
+      "replayAndRepairDiscoveryPlan",
+      "at most two",
+      "hard policy boundary",
+      "explicit approval",
+      "agent execute",
+      "agent handoff",
+      "never carries into final capture",
+    ]) {
+      expect(combined).toContain(required);
+    }
+
+    expect(discovery).not.toContain("--allow-best-guess-bypass");
+    expect(discovery).not.toContain("autodemo agent discover");
+    const disposableScope = jsonBlock(transcript, "Codex records fresh disposable authority");
+    expect(disposableScope).toEqual({
+      policy: {
+        mode: "disposable",
+        acknowledgement: "environment-is-disposable",
+        allowedOrigins: ["https://example.test"],
+      },
+    });
+    expect(transcript.indexOf("User Confirms Disposable Scope")).toBeLessThan(
+      transcript.indexOf("Codex Performs Mutating Discovery"),
+    );
+    expect(normalizeWhitespace(transcript)).toContain(
+      "writes the successful execute JSON to `workflow/profile-save.execution.json`",
+    );
+    expect(jsonBlock(transcript, "Replay asks Codex for a bounded repair")).toMatchObject({
+      ok: false,
+      phase: "replay",
+      attempts: [{ status: "failed", failure: { repairability: "repairable" } }],
+    });
+    expect(jsonBlock(transcript, "Codex presents the replay-validated plan")).toMatchObject({
+      ok: true,
+      plan: {
+        state: "validated",
+        validation: { mode: "discovery-replay", status: "ready" },
+        approvals: { required: true, approved: false },
+      },
+    });
+    expect(jsonBlock(transcript, "Approval command returns")).toMatchObject({
+      ok: true,
+      plan: { state: "approved", approvals: { approved: true, basis: "validated" } },
+    });
+    expect(jsonBlock(transcript, "Handoff command returns")).toMatchObject({
+      ok: true,
+      project: { manifestPath: "projects/profile-demo/autodemo.project.json" },
+      variant: { id: "baseline-polish" },
+    });
+  });
+
+  it("documents Codex discovery ownership and future Claude host parity", async () => {
+    const combined = normalizeWhitespace(
+      [
+        await readRootDoc("README.md"),
+        await readAgentDoc("README.md"),
+        await readAgentDoc("claude-wrapper-parity.md"),
+      ].join("\n"),
+    );
+
+    for (const required of [
+      "Codex-hosted YOLO discovery",
+      "natural-language goal",
+      "safe exact-origin",
+      "fresh disposable-environment acknowledgement",
+      "structured observation and action",
+      "bounded replay and repair",
+      "explicit approval",
+      "existing deterministic execute and handoff path",
+      "Claude production wrapper remains follow-up scope",
+    ]) {
+      expect(combined).toContain(required);
+    }
+
+    expect(combined).toContain("does not expose a discovery CLI");
+    expect(combined).not.toContain("autodemo agent discover");
   });
 
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
