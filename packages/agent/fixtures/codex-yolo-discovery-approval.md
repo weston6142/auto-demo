@@ -11,11 +11,33 @@ request data appear in the transcript.
 > a profile, then show me the plan before you record it.
 
 Codex treats YOLO as permission to choose bounded discovery actions, not as
-mutation authority or approval. It starts a safe exact-origin isolated
-Playwright context with
-`createPolicyEnforcedPlaywrightDiscoveryRehearsalController(...)`. Disposable
-mode would require a fresh `environment-is-disposable` acknowledgement and exact
-allowed origins.
+mutation authority or approval. It starts with safe exact-origin inspection and
+recognizes that saving a profile may issue a non-idempotent request. That is a
+hard policy boundary, so Codex stops before the mutation and asks the user to
+identify a disposable environment and exact allowed origins.
+
+## User Confirms Disposable Scope
+
+> This `example.test` environment is disposable for this discovery run. Allow
+> mutation only on `https://example.test`.
+
+## Codex records fresh disposable authority
+
+```json
+{
+  "policy": {
+    "mode": "disposable",
+    "acknowledgement": "environment-is-disposable",
+    "allowedOrigins": ["https://example.test"]
+  }
+}
+```
+
+## Codex Performs Mutating Discovery
+
+Codex now creates an isolated Playwright context with
+`createPolicyEnforcedPlaywrightDiscoveryRehearsalController(...)` and the
+freshly acknowledged exact-origin disposable policy.
 
 Codex reads the first bounded observation and performs one structured action at
 a time with declared expectations. An initial link reaches an unrelated profile
@@ -26,8 +48,15 @@ selects only the continuous successful attempts. The abandoned branch stays in
 the completed root discovery session but not its selected path.
 
 Codex compiles that session with
-`compileDiscoverySessionToWalkthroughPlan()` and starts
-`replayAndRepairDiscoveryPlan()` in a fresh isolated browser.
+`compileDiscoverySessionToWalkthroughPlan()`. Before replaying the mutating save,
+Codex reaches the replay policy boundary and asks for fresh confirmation that
+the same exact origin is disposable for this replay run.
+
+> I freshly confirm `https://example.test` is disposable for this bounded replay.
+
+Codex creates a new disposable replay policy from that acknowledgement and
+starts `replayAndRepairDiscoveryPlan()` in a fresh isolated browser. Neither the
+discovery controller's permit nor its runtime policy state is reused.
 
 ## Replay asks Codex for a bounded repair
 
@@ -64,11 +93,12 @@ Codex compiles that session with
 }
 ```
 
-Codex opens a new safe exact-origin rehearsal, creates one completed direct-child
-session from that evidence, and selects the repaired accessible target. It does
-not edit the plan. The repair provider returns the child session, compilation
-runs again, and the second fresh replay passes. At most two direct-child repairs
-are allowed. A hard policy boundary would stop instead of entering this loop.
+Codex opens a new disposable exact-origin rehearsal under the freshly confirmed
+replay scope, creates one completed direct-child session from that evidence, and
+selects the repaired accessible target. It does not edit the plan. The repair
+provider returns the child session, compilation runs again, and the second fresh
+replay passes. At most two direct-child repairs are allowed. A hard policy
+boundary would stop instead of entering this loop.
 
 ## Codex presents the replay-validated plan
 
@@ -126,6 +156,9 @@ Codex saves the reviewed validated artifact at
 npm run autodemo -- agent approve --plan workflow/profile-save.validated-plan.json --json
 ```
 
+The approval command returns a full approved plan artifact. This transcript
+shows only its public summary.
+
 ## Approval command returns
 
 ```json
@@ -143,13 +176,19 @@ npm run autodemo -- agent approve --plan workflow/profile-save.validated-plan.js
 }
 ```
 
-Codex persists that returned artifact at
+Codex persists the unabridged returned artifact at
 `workflow/profile-save.approved-plan.json`. It keeps non-secret runtime inputs in
 a separate local file and does not repeat their values in conversation or
 command arguments.
 
 ```bash
 npm run autodemo -- agent execute --plan workflow/profile-save.approved-plan.json --inputs workflow/profile-save.inputs.json --out captures/profile-save --json
+```
+
+Codex writes the successful execute JSON to
+`workflow/profile-save.execution.json`, then runs:
+
+```bash
 npm run autodemo -- agent handoff --execution workflow/profile-save.execution.json --project projects/profile-demo --name "Profile demo" --json
 ```
 

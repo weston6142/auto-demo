@@ -204,6 +204,20 @@ describe("agent wrapper documentation", () => {
 
     expect(discovery).not.toContain("--allow-best-guess-bypass");
     expect(discovery).not.toContain("autodemo agent discover");
+    const disposableScope = jsonBlock(transcript, "Codex records fresh disposable authority");
+    expect(disposableScope).toEqual({
+      policy: {
+        mode: "disposable",
+        acknowledgement: "environment-is-disposable",
+        allowedOrigins: ["https://example.test"],
+      },
+    });
+    expect(transcript.indexOf("User Confirms Disposable Scope")).toBeLessThan(
+      transcript.indexOf("Codex Performs Mutating Discovery"),
+    );
+    expect(normalizeWhitespace(transcript)).toContain(
+      "writes the successful execute JSON to `workflow/profile-save.execution.json`",
+    );
     expect(jsonBlock(transcript, "Replay asks Codex for a bounded repair")).toMatchObject({
       ok: false,
       phase: "replay",
