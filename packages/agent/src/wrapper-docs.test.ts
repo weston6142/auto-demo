@@ -62,7 +62,7 @@ describe("agent wrapper documentation", () => {
       "runtime-only input bindings",
       "hard policy boundaries are never repaired around",
       "reviewable and unapproved",
-      "WES-189",
+      "Codex-hosted YOLO discovery",
     ]) {
       expect(combined).toContain(expected);
     }
@@ -76,7 +76,7 @@ describe("agent wrapper documentation", () => {
     expect(agentReadme).toContain("compileDiscoverySessionToWalkthroughPlan");
     expect(agentReadme).toContain("draft and unapproved");
     expect(agentReadme).toContain("does not carry disposable-environment authority");
-    expect(rootReadme).toContain("WES-189 owns the host workflow and approval handoff");
+    expect(rootReadme).toContain("Codex-hosted YOLO discovery");
   });
 
   it("documents the WES-183 discovery contract without claiming a live workflow", async () => {
@@ -226,6 +226,33 @@ describe("agent wrapper documentation", () => {
       project: { manifestPath: "projects/profile-demo/autodemo.project.json" },
       variant: { id: "baseline-polish" },
     });
+  });
+
+  it("documents Codex discovery ownership and future Claude host parity", async () => {
+    const combined = normalizeWhitespace(
+      [
+        await readRootDoc("README.md"),
+        await readAgentDoc("README.md"),
+        await readAgentDoc("claude-wrapper-parity.md"),
+      ].join("\n"),
+    );
+
+    for (const required of [
+      "Codex-hosted YOLO discovery",
+      "natural-language goal",
+      "safe exact-origin",
+      "fresh disposable-environment acknowledgement",
+      "structured observation and action",
+      "bounded replay and repair",
+      "explicit approval",
+      "existing deterministic execute and handoff path",
+      "Claude production wrapper remains follow-up scope",
+    ]) {
+      expect(combined).toContain(required);
+    }
+
+    expect(combined).toContain("does not expose a discovery CLI");
+    expect(combined).not.toContain("autodemo agent discover");
   });
 
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {

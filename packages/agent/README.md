@@ -297,8 +297,31 @@ repaired around.
 
 Refining a replay-validated discovery plan clears its validation and approval and returns it to
 draft for another replay. Approval fingerprints include replay evidence, so changing the replay
-summary makes an approval stale. WES-189 owns the Codex-hosted discovery and approval handoff;
-this package does not embed a model or expose a discovery CLI.
+summary makes an approval stale. This package does not embed a model or expose a discovery CLI.
+
+## Codex-Hosted YOLO Discovery
+
+The repository-owned `skills/codex-auto-demo/SKILL.md` now composes the public discovery APIs
+into Codex-hosted YOLO discovery for a target URL and natural-language goal. Codex owns host
+reasoning while Auto Demo owns structured observation and action, bounded evidence, policy
+enforcement, compilation, replay, review, approval fingerprints, recording, and project handoff.
+The package still does not expose a discovery CLI.
+
+Codex starts in safe exact-origin mode. Mutation-capable discovery requires a fresh
+disposable-environment acknowledgement with exact allowed origins; the word YOLO is not mutation
+authority. Credential, payment, upload, unsafe-origin, download, and WebSocket boundaries always
+stop. Codex drives one policy-authorized action at a time through
+`createPolicyEnforcedPlaywrightDiscoveryRehearsalController()`, keeps abandoned exploration out
+of the selected path, compiles with `compileDiscoverySessionToWalkthroughPlan()`, and verifies the
+result with bounded replay and repair through `replayAndRepairDiscoveryPlan()`.
+
+Only a successful fresh replay produces a validated, reviewable, unapproved plan. Codex presents
+the ordered transcript-safe review and asks for explicit approval in a separate conversational
+turn. The original YOLO request is never approval, and discovery plans never use the best-guess
+bypass. After approval, Codex uses the existing deterministic execute and handoff path. The
+discovery page, disposable acknowledgement, policy permit, repair authority, and runtime inputs
+never carry into final capture. See `fixtures/codex-yolo-discovery-approval.md` for a synthetic
+backtrack, direct-child repair, approval, execution, and handoff transcript.
 
 ## Structured Browser Observation Snapshots
 
@@ -461,6 +484,7 @@ their own safety and approval boundaries.
 - Walkthrough review/approval transcript: `fixtures/codex-walkthrough-review-approval.md`
 - Walkthrough refinement transcript: `fixtures/codex-walkthrough-refinement.md`
 - Walkthrough execution transcript: `fixtures/codex-walkthrough-execution.md`
+- YOLO discovery and approval transcript: `fixtures/codex-yolo-discovery-approval.md`
 - Claude parity requirements: `claude-wrapper-parity.md`
 
 ## MCP Decision

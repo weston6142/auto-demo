@@ -79,6 +79,27 @@ pass `--allow-best-guess-bypass` unless the user explicitly accepts bypassing
 browser validation. It should persist the approved structured artifact for
 WES-179 rather than treating conversation text as approval evidence.
 
+## Goal-Driven Discovery Parity
+
+A future Claude host should match Codex-hosted YOLO discovery when the user
+provides a target URL and natural-language goal. It should start with safe
+exact-origin rehearsal, require a fresh disposable-environment acknowledgement
+and exact allowed origins before mutation-capable discovery, and use Auto Demo's
+structured observation and action interfaces rather than selectors, raw DOM, or
+a parallel browser path.
+
+The host should preserve failed exploration outside the selected path, compile
+the completed session, and run bounded replay and repair with at most two
+completed direct-child sessions. Hard policy boundaries stop the workflow. Only
+a successful replay can reach transcript-safe review and explicit approval; the
+initial YOLO request is not approval and cannot authorize the best-guess bypass.
+
+After approval, the wrapper should use the existing deterministic execute and
+handoff path. Disposable authority, policy permits, discovery pages, repair
+authority, and runtime values never carry into final capture. Claude production
+wrapper remains follow-up scope; this document defines parity but does not ship
+that host implementation or a discovery CLI.
+
 ## Walkthrough Execution Parity
 
 A Claude wrapper should invoke
