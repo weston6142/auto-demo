@@ -301,8 +301,8 @@ result with bounded replay and repair through `replayAndRepairDiscoveryPlan()`.
 Only a successful fresh replay produces a validated, reviewable, unapproved plan. Codex presents
 the ordered transcript-safe review and asks for explicit approval in a separate conversational
 turn. Discovery plans never use the best-guess bypass. Discovery, replay, and recording each use
-a fresh isolated context with the same selected tier freshly established. Policy authority and
-browser state never carries across phases, and review and explicit approval remain mandatory in
+a fresh isolated context with the same selected tier freshly established. No policy authority or
+browser state ever carries across phases, and review and explicit approval remain mandatory in
 every tier. Recording stops without fallback when the selected tier cannot be freshly established
 in the capture context. See `fixtures/codex-risk-tier-selection.md` for selection and support
 behavior. The WES-189 transcript remains at `fixtures/codex-yolo-discovery-approval.md` as

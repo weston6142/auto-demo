@@ -35,6 +35,6 @@ It never interprets YOLO as bounded safe-mode autonomy.
 
 Host, platform, repository, and system instructions still apply. In every tier,
 discovery, replay, and recording use a fresh isolated context with the same
-selected tier freshly established; authority and browser state never carries
+selected tier freshly established; no authority or browser state ever carries
 across phases. Review and explicit approval remain mandatory in every tier
 before recording.

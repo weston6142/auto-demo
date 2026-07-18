@@ -13,6 +13,7 @@
 ### Task 1: Specify the risk-selection behavior with failing documentation tests
 
 **Files:**
+
 - Modify: `packages/agent/src/wrapper-docs.test.ts`
 - Test: `packages/agent/src/wrapper-docs.test.ts`
 
@@ -115,6 +116,7 @@ Expected: FAIL because `## Goal-Driven Risk-Tiered Discovery` and `fixtures/code
 ### Task 2: Publish the canonical skill contract and pressure fixture
 
 **Files:**
+
 - Modify: `packages/agent/skills/codex-auto-demo/SKILL.md`
 - Create: `packages/agent/fixtures/codex-risk-tier-selection.md`
 - Test: `packages/agent/src/wrapper-docs.test.ts`
@@ -139,12 +141,12 @@ and YOLO disables Auto Demo safeguards.
 Insert this table after the selection paragraph:
 
 ```markdown
-| Tier | Permits | Blocks | Current support |
-| --- | --- | --- | --- |
-| `safe` | Read-only or idempotent rehearsal inside declared exact origins. | User mutation, non-idempotent requests, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins. | Discovery and replay. |
-| `public-browse` | Routine unauthenticated public-site navigation, search, filtering, and classified background traffic that does not represent a meaningful user mutation. | Account or data mutation, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and unclassified effects. | Contract only; WES-269 and WES-266 implement it later. |
-| `disposable` | Mutation and non-idempotent requests inside freshly acknowledged exact disposable origins. | Credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins. | Discovery and replay. |
-| `yolo` | Disables Auto Demo discovery and replay safeguards. | No Auto Demo-specific boundary; host, platform, repository, and system instructions still apply. | Contract only; WES-266 implements it later. |
+| Tier            | Permits                                                                                                                                                  | Blocks                                                                                                                                     | Current support                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| `safe`          | Read-only or idempotent rehearsal inside declared exact origins.                                                                                         | User mutation, non-idempotent requests, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins. | Discovery and replay.                                  |
+| `public-browse` | Routine unauthenticated public-site navigation, search, filtering, and classified background traffic that does not represent a meaningful user mutation. | Account or data mutation, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and unclassified effects.             | Contract only; WES-269 and WES-266 implement it later. |
+| `disposable`    | Mutation and non-idempotent requests inside freshly acknowledged exact disposable origins.                                                               | Credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins.                                         | Discovery and replay.                                  |
+| `yolo`          | Disables Auto Demo discovery and replay safeguards.                                                                                                      | No Auto Demo-specific boundary; host, platform, repository, and system instructions still apply.                                           | Contract only; WES-266 implements it later.            |
 ```
 
 Then add:
@@ -236,6 +238,7 @@ Expected: the two new skill/fixture tests pass; parity expectations may still fa
 ### Task 3: Align public and host-parity documentation
 
 **Files:**
+
 - Modify: `packages/agent/README.md`
 - Modify: `packages/agent/claude-wrapper-parity.md`
 - Modify: `README.md`
@@ -280,7 +283,7 @@ rtk npm --workspace @auto-demo/agent test -- --run src/wrapper-docs.test.ts
 
 Expected: PASS with every wrapper documentation test green.
 
-- [ ] **Step 5: Commit the behavior and documentation**
+- [x] **Step 5: Commit the behavior and documentation**
 
 Stage only issue-owned files:
 
@@ -294,11 +297,12 @@ Do not stage `.gitignore` or `workflow/`.
 ### Task 4: Re-run the skill pressure scenarios and close loopholes
 
 **Files:**
+
 - Modify if needed: `packages/agent/skills/codex-auto-demo/SKILL.md`
 - Modify if needed: `packages/agent/fixtures/codex-risk-tier-selection.md`
 - Modify if needed: `packages/agent/src/wrapper-docs.test.ts`
 
-- [ ] **Step 1: Re-run the exact pre-change YOLO pressure scenario read-only**
+- [x] **Step 1: Re-run the exact pre-change YOLO pressure scenario read-only**
 
 Ask an independent reviewer to follow the updated skill for:
 
@@ -312,17 +316,17 @@ the site is disposable.
 
 Expected: the reviewer selects `yolo`, reports that it means unrestricted Auto Demo safeguards, returns `risk_tier_not_supported` before browser/network activity, and retains mandatory review/approval semantics. It must not start safe-mode discovery.
 
-- [ ] **Step 2: Run the ambiguous autonomy pressure scenario read-only**
+- [x] **Step 2: Run the ambiguous autonomy pressure scenario read-only**
 
 Remove the word YOLO from the same request and use “autonomously discover” instead.
 
 Expected: the reviewer asks the exact focused tier question before browser/network activity despite urgency and the request not to ask questions.
 
-- [ ] **Step 3: Add a failing regression for any observed loophole, then minimally fix the skill**
+- [x] **Step 3: Add a failing regression for any observed loophole, then minimally fix the skill**
 
 If either scenario violates the contract, first add a focused assertion to `wrapper-docs.test.ts` that reproduces the missed behavior, run it to verify RED, minimally update the skill or fixture, and rerun to GREEN. Do not broaden into runtime policy work.
 
-- [ ] **Step 4: Run targeted tests after any refactor**
+- [x] **Step 4: Run targeted tests after any refactor**
 
 Run:
 
@@ -335,10 +339,11 @@ Expected: PASS.
 ### Task 5: Verify the repository and record durable completion evidence
 
 **Files:**
+
 - Modify: `docs/linear/auto-demo-project-structure.md`
 - Verify: all WES-270 issue-owned files
 
-- [ ] **Step 1: Run focused and repository verification**
+- [x] **Step 1: Run focused and repository verification**
 
 Run fresh commands:
 
@@ -351,15 +356,21 @@ rtk git diff --check
 
 Expected: all commands exit 0. If unrelated preserved files cause a repository-wide formatter failure, verify issue-owned files separately and report the exact unrelated path without modifying it.
 
-- [ ] **Step 2: Request independent read-only code review**
+Actual local exception: `npm run validate` stops in ESLint on 14 `no-undef`
+errors in the preserved untracked `workflow/cars-kia-sorento/discover.mjs`.
+Repository build and all workspace typechecks passed before that stop. Full
+repository tests, issue-owned ESLint and Prettier, and `git diff --check` were
+run separately; clean-checkout CI is the complete validation authority.
+
+- [x] **Step 2: Request independent read-only code review**
 
 Review WES-270, the design, this plan, `origin/develop...HEAD`, and the remaining issue-owned working tree. Require classification of Critical, Important, and Minor findings. Fix valid in-scope findings through focused RED-GREEN cycles and rerun affected checks.
 
-- [ ] **Step 3: Update the project map before publication**
+- [x] **Step 3: Update the project map before publication**
 
 Add verified WES-270 implementation and test evidence to `docs/linear/auto-demo-project-structure.md`. Keep WES-270 In Progress until the PR is merged. Set the deterministic post-merge next pointer to WES-269, the network-side-effect classification issue that enables public-browse policy work.
 
-- [ ] **Step 4: Commit final review and project-map changes**
+- [x] **Step 4: Commit final review and project-map changes**
 
 Stage only explicit issue-owned paths and commit:
 

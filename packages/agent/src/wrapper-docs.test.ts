@@ -46,6 +46,20 @@ function section(markdown: string, heading: string): string {
   return markdown.slice(start, nextHeading === -1 ? undefined : nextHeading);
 }
 
+function markdownTableRow(
+  markdown: string,
+  tier: string,
+): { permits: string; blocks: string; support: string } {
+  const row = markdown.split("\n").find((line) => line.split("|")[1]?.trim() === `\`${tier}\``);
+  expect(row).toBeDefined();
+  const cells = row!
+    .split("|")
+    .slice(1, -1)
+    .map((cell) => normalizeWhitespace(cell));
+  expect(cells).toHaveLength(4);
+  return { permits: cells[1]!, blocks: cells[2]!, support: cells[3]! };
+}
+
 describe("agent wrapper documentation", () => {
   it("documents deterministic discovery replay and bounded repair ownership", async () => {
     const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
@@ -201,6 +215,33 @@ describe("agent wrapper documentation", () => {
     );
     expect(normalized).toContain("YOLO means the unrestricted Auto Demo tier");
     expect(normalized).toContain("generic autonomous discovery does not select a tier");
+  });
+
+  it("publishes distinct permission boundaries for every discovery risk tier", async () => {
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const discovery = section(skill, "## Goal-Driven Risk-Tiered Discovery");
+
+    const safe = markdownTableRow(discovery, "safe");
+    expect(safe.permits).toContain("Read-only or idempotent rehearsal");
+    expect(safe.blocks).toContain("User mutation, non-idempotent requests");
+    expect(safe.support).toContain("Discovery and replay");
+
+    const publicBrowse = markdownTableRow(discovery, "public-browse");
+    expect(publicBrowse.permits).toContain("classified background traffic");
+    expect(publicBrowse.blocks).toContain("Account or data mutation");
+    expect(publicBrowse.support).toContain("WES-269 and WES-266 implement it later");
+
+    const disposable = markdownTableRow(discovery, "disposable");
+    expect(disposable.permits).toContain("freshly acknowledged exact disposable origins");
+    expect(disposable.blocks).toContain(
+      "Credentials, payment data, uploads, downloads, WebSockets",
+    );
+    expect(disposable.support).toContain("Discovery and replay");
+
+    const yolo = markdownTableRow(discovery, "yolo");
+    expect(yolo.permits).toContain("Disables Auto Demo discovery and replay safeguards");
+    expect(yolo.blocks).toContain("No Auto Demo-specific boundary");
+    expect(yolo.support).toContain("WES-266 implements it later");
   });
 
   it("keeps risk authority phase-scoped and approval mandatory in every tier", async () => {
