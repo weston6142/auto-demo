@@ -272,11 +272,11 @@ Expected: build, every workspace typecheck, ESLint, all workspace tests, reposit
 
 Review the diff from `origin/develop` through `HEAD` and the working tree against WES-190, the design, and this plan. Fix verified Critical and Important findings with focused RED-GREEN cycles; verify Minor findings and fix only when in scope and low risk.
 
-- [ ] **Step 3: Commit only WES-190 paths and publish the PR**
+- [x] **Step 3: Commit only WES-190 paths and publish the PR**
 
 Stage explicit issue-owned paths, excluding `.gitignore`. Commit, push `wes-190-agentic-discovery-acceptance`, and open a PR to `develop` with the Linear issue, spec/plan links, and exact verification evidence.
 
-- [ ] **Step 4: Monitor checks and review threads**
+- [x] **Step 4: Monitor checks and review threads**
 
 Diagnose failures from logs before changes. Apply technically valid in-scope feedback, re-run affected checks, push, and wait until required checks pass and no actionable review thread remains.
 
