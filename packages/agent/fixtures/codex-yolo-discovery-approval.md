@@ -165,10 +165,7 @@ npm run autodemo -- agent handoff --execution workflow/profile-save.execution.js
     "id": "baseline-polish",
     "path": "projects/profile-demo/variants/baseline-polish.json"
   },
-  "nextSteps": [
-    "open-editor",
-    "export-variant"
-  ]
+  "nextSteps": ["open-editor", "export-variant"]
 }
 ```
 

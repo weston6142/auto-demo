@@ -168,4 +168,3 @@ Tests assert published behavior and user-facing effects rather than Markdown lin
 - Runtime values and sensitive/raw browser data remain out of conversation and durable plan/session artifacts.
 - Claude parity remains documented follow-up scope.
 - Behavior-focused tests and independent skill forward-testing cover the complete wrapper contract.
-

@@ -22,6 +22,7 @@
 ### Task 1: RED — Specify The Codex Discovery Contract
 
 **Files:**
+
 - Modify: `packages/agent/src/wrapper-docs.test.ts`
 - Test: `packages/agent/src/wrapper-docs.test.ts`
 
@@ -50,7 +51,8 @@ it("publishes policy-bounded Codex YOLO discovery through explicit approval", as
     "agent execute",
     "agent handoff",
     "never carries into final capture",
-  ]) expect(combined).toContain(required);
+  ])
+    expect(combined).toContain(required);
 
   expect(discovery).not.toContain("--allow-best-guess-bypass");
   expect(discovery).not.toContain("autodemo agent discover");
@@ -105,6 +107,7 @@ Expected: `.gitignore` remains unstaged.
 ### Task 2: GREEN — Teach Codex The Structured Lifecycle
 
 **Files:**
+
 - Modify: `packages/agent/skills/codex-auto-demo/SKILL.md`
 - Create: `packages/agent/fixtures/codex-yolo-discovery-approval.md`
 - Test: `packages/agent/src/wrapper-docs.test.ts`
@@ -172,6 +175,7 @@ rtk git commit -m "docs: add Codex YOLO discovery workflow"
 ### Task 3: RED/GREEN — Publish Repository And Claude Guidance
 
 **Files:**
+
 - Modify: `packages/agent/src/wrapper-docs.test.ts`
 - Modify: `packages/agent/claude-wrapper-parity.md`
 - Modify: `packages/agent/README.md`
@@ -181,11 +185,13 @@ rtk git commit -m "docs: add Codex YOLO discovery workflow"
 
 ```ts
 it("documents Codex discovery ownership and future Claude host parity", async () => {
-  const combined = normalizeWhitespace([
-    await readRootDoc("README.md"),
-    await readAgentDoc("README.md"),
-    await readAgentDoc("claude-wrapper-parity.md"),
-  ].join("\n"));
+  const combined = normalizeWhitespace(
+    [
+      await readRootDoc("README.md"),
+      await readAgentDoc("README.md"),
+      await readAgentDoc("claude-wrapper-parity.md"),
+    ].join("\n"),
+  );
 
   for (const required of [
     "Codex-hosted YOLO discovery",
@@ -197,7 +203,8 @@ it("documents Codex discovery ownership and future Claude host parity", async ()
     "explicit approval",
     "existing deterministic execute and handoff path",
     "Claude production wrapper remains follow-up scope",
-  ]) expect(combined).toContain(required);
+  ])
+    expect(combined).toContain(required);
 
   expect(combined).toContain("does not expose a discovery CLI");
   expect(combined).not.toContain("autodemo agent discover");
@@ -231,6 +238,7 @@ Expected: focused tests pass and `.gitignore` remains unstaged.
 ### Task 4: REFACTOR — Forward-Test The Skill
 
 **Files:**
+
 - Modify if required: `packages/agent/skills/codex-auto-demo/SKILL.md`
 - Modify if required: `packages/agent/fixtures/codex-yolo-discovery-approval.md`
 - Modify if required: `packages/agent/src/wrapper-docs.test.ts`
@@ -261,6 +269,7 @@ Skip when no tracked file changed.
 ### Task 5: Verify And Record Evidence
 
 **Files:**
+
 - Modify: `docs/linear/auto-demo-project-structure.md`
 
 - [ ] **Step 1: Run focused and full verification**
