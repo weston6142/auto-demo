@@ -61,7 +61,7 @@ describe("agent wrapper documentation", () => {
       "runtime-only input bindings",
       "hard policy boundaries are never repaired around",
       "reviewable and unapproved",
-      "Codex-hosted YOLO discovery",
+      "Codex-hosted risk-tiered discovery",
     ]) {
       expect(combined).toContain(expected);
     }
@@ -75,7 +75,7 @@ describe("agent wrapper documentation", () => {
     expect(agentReadme).toContain("compileDiscoverySessionToWalkthroughPlan");
     expect(agentReadme).toContain("draft and unapproved");
     expect(agentReadme).toContain("does not carry disposable-environment authority");
-    expect(rootReadme).toContain("Codex-hosted YOLO discovery");
+    expect(rootReadme).toContain("Codex-hosted risk-tiered discovery");
   });
 
   it("documents the WES-183 discovery contract without claiming a live workflow", async () => {
@@ -177,16 +177,67 @@ describe("agent wrapper documentation", () => {
     }
   });
 
-  it("publishes policy-bounded Codex YOLO discovery through explicit approval", async () => {
+  it("requires an explicit discovery risk tier before browser activity", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
-    const discovery = section(skill, "## Goal-Driven YOLO Discovery");
+    const discovery = section(skill, "## Goal-Driven Risk-Tiered Discovery");
+    const normalized = normalizeWhitespace(discovery);
+
+    for (const required of [
+      "safe",
+      "public-browse",
+      "disposable",
+      "yolo",
+      "Choose discovery risk",
+      "before opening a browser or making a network request",
+      "environment-is-disposable",
+      "risk_tier_not_supported",
+      "must not silently downgrade",
+    ]) {
+      expect(normalized).toContain(required);
+    }
+
+    expect(discovery.indexOf("Resolve the discovery risk tier")).toBeLessThan(
+      discovery.indexOf("createPolicyEnforcedPlaywrightDiscoveryRehearsalController"),
+    );
+    expect(normalized).toContain("YOLO means the unrestricted Auto Demo tier");
+    expect(normalized).toContain("generic autonomous discovery does not select a tier");
+  });
+
+  it("keeps risk authority phase-scoped and approval mandatory in every tier", async () => {
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const discovery = section(skill, "## Goal-Driven Risk-Tiered Discovery");
+    const pressure = await readAgentDoc("fixtures/codex-risk-tier-selection.md");
+    const combined = normalizeWhitespace(`${discovery} ${pressure}`).toLowerCase();
+
+    for (const required of [
+      "fresh isolated context",
+      "same selected tier",
+      "ever carries across phases",
+      "review and explicit approval remain mandatory in every tier",
+      "host, platform, repository, and system instructions still apply",
+      "public-browse is not implemented yet",
+      "yolo is not implemented yet",
+      "does not open a browser",
+    ]) {
+      expect(combined).toContain(required);
+    }
+
+    expect(combined).not.toContain("--allow-best-guess-bypass");
+    expect(pressure.indexOf("Choose discovery risk")).toBeLessThan(
+      pressure.indexOf("User Selects Public Browse"),
+    );
+  });
+
+  it("preserves the bounded historical discovery transcript through explicit approval", async () => {
+    const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
+    const discovery = section(skill, "## Goal-Driven Risk-Tiered Discovery");
     const transcript = await readAgentDoc("fixtures/codex-yolo-discovery-approval.md");
     const combined = normalizeWhitespace(`${discovery} ${transcript}`);
 
     for (const required of [
       "natural-language goal",
       "createPolicyEnforcedPlaywrightDiscoveryRehearsalController",
-      "safe exact-origin",
+      "safe",
       "environment-is-disposable",
       "structured action",
       "compileDiscoverySessionToWalkthroughPlan",
@@ -196,7 +247,7 @@ describe("agent wrapper documentation", () => {
       "explicit approval",
       "agent execute",
       "agent handoff",
-      "never carries into final capture",
+      "ever carries across phases",
     ]) {
       expect(combined).toContain(required);
     }
@@ -251,10 +302,13 @@ describe("agent wrapper documentation", () => {
     );
 
     for (const required of [
-      "Codex-hosted YOLO discovery",
+      "Codex-hosted risk-tiered discovery",
       "natural-language goal",
-      "safe exact-origin",
-      "fresh disposable-environment acknowledgement",
+      "safe",
+      "public-browse",
+      "disposable",
+      "yolo",
+      "before browser or network activity",
       "structured observation and action",
       "bounded replay and repair",
       "explicit approval",
