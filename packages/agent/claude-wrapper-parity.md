@@ -88,26 +88,33 @@ pass `--allow-best-guess-bypass` unless the user explicitly accepts bypassing
 browser validation. It should persist the approved structured artifact for
 WES-179 rather than treating conversation text as approval evidence.
 
-## Goal-Driven Discovery Parity
+## Goal-Driven Risk-Tiered Discovery Parity
 
-A future Claude host should match Codex-hosted YOLO discovery when the user
-provides a target URL and natural-language goal. It should start with safe
-exact-origin rehearsal, require a fresh disposable-environment acknowledgement
-and exact allowed origins before mutation-capable discovery, and use Auto Demo's
-structured observation and action interfaces rather than selectors, raw DOM, or
-a parallel browser path.
+A future Claude host should match Codex-hosted risk-tiered discovery when the
+user provides a target URL and natural-language goal. It must resolve `safe`,
+`public-browse`, `disposable`, or `yolo` before browser or network activity and
+ask one focused question when the prompt is missing, conflicting, or ambiguous.
+YOLO means the unrestricted Auto Demo tier; generic autonomous intent does not
+select it. Host, platform, repository, and system instructions still apply.
 
-The host should preserve failed exploration outside the selected path, compile
-the completed session, and run bounded replay and repair with at most two
-completed direct-child sessions. Hard policy boundaries stop the workflow. Only
-a successful replay can reach transcript-safe review and explicit approval; the
-initial YOLO request is not approval and cannot authorize the best-guess bypass.
+Safe and freshly acknowledged exact-origin disposable discovery and replay are
+currently implemented. Public-browse and YOLO must return
+`risk_tier_not_supported` before browsing until their downstream policies land;
+the host must not silently downgrade or approximate them. A supported tier uses
+Auto Demo's structured observation and action interfaces rather than selectors,
+raw DOM, or a parallel browser path. The host preserves failed exploration
+outside the selected path, compiles the completed session, and runs bounded
+replay and repair with at most two completed direct-child sessions.
 
-After approval, the wrapper should use the existing deterministic execute and
-handoff path. Disposable authority, policy permits, discovery pages, repair
-authority, and runtime values never carry into final capture. Claude production
-wrapper remains follow-up scope; this document defines parity but does not ship
-that host implementation or a discovery CLI.
+Discovery, replay, and recording each use a fresh isolated context with the same
+selected tier freshly established. No disposable authority, policy permit,
+browser state, repair authority, or runtime value carries across phases. Only a
+successful replay can reach transcript-safe review, and review and explicit
+approval remain mandatory in every tier. After approval, the wrapper uses the
+existing deterministic execute and handoff path only when the selected tier can
+be freshly established for capture. Claude production wrapper remains follow-up
+scope; this document defines parity but does not ship that host implementation,
+a discovery CLI, or the downstream public-browse and YOLO policies.
 
 ## Walkthrough Execution Parity
 

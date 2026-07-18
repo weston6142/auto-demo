@@ -99,7 +99,7 @@ Last updated: 2026-07-18
 
 ## Milestone Order
 
-Milestones 1–8 retain the order defined by the balanced MVP design spec. Milestone 9, Agentic Flow Discovery, was appended from live Linear; the Linear CLI milestone list itself is alphabetical.
+Milestones 1–8 retain the order defined by the balanced MVP design spec. Milestones 9 and 10 were appended from live Linear; the Linear CLI milestone list itself is alphabetical.
 
 1. Public Repo And Project Foundation
 2. Capture Runtime
@@ -110,10 +110,11 @@ Milestones 1–8 retain the order defined by the balanced MVP design spec. Miles
 7. Agent Integrations
 8. Export And Packaging
 9. Agentic Flow Discovery
+10. Risk-Tiered Public-Site Discovery
 
 ## Current Next-Task Selection Rule
 
-Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current next-task pointer: none. The recorded Auto Demo Balanced MVP milestones have no remaining incomplete issue; wait for newly created or reprioritized work.
+Prefer the earliest milestone or workflow group with incomplete issues. Within that group, prefer started issues, then unblocked design/spec issues, then implementation issues whose dependencies are satisfied. Current active task: WES-270, Define discovery risk tiers and start-of-skill selection contract. Deterministic post-merge next-task pointer: WES-269, Classify network side effects and expose sanitized diagnostics.
 
 ## Issues By Milestone
 
@@ -209,7 +210,29 @@ Linear milestone: `Agentic Flow Discovery` (`58dc5c96-c449-4900-b495-1bbf5ac61f5
 
 Dependency order: WES-183 through WES-191 and tracker WES-182 are Done. The Agentic Flow Discovery milestone is complete and has no remaining child or next-task pointer.
 
+### 10. Risk-Tiered Public-Site Discovery
+
+Linear milestone: `Risk-Tiered Public-Site Discovery` (`8098569b-6a63-40b8-86f3-27960168eeab`). The milestone makes autonomous discovery reliable on public websites through explicit risk selection, phase-scoped policy behavior, browser and form reliability, structural target intent, and a supported runner. Review and explicit approval remain mandatory in every tier. When YOLO is selected, Auto Demo safeguards are disabled for discovery and replay, then freshly disabled again in the isolated recording context only after approval; discovery permits and browser state never cross the review boundary.
+
+- WES-265: Milestone 10: Risk-tiered public-site discovery - Backlog - https://linear.app/weston-bushyeager/issue/WES-265/milestone-10-risk-tiered-public-site-discovery
+- WES-270: Define discovery risk tiers and start-of-skill selection contract - In Progress - https://linear.app/weston-bushyeager/issue/WES-270/define-discovery-risk-tiers-and-start-of-skill-selection-contract
+- WES-269: Classify network side effects and expose sanitized diagnostics - Backlog; blocked by WES-270 - https://linear.app/weston-bushyeager/issue/WES-269/classify-network-side-effects-and-expose-sanitized-diagnostics
+- WES-266: Implement public-browse and phase-scoped unrestricted YOLO policies - Backlog; blocked by WES-270 and WES-269 - https://linear.app/weston-bushyeager/issue/WES-266/implement-public-browse-and-phase-scoped-unrestricted-yolo-policies
+- WES-272: Unify discovery, replay, and capture browser launch profiles - Backlog; blocked by WES-270 - https://linear.app/weston-bushyeager/issue/WES-272/unify-discovery-replay-and-capture-browser-launch-profiles
+- WES-271: Add semantic form controls and observable action effects - Backlog; blocked by WES-270 - https://linear.app/weston-bushyeager/issue/WES-271/add-semantic-form-controls-and-observable-action-effects
+- WES-267: Improve target ranking and structural positional intent - Backlog; blocked by WES-271 - https://linear.app/weston-bushyeager/issue/WES-267/improve-target-ranking-and-structural-positional-intent
+- WES-268: Provide a repository-owned autonomous discovery runner - Backlog; blocked by WES-266, WES-272, and WES-267 - https://linear.app/weston-bushyeager/issue/WES-268/provide-a-repository-owned-autonomous-discovery-runner
+- WES-273: Pass fresh-agent Cars.com Kia Sorento acceptance - Backlog; final acceptance blocked by every implementation child - https://linear.app/weston-bushyeager/issue/WES-273/pass-fresh-agent-carscom-kia-sorento-acceptance
+
+Dependency order: start with WES-270. Network classification WES-269 precedes policy implementation WES-266. Browser-profile WES-272 and form semantics WES-271 can proceed after the risk contract; structural targets WES-267 follow form semantics. WES-268 integrates the completed capabilities. WES-273 is the final gate and must run from the recorded Cars.com prompt alone in a fresh agent session without selectors, browser-profile tips, mutation exceptions, Cloudflare workarounds, or other gotcha context.
+
 ## Investigation Notes
+
+- 2026-07-18 WES-270 pre-task sync: live Linear and local `develop` at `386bf7e` agree that Milestone 10 is the earliest incomplete milestone, all children are Backlog, and WES-270 is the sole dependency-ready contract issue. Existing policy code supports safe and disposable modes and the Codex skill still uses overloaded YOLO terminology; no WES-270 spec, plan, branch, or implementation exists. Preserve the unrelated `.gitignore` change and Cars.com diagnostic artifacts.
+- WES-270 readiness: ready for brainstorming. Define safe, public-browse, disposable, and yolo permissions and boundaries; require explicit start-of-skill selection unless unambiguous; retain mandatory review and explicit approval; freshly re-establish the selected tier for isolated recording; and preserve historical WES-186/WES-189 artifacts without rewriting them.
+- 2026-07-18 WES-270 local implementation and verification: branch `wes-270-define-discovery-risk-tiers` at `1aa9524` publishes the canonical `safe`, `public-browse`, `disposable`, and `yolo` contract in the repository-owned Codex skill. Risk selection and support checks now precede browser/network activity; generic autonomy requires a focused question, explicit YOLO selects the unrestricted tier, and unsupported public-browse/YOLO stop with `risk_tier_not_supported` without fallback. Discovery, replay, and recording require fresh contexts and the same freshly established tier, while review and explicit approval remain mandatory. The RED baseline showed the former skill silently interpreted YOLO as safe-mode autonomy; independent GREEN pressure scenarios found no remaining loophole. Fresh verification passes 300 agent tests, 579 repository Vitest tests plus 2 Node tests, issue-owned ESLint and Prettier, and `git diff --check`. Repository build and all workspace typechecks pass. The combined `npm run validate` remains locally blocked only by 14 ESLint `no-undef` errors in the preserved untracked `workflow/cars-kia-sorento/discover.mjs`; clean-checkout CI remains the authoritative complete validation gate. Independent review found no Critical or Important issues; its Minor test-coverage finding was closed with cell-specific tier assertions that fail when safe permits and blocks are swapped. Final re-review reports Ready with no remaining findings. WES-270 stays In Progress until PR integration and passing CI; WES-269 is the deterministic post-merge next task.
+- 2026-07-18 WES-270 PR verification: PR #48 targets `develop`; GitHub `CI / validate` passed on implementation head `4baa5b588f02df7d0a6ed57cccb777209609ae55` in run `29665066116`, and there are no comments, reviews, or actionable threads. This map-only evidence update must pass the same required check before squash merge. WES-269 remains the deterministic post-merge next-task pointer.
+- 2026-07-18 Cars.com follow-on evidence: safe discovery reached the public homepage only with headful system Chrome; headless browser configurations returned a Cloudflare block. Clicking into new-car shopping produced a non-idempotent request reported only as `mutating_request_blocked`, so the evidence could not distinguish background telemetry or search traffic from a meaningful write. Native select controls lacked a selectable action, an empty-expectation click could appear successful without an observable effect, the 100-target observation budget omitted relevant custom controls, and the current target hint cannot durably express the first organic vehicle listing while excluding sponsored inventory. The abandoned artifacts under `workflow/cars-kia-sorento/` are diagnostic evidence, not a passing walkthrough. Milestone 10 passes only when WES-273 succeeds without supplementary Cars.com context.
 
 - 2026-07-13 WES-183 pre-task sync: live Linear confirms Agentic Flow Discovery (`58dc5c96-c449-4900-b495-1bbf5ac61f5a`) is the earliest incomplete milestone, with WES-182 through WES-191 in Backlog and the recorded dependency chain intact. WES-183 has no blockers and is the selected next task. Local `develop` at `089cda0` contains the completed deterministic plan, validation, approval, execution, capture, and project-handoff baseline, while no WES-183 spec, plan, or product implementation exists.
 - WES-183 readiness: ready for brainstorming. Define the model-agnostic discovery session lifecycle and versioned evidence-trace boundary before downstream observation or controller work. The design should resolve type/API ownership, lifecycle and serialization, bounded and sanitized evidence, successful versus discarded paths, confidence and provenance, expected navigation/visible-state assertions, and conversion boundaries into the existing `WalkthroughPlan`; model inference remains host-owned.
