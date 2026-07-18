@@ -271,6 +271,13 @@ Refining a replay-validated discovery plan clears its validation and approval an
 draft for another replay. Approval fingerprints include replay evidence, so changing the replay
 summary makes an approval stale. This package does not embed a model or expose a discovery CLI.
 
+The CLI package's deterministic local acceptance fixture composes these public APIs through
+semantic and positional target choice, cross-page evidence, one stale-target direct-child repair,
+fresh replay, review, explicit approval, real capture, failed-bundle preservation, and project
+handoff with `baseline-polish`. It also proves that a non-idempotent local mutation is blocked by
+safe policy and allowed only by a fresh exact-origin disposable acknowledgement. Public-site smoke
+is optional and is not a CI dependency.
+
 ## Codex-Hosted YOLO Discovery
 
 The repository-owned `skills/codex-auto-demo/SKILL.md` now composes the public discovery APIs

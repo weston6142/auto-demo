@@ -155,6 +155,15 @@ migration compatibility and rejects discovery plans, which require
 fresh-context replay. Existing best-guess artifacts still require an explicit
 bypass approval, but discovery plans never use the best-guess bypass.
 
+Deterministic local acceptance coverage now exercises the agentic path as one
+composed workflow: semantic first-occurrence selection among duplicate links,
+cross-page evidence, stale-target direct-child repair, fresh replay, explicit
+approval, real viewport capture, failed-bundle preservation, and project
+handoff with `baseline-polish`. A separate exact-origin fixture proves that
+mutation remains blocked in safe mode and succeeds only with a fresh disposable
+acknowledgement. This verification adds no discovery CLI or embedded model;
+public read-only smoke remains optional.
+
 Persist a successful execution result and create its final project with:
 
 ```bash

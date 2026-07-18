@@ -1062,13 +1062,13 @@ function sanitizeMatch(match: WalkthroughValidationMatch): WalkthroughValidation
 
 function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
   const steps = plan.steps.map((step) => ({
-    id: sanitizeText(step.id),
+    id: sanitizeIdentifier(step.id),
     order: step.order,
     action: step.action,
     resolution: step.resolution,
     sourceText: sanitizeText(step.sourceText),
     public: { summary: sanitizeText(step.public.summary) },
-    ...(step.questionId === undefined ? {} : { questionId: sanitizeText(step.questionId) }),
+    ...(step.questionId === undefined ? {} : { questionId: sanitizeIdentifier(step.questionId) }),
     ...(step.targetHint === undefined
       ? {}
       : {
@@ -1084,7 +1084,9 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
           },
         }),
     ...(step.navigationUrl === undefined ? {} : { navigationUrl: sanitizeUrl(step.navigationUrl) }),
-    ...(step.inputBinding === undefined ? {} : { inputBinding: sanitizeText(step.inputBinding) }),
+    ...(step.inputBinding === undefined
+      ? {}
+      : { inputBinding: sanitizeIdentifier(step.inputBinding) }),
     ...(step.waitDurationMs === undefined ? {} : { waitDurationMs: step.waitDurationMs }),
     ...(step.assertion === undefined
       ? {}
@@ -1112,11 +1114,11 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
       : {
           provenance: {
             kind: "discovery" as const,
-            sessionId: sanitizeText(step.provenance.sessionId),
-            attemptId: sanitizeText(step.provenance.attemptId),
+            sessionId: sanitizeIdentifier(step.provenance.sessionId),
+            attemptId: sanitizeIdentifier(step.provenance.attemptId),
             ...(step.provenance.expectationId === undefined
               ? {}
-              : { expectationId: sanitizeText(step.provenance.expectationId) }),
+              : { expectationId: sanitizeIdentifier(step.provenance.expectationId) }),
             ...(step.provenance.expectationOrigin === undefined
               ? {}
               : { expectationOrigin: step.provenance.expectationOrigin }),
@@ -1127,7 +1129,7 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
         }),
   }));
   return {
-    id: sanitizeText(plan.id),
+    id: sanitizeIdentifier(plan.id),
     target: { kind: "browser", url: sanitizeUrl(plan.target.url) },
     mode: plan.mode,
     state: plan.state,
@@ -1138,7 +1140,7 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
             parser: "discovery-v1",
             discovery: {
               schemaVersion: 1,
-              sessionId: sanitizeText(plan.source.discovery.sessionId),
+              sessionId: sanitizeIdentifier(plan.source.discovery.sessionId),
               selectedPathFingerprint: plan.source.discovery.selectedPathFingerprint,
             },
           }
@@ -1148,15 +1150,15 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
           },
     steps,
     questions: plan.questions.map((question) => ({
-      id: sanitizeText(question.id),
-      stepId: sanitizeText(question.stepId),
+      id: sanitizeIdentifier(question.id),
+      stepId: sanitizeIdentifier(question.stepId),
       prompt: sanitizeText(question.prompt),
       reason: "unrecognized_step",
     })),
     approvals: { required: true, approved: false },
     execution: { status: "not-started" },
     warnings: plan.warnings.map((warning) => ({
-      code: sanitizeText(warning.code),
+      code: sanitizeIdentifier(warning.code),
       message: sanitizeText(warning.message),
     })),
   };
@@ -1173,16 +1175,16 @@ export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): Walkthro
       status: plan.validation.status,
       validatedAt: plan.validation.validatedAt,
       checks: plan.validation.checks.map((check) => ({
-        id: sanitizeText(check.id),
-        stepId: sanitizeText(check.stepId),
+        id: sanitizeIdentifier(check.id),
+        stepId: sanitizeIdentifier(check.stepId),
         action: check.action,
         status: check.status,
         ...(check.reason === undefined ? {} : { reason: check.reason }),
         summary: sanitizeText(check.summary),
       })),
       blockers: plan.validation.blockers.map((blocker) => ({
-        id: sanitizeText(blocker.id),
-        stepId: sanitizeText(blocker.stepId),
+        id: sanitizeIdentifier(blocker.id),
+        stepId: sanitizeIdentifier(blocker.stepId),
         reason: blocker.reason,
         question: sanitizeText(blocker.question),
         ...(blocker.candidates === undefined
@@ -1196,9 +1198,9 @@ export function sanitizeWalkthroughPlanArtifact(plan: WalkthroughPlan): Walkthro
             ...common,
             mode: "discovery-replay",
             replay: {
-              replayId: sanitizeText(plan.validation.replay.replayId),
+              replayId: sanitizeIdentifier(plan.validation.replay.replayId),
               attempts: plan.validation.replay.attempts,
-              sourceSessionId: sanitizeText(plan.validation.replay.sourceSessionId),
+              sourceSessionId: sanitizeIdentifier(plan.validation.replay.sourceSessionId),
               selectedPathFingerprint: plan.validation.replay.selectedPathFingerprint,
             },
           }
@@ -1227,6 +1229,18 @@ function sanitizeText(value: string): string {
     )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function sanitizeIdentifier(value: string): string {
+  if (
+    /^(?:attempt|observation|visible-state|target|artifact)-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  ) {
+    return value;
+  }
+  const sanitized = sanitizeText(value);
+  return sanitized === value && isSafeIdentifier(value) ? value : "redacted-id";
 }
 
 export function sanitizeWalkthroughText(value: string): string {

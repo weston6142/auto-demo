@@ -10,6 +10,7 @@ import {
   type DiscoverySessionV1,
   type WalkthroughPlan,
 } from "./index.js";
+import { sanitizeWalkthroughPlanArtifact } from "./walkthroughValidation.js";
 
 class FakeReplayBrowser implements DiscoveryReplayBrowser {
   readonly calls: string[] = [];
@@ -247,6 +248,51 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
 });
 
 describe("replayAndRepairDiscoveryPlan single attempt", () => {
+  it("redacts secret-like structural identifiers", async () => {
+    const input = await safeCompiledFixture();
+    const secretIdentifier = "sk-live-fc5cd6c9-bb35-49d7-9b33-7face638add4";
+    input.plan.id = secretIdentifier;
+    for (const step of input.plan.steps) {
+      if (step.provenance !== undefined) step.provenance.attemptId = secretIdentifier;
+    }
+
+    const sanitized = sanitizeWalkthroughPlanArtifact(input.plan);
+
+    expect(sanitized.id).toBe("redacted-id");
+    expect(sanitized.steps.map((step) => step.provenance?.attemptId)).toEqual([
+      "redacted-id",
+      "redacted-id",
+      "redacted-id",
+    ]);
+    expect(JSON.stringify(sanitized)).not.toContain(secretIdentifier);
+  });
+
+  it("promotes replay plans with runtime-generated discovery identifiers", async () => {
+    const input = await safeCompiledFixture();
+    const runtimeAttemptId = "attempt-fc5cd6c9-bb35-49d7-9b33-7face638add4";
+    input.sourceSession.attempts[0].id = runtimeAttemptId;
+    input.sourceSession.selectedPath!.attemptIds = [runtimeAttemptId];
+    const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
+    if (!compiled.ok) throw new Error("runtime identifier fixture must compile");
+    input.plan = compiled.plan;
+    const browser = new FakeReplayBrowser();
+    browser.matches = [{ id: "candidate-1", label: "Continue", role: "button" }];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      { maxRepairs: 0 },
+      { browserFactory: browserFactory(browser) },
+    );
+
+    expect(result).toMatchObject({ ok: true, plan: { state: "validated" } });
+    if (!result.ok) throw new Error("runtime identifier replay must pass");
+    expect(result.plan.steps.map((step) => step.provenance?.attemptId)).toEqual([
+      runtimeAttemptId,
+      runtimeAttemptId,
+      runtimeAttemptId,
+    ]);
+  });
+
   it("validates a blocker-free replay without approving or capturing", async () => {
     const input = await safeCompiledFixture();
     const browser = new FakeReplayBrowser();

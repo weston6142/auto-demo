@@ -83,6 +83,16 @@ Validate mode refuses credential-bearing target URLs and blocks
 potentially destructive actions or credential-like field input instead of
 exercising them in the browser.
 
+`src/agenticDiscoveryAcceptance.test.ts` provides the deterministic local CI
+journey for the supported discovery artifact lifecycle. It verifies semantic
+first-occurrence selection among duplicate links, expected cross-page state,
+stale-target direct-child repair, fresh replay, explicit approval, completed and
+failed capture bundles, loadable project handoff with `baseline-polish`, and
+retained editor/export next steps. Its mutation fixture requires a fresh
+exact-origin disposable acknowledgement; safe mode remains non-mutating. This
+coverage does not add a discovery CLI or embedded model, and public-site smoke
+is optional.
+
 ## Agent Walkthrough Review And Approval
 
 Agent hosts review, refine, and approve structured plan artifacts through JSON
