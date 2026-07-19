@@ -349,7 +349,7 @@ describe("createPolicyEnforcedPlaywrightDiscoveryRehearsalController", () => {
       ok: true,
       attempt: { status: "failed", outcome: { code: "unsafe_navigation_blocked" } },
     });
-    expect(page.url()).toBe("https://example.test/start");
+    expect(page.url()).toBe("https://example.test/");
     await controller.dispose();
   });
 
