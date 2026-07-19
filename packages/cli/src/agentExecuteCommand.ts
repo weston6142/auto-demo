@@ -225,6 +225,15 @@ function adaptCaptureStartResult(
   started: ControllableCaptureStartResult,
 ): WalkthroughExecutionCaptureStartResult {
   if (!started.ok) {
+    if (started.code === "anti_bot_challenge") {
+      return {
+        ok: false,
+        code: "anti_bot_challenge",
+        outputDir: started.outputDir,
+        manifestPath: started.manifestPath,
+        ...(started.diagnostic === undefined ? {} : { diagnostic: started.diagnostic }),
+      };
+    }
     return {
       ok: false,
       code: "capture_setup_failed",

@@ -1,5 +1,6 @@
 import {
   DEFAULT_BROWSER_LAUNCH_PROFILE,
+  browserLaunchProfileId,
   type BrowserChallenge,
   type BrowserLaunchProfileV1,
 } from "@auto-demo/browser-profile";
@@ -172,6 +173,7 @@ export type DiscoveryReplayErrorCode =
   | "repair_declined"
   | "invalid_repair_session"
   | "repair_lineage_mismatch"
+  | "repair_launch_profile_mismatch"
   | "repair_goal_mismatch"
   | "repair_target_out_of_scope"
   | "unchanged_repair_path"
@@ -467,6 +469,15 @@ function prepareRepair(
     };
   }
   if (
+    !sameBrowserLaunchProfile(validated.session.launchProfile, current.sourceSession.launchProfile)
+  ) {
+    return {
+      ok: false,
+      code: "repair_launch_profile_mismatch",
+      message: "Discovery replay repair changed the resolved browser launch profile.",
+    };
+  }
+  if (
     validated.session.parentSessionId !== current.sourceSession.id ||
     current.seenSessionIds.has(validated.session.id)
   ) {
@@ -538,6 +549,14 @@ function prepareRepair(
       ]),
     },
   };
+}
+
+function sameBrowserLaunchProfile(
+  candidate: BrowserLaunchProfileV1 | undefined,
+  current: BrowserLaunchProfileV1 | undefined,
+): boolean {
+  if (candidate === undefined || current === undefined) return candidate === current;
+  return browserLaunchProfileId(candidate) === browserLaunchProfileId(current);
 }
 
 function policyAllowsUrl(policy: ValidatedDiscoveryPolicy, value: string): boolean {
@@ -665,7 +684,9 @@ async function failureEvidence(
     schemaVersion: 1,
     code,
     repairability:
-      code === "policy_blocked" || code === "replay_setup_failed" ? "hard-boundary" : "repairable",
+      code === "policy_blocked" || code === "anti_bot_challenge" || code === "replay_setup_failed"
+        ? "hard-boundary"
+        : "repairable",
     step: {
       id: step.id,
       order: step.order,
@@ -681,6 +702,9 @@ async function failureEvidence(
     observed: {
       ...(page === undefined ? {} : { url: sanitizeReplayObservedUrl(page.url) }),
       ...(candidates === undefined || candidates.length === 0 ? {} : { candidates }),
+      ...(error instanceof DiscoveryReplayBrowserError && error.challenge !== undefined
+        ? { challenge: structuredClone(error.challenge) }
+        : {}),
     },
     recommendation: recommendationFor(code),
   };

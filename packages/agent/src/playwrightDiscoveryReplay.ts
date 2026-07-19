@@ -168,6 +168,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   }
 
   async findMatches(target: WalkthroughPlanTargetHint): Promise<DiscoveryReplayMatch[]> {
+    await this.assertNoBrowserChallenge();
     const page = this.requirePage();
     let locator: Locator;
     if (target.role !== undefined) {
@@ -235,17 +236,20 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   async wait(durationMs: number): Promise<void> {
     await this.requirePage().waitForTimeout(durationMs);
     this.assertNoIdleViolation();
+    await this.assertNoBrowserChallenge();
   }
 
   async waitForSettled(): Promise<void> {
     await this.requirePage().waitForLoadState("domcontentloaded");
     await this.requirePage().waitForTimeout(this.options.stabilityDurationMs);
     this.assertNoIdleViolation();
+    await this.assertNoBrowserChallenge();
   }
 
   async assertVisible(
     assertion: Extract<WalkthroughPlanAssertion, { kind: "visible-state" }>,
   ): Promise<void> {
+    await this.assertNoBrowserChallenge();
     const page = this.requirePage();
     const locator =
       assertion.role === undefined
@@ -271,6 +275,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   async assertNavigation(
     assertion: Extract<WalkthroughPlanAssertion, { kind: "navigation" }>,
   ): Promise<void> {
+    await this.assertNoBrowserChallenge();
     const actual = new URL(this.requirePage().url());
     const expected = new URL(assertion.url);
     const matches =
@@ -358,10 +363,11 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     if (this.validatedPolicy?.mode === "yolo") {
       try {
         await action();
-        return;
       } catch {
         throw new DiscoveryReplayBrowserError(failureCode);
       }
+      await this.assertNoBrowserChallenge();
+      return;
     }
     const guard = this.guard;
     if (guard === undefined) throw new DiscoveryReplayBrowserError("browser_closed");
@@ -379,6 +385,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     }
     if ((await guard.finishAction()) !== undefined || this.consumeRoutedWebSocketViolation())
       throw new DiscoveryReplayBrowserError("policy_blocked");
+    await this.assertNoBrowserChallenge();
   }
 
   private async assertNoBrowserChallenge(): Promise<void> {

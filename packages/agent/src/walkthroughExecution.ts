@@ -3,7 +3,7 @@ import type {
   WalkthroughPlanExecutionStepOutcome,
   WalkthroughPlanStep,
 } from "./index.js";
-import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
+import type { BrowserChallenge, BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import {
   isUnsafeWalkthroughAction,
   isWalkthroughPlan,
@@ -37,6 +37,7 @@ export type WalkthroughExecutionErrorCode =
   | "prohibited_input_target"
   | "capture_output_collision"
   | "launch_profile_mismatch"
+  | "anti_bot_challenge"
   | "capture_setup_failed"
   | "capture_stop_failed"
   | "target_not_found"
@@ -52,6 +53,7 @@ export type WalkthroughExecutionError = {
   message: string;
   stepId?: string;
   bindingKey?: string;
+  diagnostic?: BrowserChallenge & { profileId: string };
 };
 
 export type WalkthroughExecutionTarget = {
@@ -108,9 +110,10 @@ export type WalkthroughExecutionCaptureStartResult =
   | { ok: true; session: WalkthroughExecutionCaptureSession }
   | {
       ok: false;
-      code: "capture_setup_failed";
+      code: "capture_setup_failed" | "anti_bot_challenge";
       outputDir: string;
       manifestPath: string;
+      diagnostic?: BrowserChallenge & { profileId: string };
     };
 
 export type WalkthroughExecutionInput = {
@@ -194,6 +197,7 @@ export async function executeWalkthroughPlan(
     };
   }
   if (!started.ok) {
+    const challenge = started.code === "anti_bot_challenge" ? started.diagnostic : undefined;
     return {
       ok: false,
       phase: "capture-setup",
@@ -203,7 +207,16 @@ export async function executeWalkthroughPlan(
         outputDir: started.outputDir,
         manifestPath: started.manifestPath,
       },
-      errors: [{ code: "capture_setup_failed", message: "Browser capture setup failed." }],
+      errors: [
+        {
+          code: started.code,
+          message:
+            started.code === "anti_bot_challenge"
+              ? "Browser capture encountered an anti-bot challenge."
+              : "Browser capture setup failed.",
+          ...(challenge === undefined ? {} : { diagnostic: challenge }),
+        },
+      ],
     };
   }
 

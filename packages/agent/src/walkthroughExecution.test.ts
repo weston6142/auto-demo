@@ -511,4 +511,36 @@ describe("executeWalkthroughPlan", () => {
     expect(stopReasons).toEqual(["failed"]);
     expect(JSON.stringify([setupResult, pacingResult])).not.toContain("private");
   });
+
+  it("preserves a bounded anti-bot challenge from final capture", async () => {
+    const challengeDeps = dependencies(session(browser([]), []), []);
+    challengeDeps.startCapture = async () =>
+      ({
+        ok: false,
+        code: "anti_bot_challenge",
+        outputDir: "/captures/demo",
+        manifestPath: "/captures/demo/capture.manifest.json",
+        diagnostic: { provider: "cloudflare", profileId: "sha256:public-profile" },
+      }) as unknown as Awaited<ReturnType<WalkthroughExecutionDependencies["startCapture"]>>;
+
+    const result = await executeWalkthroughPlan(
+      {
+        plan: approvedPlan(),
+        outputDir: "/captures/demo",
+        viewport: { width: 1280, height: 720 },
+      },
+      challengeDeps,
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "capture-setup",
+      errors: [
+        {
+          code: "anti_bot_challenge",
+          diagnostic: { provider: "cloudflare", profileId: "sha256:public-profile" },
+        },
+      ],
+    });
+  });
 });

@@ -16,7 +16,10 @@ afterEach(async () => {
   );
 });
 
-async function fixture(html: string): Promise<string> {
+async function fixture(
+  html: string,
+  nextHtml = "<!doctype html><h1>Finished</h1>",
+): Promise<string> {
   const server = createServer((request, response) => {
     if (request.url === "/redirect") {
       response.writeHead(302, { location: "https://example.com/" });
@@ -24,7 +27,7 @@ async function fixture(html: string): Promise<string> {
       return;
     }
     if (request.url === "/next") {
-      response.end("<!doctype html><h1>Finished</h1>");
+      response.end(nextHtml);
       return;
     }
     response.end(html);
@@ -72,6 +75,24 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     browsers.push(browser);
 
     await expect(browser.open(origin)).rejects.toMatchObject({
+      code: "anti_bot_challenge",
+      challenge: { provider: "cloudflare" },
+    });
+  });
+
+  it("reports a challenge reached by a later replay navigation", async () => {
+    const origin = await fixture(
+      "<!doctype html><a href='/next'>Continue</a>",
+      "<!doctype html><title>Just a moment...</title><main>Performing security verification. This website uses a security service to protect itself.</main>",
+    );
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+
+    await browser.open(origin);
+    await expect(browser.navigate(`${origin}/next`)).rejects.toMatchObject({
       code: "anti_bot_challenge",
       challenge: { provider: "cloudflare" },
     });

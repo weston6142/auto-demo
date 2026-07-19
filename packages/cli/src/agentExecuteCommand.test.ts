@@ -295,4 +295,51 @@ describe("autodemo agent execute", () => {
     });
     expect(result.stdout).not.toContain("private adapter exception detail");
   });
+
+  it("reports a sanitized final-capture anti-bot challenge distinctly", async () => {
+    const root = await mkdtemp(join(tmpdir(), "auto-demo-agent-execute-challenge-"));
+    const plan = await approvedPlanFile(root);
+    const inputsPath = join(root, "inputs.json");
+    await writeFile(inputsPath, JSON.stringify({ "step-1": "launch demo" }));
+    const challengeAdapter: ControllableBrowserCaptureAdapter = {
+      kind: "browser",
+      async start(options) {
+        return {
+          ok: false,
+          code: "anti_bot_challenge",
+          message: "Browser capture encountered an anti-bot challenge.",
+          outputDir: options.outputDir,
+          manifestPath: join(options.outputDir, "capture.manifest.json"),
+          diagnostic: { provider: "cloudflare", profileId: "sha256:public-profile" },
+        };
+      },
+    };
+
+    const result = await runCliAsync(
+      [
+        "agent",
+        "execute",
+        "--plan",
+        plan.path,
+        "--inputs",
+        inputsPath,
+        "--out",
+        join(root, "capture"),
+        "--json",
+      ],
+      dependencies(challengeAdapter),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      phase: "capture-setup",
+      errors: [
+        {
+          code: "anti_bot_challenge",
+          diagnostic: { provider: "cloudflare", profileId: "sha256:public-profile" },
+        },
+      ],
+    });
+  });
 });
