@@ -3,6 +3,7 @@ import type {
   WalkthroughPlanExecutionStepOutcome,
   WalkthroughPlanStep,
 } from "./index.js";
+import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import {
   isUnsafeWalkthroughAction,
   isWalkthroughPlan,
@@ -35,6 +36,7 @@ export type WalkthroughExecutionErrorCode =
   | "invalid_input_binding"
   | "prohibited_input_target"
   | "capture_output_collision"
+  | "launch_profile_mismatch"
   | "capture_setup_failed"
   | "capture_stop_failed"
   | "target_not_found"
@@ -114,7 +116,7 @@ export type WalkthroughExecutionCaptureStartResult =
 export type WalkthroughExecutionInput = {
   plan: WalkthroughPlan;
   outputDir: string;
-  viewport: { width: number; height: number };
+  viewport?: { width: number; height: number };
   inputBindings?: Record<string, unknown>;
 };
 
@@ -127,6 +129,7 @@ export type WalkthroughExecutionDependencies = {
     sourceUrl: string;
     outputDir: string;
     viewport: { width: number; height: number };
+    launchProfile?: BrowserLaunchProfileV1;
   }): Promise<WalkthroughExecutionCaptureStartResult>;
 };
 
@@ -159,6 +162,7 @@ type PreparedExecution = {
   bindings: Record<string, string>;
   outputDir: string;
   viewport: { width: number; height: number };
+  launchProfile?: BrowserLaunchProfileV1;
 };
 
 class ExecutionInterrupted extends Error {}
@@ -176,6 +180,9 @@ export async function executeWalkthroughPlan(
       sourceUrl: preflight.prepared.plan.target.url,
       outputDir: preflight.prepared.outputDir,
       viewport: preflight.prepared.viewport,
+      ...(preflight.prepared.launchProfile === undefined
+        ? {}
+        : { launchProfile: preflight.prepared.launchProfile }),
     });
   } catch {
     return {
@@ -232,6 +239,20 @@ async function prepareExecution(
       "Execution capture output directory must be missing or empty.",
     );
   }
+
+  const approvedProfile = input.plan.launchProfile;
+  if (
+    approvedProfile !== undefined &&
+    input.viewport !== undefined &&
+    (approvedProfile.viewport.width !== input.viewport.width ||
+      approvedProfile.viewport.height !== input.viewport.height)
+  ) {
+    return preflightFailure(
+      "launch_profile_mismatch",
+      "Execution viewport must match the approved browser launch profile.",
+    );
+  }
+  const viewport = input.viewport ?? approvedProfile?.viewport ?? { width: 1280, height: 720 };
 
   const errors: WalkthroughExecutionError[] = [];
   const bindings: Record<string, string> = {};
@@ -306,7 +327,8 @@ async function prepareExecution(
       plan: approvedExecutionPlan(input.plan),
       bindings,
       outputDir: input.outputDir,
-      viewport: input.viewport,
+      viewport: { ...viewport },
+      ...(approvedProfile === undefined ? {} : { launchProfile: structuredClone(approvedProfile) }),
     },
   };
 }

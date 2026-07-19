@@ -1,18 +1,22 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { approveWalkthroughPlan } from "@auto-demo/agent";
+import { approveWalkthroughPlan, type WalkthroughPlan } from "@auto-demo/agent";
 import type { ControllableBrowserCaptureAdapter } from "@auto-demo/capture";
 import { describe, expect, it } from "vitest";
 import { runCliAsync, type CliDependencies } from "./index.js";
 import { legacyWalkthroughPlanFixture } from "./walkthroughTestFixtures.js";
 
-async function approvedPlanFile(root: string): Promise<{ path: string; text: string }> {
+async function approvedPlanFile(
+  root: string,
+  launchProfile?: WalkthroughPlan["launchProfile"],
+): Promise<{ path: string; text: string }> {
   const plan = legacyWalkthroughPlanFixture({
     targetUrl: "https://example.com/start",
     script: "Type launch demo into Search. Verify Results.",
     mode: "best-guess",
   });
+  plan.launchProfile = launchProfile;
   plan.steps[0].targetHint = { kind: "accessible", label: "Search" };
   plan.steps[1].targetHint = { kind: "accessible", label: "Results" };
   const approved = approveWalkthroughPlan(plan, { allowBestGuessBypass: true });
@@ -85,6 +89,126 @@ function dependencies(adapter: ControllableBrowserCaptureAdapter): CliDependenci
 }
 
 describe("autodemo agent execute", () => {
+  it("derives capture viewport and launch settings from the approved plan", async () => {
+    const root = await mkdtemp(join(tmpdir(), "auto-demo-agent-execute-profile-"));
+    const launchProfile = {
+      schemaVersion: 1 as const,
+      browser: "chromium" as const,
+      channel: "chrome" as const,
+      headless: false,
+      viewport: { width: 1440, height: 900 },
+    };
+    const plan = await approvedPlanFile(root, launchProfile);
+    const inputsPath = join(root, "inputs.json");
+    await writeFile(inputsPath, JSON.stringify({ "step-1": "launch demo" }));
+    let captureOptions: Parameters<ControllableBrowserCaptureAdapter["start"]>[0] | undefined;
+    const adapter = captureAdapter();
+    const originalStart = adapter.start.bind(adapter);
+    adapter.start = async (options) => {
+      captureOptions = options;
+      return await originalStart(options);
+    };
+
+    const result = await runCliAsync(
+      [
+        "agent",
+        "execute",
+        "--plan",
+        plan.path,
+        "--inputs",
+        inputsPath,
+        "--out",
+        join(root, "capture"),
+        "--json",
+      ],
+      dependencies(adapter),
+    );
+
+    expect(result.exitCode, result.stdout).toBe(0);
+    expect(captureOptions).toMatchObject({
+      viewport: { width: 1440, height: 900 },
+      launchProfile,
+    });
+  });
+
+  it("rejects a CLI viewport that differs from the approved profile before capture", async () => {
+    const root = await mkdtemp(join(tmpdir(), "auto-demo-agent-execute-mismatch-"));
+    const plan = await approvedPlanFile(root, {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "chrome",
+      headless: false,
+      viewport: { width: 1440, height: 900 },
+    });
+    const inputsPath = join(root, "inputs.json");
+    await writeFile(inputsPath, JSON.stringify({ "step-1": "launch demo" }));
+    let starts = 0;
+    const adapter = captureAdapter();
+    const originalStart = adapter.start.bind(adapter);
+    adapter.start = async (options) => {
+      starts += 1;
+      return await originalStart(options);
+    };
+
+    const result = await runCliAsync(
+      [
+        "agent",
+        "execute",
+        "--plan",
+        plan.path,
+        "--inputs",
+        inputsPath,
+        "--out",
+        join(root, "capture"),
+        "--viewport",
+        "1280x720",
+        "--json",
+      ],
+      dependencies(adapter),
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      phase: "preflight",
+      errors: [{ code: "launch_profile_mismatch" }],
+    });
+    expect(starts).toBe(0);
+  });
+
+  it("keeps the legacy 1280x720 capture default when the plan has no profile", async () => {
+    const root = await mkdtemp(join(tmpdir(), "auto-demo-agent-execute-legacy-profile-"));
+    const plan = await approvedPlanFile(root);
+    const inputsPath = join(root, "inputs.json");
+    await writeFile(inputsPath, JSON.stringify({ "step-1": "launch demo" }));
+    let captureOptions: Parameters<ControllableBrowserCaptureAdapter["start"]>[0] | undefined;
+    const adapter = captureAdapter();
+    const originalStart = adapter.start.bind(adapter);
+    adapter.start = async (options) => {
+      captureOptions = options;
+      return await originalStart(options);
+    };
+
+    const result = await runCliAsync(
+      [
+        "agent",
+        "execute",
+        "--plan",
+        plan.path,
+        "--inputs",
+        inputsPath,
+        "--out",
+        join(root, "capture"),
+        "--json",
+      ],
+      dependencies(adapter),
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(captureOptions).toMatchObject({ viewport: { width: 1280, height: 720 } });
+    expect(captureOptions).not.toHaveProperty("launchProfile");
+  });
+
   it("executes immutable plan and input files and returns JSON", async () => {
     const root = await mkdtemp(join(tmpdir(), "auto-demo-agent-execute-"));
     const plan = await approvedPlanFile(root);
