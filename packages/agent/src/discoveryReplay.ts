@@ -1,3 +1,8 @@
+import {
+  DEFAULT_BROWSER_LAUNCH_PROFILE,
+  type BrowserChallenge,
+  type BrowserLaunchProfileV1,
+} from "@auto-demo/browser-profile";
 import { isSecretLikeValue, normalizeHttpOrigin } from "./actionSafety.js";
 import { DISCOVERY_LIMITS, type DiscoverySessionV1 } from "./discoveryContract.js";
 import { compileDiscoverySessionToWalkthroughPlan } from "./discoveryPlanCompiler.js";
@@ -57,7 +62,11 @@ export type DiscoveryReplayBrowser = {
 };
 
 export type DiscoveryReplayBrowserFactory = {
-  create(input: { policy: DiscoveryPolicy; attempt: number }): Promise<DiscoveryReplayBrowser>;
+  create(input: {
+    policy: DiscoveryPolicy;
+    attempt: number;
+    launchProfile?: BrowserLaunchProfileV1;
+  }): Promise<DiscoveryReplayBrowser>;
 };
 
 export type ReplayAndRepairDiscoveryPlanInput = {
@@ -82,6 +91,7 @@ export type DiscoveryReplayFailureCode =
   | "action_failed"
   | "timing_failure"
   | "policy_blocked"
+  | "anti_bot_challenge"
   | "replay_setup_failed";
 
 export type DiscoveryReplayFailureEvidence = {
@@ -96,12 +106,17 @@ export type DiscoveryReplayFailureEvidence = {
     provenance?: WalkthroughPlanStepProvenance;
   };
   expected?: WalkthroughPlanAssertion | WalkthroughPlanTargetHint;
-  observed: { url?: string; candidates?: DiscoveryReplayMatch[] };
+  observed: {
+    url?: string;
+    candidates?: DiscoveryReplayMatch[];
+    challenge?: BrowserChallenge;
+  };
   recommendation:
     | "rediscover-target"
     | "rediscover-route"
     | "refresh-expectation"
     | "retry-after-stability"
+    | "change-browser-profile"
     | "request-policy-boundary";
 };
 
@@ -247,19 +262,26 @@ async function runReplayAndRepairDiscoveryPlan(
       browser = await dependencies.browserFactory.create({
         policy: current.policy,
         attempt: attemptIndex,
+        launchProfile: current.plan.launchProfile ?? DEFAULT_BROWSER_LAUNCH_PROFILE,
       });
       await browser.open(current.plan.target.url);
       attempt = await runReplayAttempt(current, browser, attemptIndex);
     } catch (error) {
+      const replayError = error instanceof DiscoveryReplayBrowserError ? error : undefined;
       const code =
-        error instanceof DiscoveryReplayBrowserError && error.code === "policy_blocked"
+        replayError?.code === "policy_blocked"
           ? "policy_blocked"
-          : "replay_setup_failed";
-      attempts.push(setupFailureAttempt(current, attemptIndex, code));
-      if (code === "policy_blocked") {
+          : replayError?.code === "anti_bot_challenge"
+            ? "anti_bot_challenge"
+            : "replay_setup_failed";
+      attempts.push(setupFailureAttempt(current, attemptIndex, code, replayError?.challenge));
+      if (code === "policy_blocked" || code === "anti_bot_challenge") {
         return replayBlocked(current, attempts, {
           code: "repair_not_available",
-          message: "Discovery replay stopped at a hard policy boundary.",
+          message:
+            code === "policy_blocked"
+              ? "Discovery replay stopped at a hard policy boundary."
+              : "Discovery replay stopped at an anti-bot challenge.",
         });
       }
       return replayFailure(
@@ -531,6 +553,7 @@ export class DiscoveryReplayBrowserError extends Error {
   constructor(
     readonly code: DiscoveryReplayBrowserErrorCode,
     readonly candidates?: DiscoveryReplayMatch[],
+    readonly challenge?: BrowserChallenge,
   ) {
     super(code);
     this.name = "DiscoveryReplayBrowserError";
@@ -684,6 +707,7 @@ function recommendationFor(
   if (code === "navigation_failed" || code === "navigation_mismatch") return "rediscover-route";
   if (code === "visible_state_mismatch") return "refresh-expectation";
   if (code === "policy_blocked") return "request-policy-boundary";
+  if (code === "anti_bot_challenge") return "change-browser-profile";
   return "retry-after-stability";
 }
 
@@ -703,7 +727,8 @@ function attemptIdentity(prepared: PreparedReplay, attempt: 1 | 2 | 3) {
 function setupFailureAttempt(
   prepared: PreparedReplay,
   attempt: 1 | 2 | 3,
-  code: "policy_blocked" | "replay_setup_failed",
+  code: "policy_blocked" | "anti_bot_challenge" | "replay_setup_failed",
+  challenge?: BrowserChallenge,
 ): DiscoveryReplayAttempt {
   return {
     ...attemptIdentity(prepared, attempt),
@@ -713,9 +738,14 @@ function setupFailureAttempt(
       schemaVersion: 1,
       code,
       repairability: "hard-boundary",
-      observed: {},
+      observed:
+        code === "anti_bot_challenge" && challenge !== undefined ? { challenge } : {},
       recommendation:
-        code === "policy_blocked" ? "request-policy-boundary" : "retry-after-stability",
+        code === "policy_blocked"
+          ? "request-policy-boundary"
+          : code === "anti_bot_challenge"
+            ? "change-browser-profile"
+            : "retry-after-stability",
     },
   };
 }

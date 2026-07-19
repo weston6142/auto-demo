@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import { afterEach, describe, expect, it } from "vitest";
 import { DiscoveryReplayBrowserError } from "./discoveryReplay.js";
 import { createPlaywrightDiscoveryReplayBrowserFactory } from "./playwrightDiscoveryReplay.js";
@@ -36,6 +37,46 @@ async function fixture(html: string): Promise<string> {
 }
 
 describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
+  it("uses the explicit profile viewport instead of the legacy replay default", async () => {
+    const origin = await fixture(
+      "<!doctype html><h1></h1><script>document.querySelector('h1').textContent = innerWidth + 'x' + innerHeight</script>",
+    );
+    const launchProfile: BrowserLaunchProfileV1 = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "bundled",
+      headless: true,
+      viewport: { width: 640, height: 360 },
+    };
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+      launchProfile,
+    });
+    browsers.push(browser);
+
+    await browser.open(origin);
+    await expect(
+      browser.assertVisible({ kind: "visible-state", condition: "640x360", role: "heading" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports a Cloudflare challenge separately from a policy violation", async () => {
+    const origin = await fixture(
+      "<!doctype html><title>Just a moment...</title><main>Performing security verification. This website uses a security service to protect itself.</main>",
+    );
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+
+    await expect(browser.open(origin)).rejects.toMatchObject({
+      code: "anti_bot_challenge",
+      challenge: { provider: "cloudflare" },
+    });
+  });
+
   it("matches accessible targets and replays safe actions in an isolated page", async () => {
     const origin = await fixture(`<!doctype html>
       <label>Name <input aria-label="Demo name"></label>

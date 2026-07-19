@@ -1,4 +1,9 @@
 import {
+  DEFAULT_BROWSER_LAUNCH_PROFILE,
+  classifyBrowserChallenge,
+  type BrowserLaunchProfileV1,
+} from "@auto-demo/browser-profile";
+import {
   chromium,
   type Browser,
   type BrowserContext,
@@ -50,8 +55,13 @@ export function createPlaywrightDiscoveryReplayBrowserFactory(
 ): DiscoveryReplayBrowserFactory {
   const resolvedOptions = validateOptions(options);
   return {
-    async create({ policy }) {
-      return new PlaywrightDiscoveryReplayBrowser(policy, resolvedOptions);
+    async create({ policy, launchProfile }) {
+      const profile =
+        launchProfile ?? {
+          ...DEFAULT_BROWSER_LAUNCH_PROFILE,
+          viewport: resolvedOptions.viewport,
+        };
+      return new PlaywrightDiscoveryReplayBrowser(policy, resolvedOptions, profile);
     },
   };
 }
@@ -69,6 +79,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   constructor(
     private readonly policy: DiscoveryPolicy,
     private readonly options: ResolvedPlaywrightDiscoveryReplayOptions,
+    private readonly launchProfile: BrowserLaunchProfileV1,
   ) {}
 
   async open(url: string): Promise<void> {
@@ -80,10 +91,15 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     this.validatedPolicy = validation.policy;
     let bootstrapViolation = false;
     try {
-      this.browser = await chromium.launch({ headless: true });
+      this.browser = await chromium.launch({
+        headless: this.launchProfile.headless,
+        ...(this.launchProfile.channel === "bundled"
+          ? {}
+          : { channel: this.launchProfile.channel }),
+      });
       this.context = await this.browser.newContext({
         ...(validation.policy.mode === "yolo" ? {} : { serviceWorkers: "block" as const }),
-        viewport: this.options.viewport,
+        viewport: this.launchProfile.viewport,
       });
       this.context.setDefaultTimeout(this.options.actionTimeoutMs);
       this.context.setDefaultNavigationTimeout(this.options.actionTimeoutMs);
@@ -94,6 +110,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
           timeout: this.options.actionTimeoutMs,
         });
         await this.page.waitForTimeout(this.options.stabilityDurationMs);
+        await this.assertNoBrowserChallenge();
         return;
       }
       let bootstrapActive = true;
@@ -136,6 +153,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
         await this.page.waitForTimeout(this.options.stabilityDurationMs);
         this.guard = await installPlaywrightDiscoveryPolicyGuard(this.page, validation.policy);
         if (bootstrapViolation) throw new DiscoveryReplayBrowserError("policy_blocked");
+        await this.assertNoBrowserChallenge();
       } finally {
         bootstrapActive = false;
         await this.context.unroute("**/*", bootstrap);
@@ -362,6 +380,21 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     }
     if ((await guard.finishAction()) !== undefined || this.consumeRoutedWebSocketViolation())
       throw new DiscoveryReplayBrowserError("policy_blocked");
+  }
+
+  private async assertNoBrowserChallenge(): Promise<void> {
+    const page = this.requirePage();
+    const challenge = classifyBrowserChallenge({
+      title: await page.title().catch(() => ""),
+      visibleText: await page
+        .locator("body")
+        .innerText({ timeout: 1_000 })
+        .then((text) => text.slice(0, 8192))
+        .catch(() => ""),
+    });
+    if (challenge !== undefined) {
+      throw new DiscoveryReplayBrowserError("anti_bot_challenge", undefined, challenge);
+    }
   }
 
   private requirePage(): Page {
