@@ -316,6 +316,22 @@ ever carries across phases, and review and explicit approval remain mandatory in
 behavior. The WES-189 transcript remains at `fixtures/codex-yolo-discovery-approval.md` as
 historical bounded-discovery evidence.
 
+### Browser launch profile parity
+
+Discovery accepts one bounded browser launch profile plan with a primary and at most two fallback
+attempts. Supported public fields are `schemaVersion`, Chromium `browser`, `channel` (`bundled`,
+`chrome`, or `msedge`), `headless`, and a viewport from 1x1 through 4096x4096. Every failed attempt
+uses and closes a fresh isolated browser and context. Discovery alone resolves fallback order; the
+selected profile is persisted into `DiscoverySessionV1`, compiled into the walkthrough plan, and
+covered by review and approval fingerprints.
+
+Fresh replay and final capture use the same resolved profile unchanged. They do not retry another
+profile or carry browser state forward. A recognized Cloudflare or generic human-verification page
+returns the bounded `anti_bot_challenge` outcome, distinct from network or action policy failures.
+Persistent contexts, executable paths, arbitrary launch arguments, cookies, storage state, and
+authenticated browser state are outside the contract. Existing plans without a profile retain the
+bundled headless Chromium 1280x720 default.
+
 ## Structured Browser Observation Snapshots
 
 `createPlaywrightDiscoveryObservationExtractor()` inspects an existing Playwright page and

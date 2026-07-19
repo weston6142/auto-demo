@@ -12,6 +12,15 @@ This repository is in early capture-to-project setup. The package structure supp
 
 The repository-owned skill provides Codex-hosted risk-tiered discovery from a natural-language goal through structured rehearsal, bounded repair, explicit approval, and the existing deterministic execute and handoff path. It resolves `safe`, `public-browse`, `disposable`, or `yolo` before browser or network activity; all four modes are implemented for discovery and replay. Codex selects the same tier again for fresh discovery, fresh replay, and fresh recording contexts. Review and explicit approval remain mandatory, and the repository does not expose a discovery CLI.
 
+Discovery also resolves one sanitized browser launch profile: Chromium with the bundled browser,
+Chrome, or Edge channel; headless mode; and a bounded viewport. A primary profile may declare at
+most two deterministic fallbacks. Only discovery selects a fallback. The selected profile is
+stored in the discovery-derived plan, covered by approval, and reused unchanged by replay and
+capture, each in a fresh isolated browser and context. An anti-bot page produces the distinct
+`anti_bot_challenge` outcome rather than a policy error. No cookies, storage state, authenticated
+state, executable path, or arbitrary browser arguments are reused across phases. Existing plans
+without a profile retain bundled headless Chromium at 1280x720.
+
 Safe discovery now classifies blocked network activity as `document-navigation`,
 `xhr-fetch`, `beacon`, `service-worker`, or `other`, with read/potential-side-effect
 method categories, same-origin/cross-origin relation, top-level/subresource scope,

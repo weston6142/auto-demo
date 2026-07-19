@@ -1,6 +1,7 @@
 import { appendFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { browserLaunchProfileId, type BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import { describe, expect, it } from "vitest";
 import type { CaptureEvent } from "./captureEvents.js";
 import type { BrowserCaptureController } from "./index.js";
@@ -31,6 +32,7 @@ class FakePage implements PlaywrightPage {
   public readonly initScripts: string[] = [];
   public currentUrl = "https://example.com/demo";
   public currentTitle = "Demo";
+  public visibleText = "Demo content";
   public viewport = { width: 1280, height: 720 };
   public readonly controlledActions: string[] = [];
 
@@ -63,6 +65,10 @@ class FakePage implements PlaywrightPage {
       pageTitle: this.currentTitle,
       viewport: this.viewport,
     };
+  }
+
+  async challengeSummary() {
+    return { title: this.currentTitle, visibleText: this.visibleText };
   }
 
   executionController(): BrowserCaptureController {
@@ -121,12 +127,14 @@ class FakeBrowser implements PlaywrightBrowser {
 
 class FakeDriver implements PlaywrightDriver {
   public readonly browser: FakeBrowser;
+  public readonly launchProfiles: Array<BrowserLaunchProfileV1 | undefined> = [];
 
   constructor(videoPath: string) {
     this.browser = new FakeBrowser(new FakeContext(new FakePage(new FakeVideo(videoPath))));
   }
 
-  async launchChromium(): Promise<PlaywrightBrowser> {
+  async launchChromium(profile?: BrowserLaunchProfileV1): Promise<PlaywrightBrowser> {
+    this.launchProfiles.push(profile === undefined ? undefined : structuredClone(profile));
     return this.browser;
   }
 }
@@ -139,10 +147,18 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
       now: () => new Date("2026-06-28T12:00:00.000Z"),
     });
 
+    const launchProfile: BrowserLaunchProfileV1 = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "chrome",
+      headless: false,
+      viewport: { width: 1440, height: 900 },
+    };
     const result = await adapter.start({
       source: { kind: "browser", url: "https://example.com/demo" },
       outputDir: `${outputDir}///`,
       viewport: { width: 1440, height: 900 },
+      launchProfile,
       startedAt: "2026-06-28T11:59:59.000Z",
     });
 
@@ -162,11 +178,75 @@ describe("createPlaywrightBrowserCaptureAdapter", () => {
         },
       },
     ]);
+    expect(driver.launchProfiles).toEqual([launchProfile]);
     expect(driver.browser.context.page.gotos).toEqual(["https://example.com/demo"]);
     expect(result.session.outputDir).toBe(outputDir);
     expect(result.session.manifestPath).toBe(`${outputDir}/capture.manifest.json`);
     await result.session.browser.click({ label: "Get started" });
     expect(driver.browser.context.page.controlledActions).toEqual(["click:Get started"]);
+  });
+
+  it("rejects an explicit launch profile whose viewport differs before launch", async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-profile-mismatch-"));
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: () => new Date("2026-07-19T12:00:00.000Z"),
+    });
+
+    const result = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      launchProfile: {
+        schemaVersion: 1,
+        browser: "chromium",
+        channel: "chrome",
+        headless: false,
+        viewport: { width: 1440, height: 900 },
+      },
+      startedAt: "2026-07-19T12:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({ ok: false, code: "invalid_browser_launch_profile" });
+    expect(driver.launchProfiles).toEqual([]);
+  });
+
+  it("reports a bounded anti-bot challenge and closes fresh capture resources", async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), "auto-demo-playwright-challenge-"));
+    const driver = new FakeDriver(join(outputDir, "media", "raw.webm"));
+    driver.browser.context.page.currentTitle = "Just a moment...";
+    driver.browser.context.page.visibleText =
+      "Performing security verification. This website uses a security service to protect itself.";
+    const adapter = createPlaywrightBrowserCaptureAdapterForDriver(driver, {
+      now: () => new Date("2026-07-19T12:00:00.000Z"),
+    });
+    const launchProfile: BrowserLaunchProfileV1 = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "bundled",
+      headless: true,
+      viewport: { width: 1280, height: 720 },
+    };
+
+    const result = await adapter.start({
+      source: { kind: "browser", url: "https://example.com/demo?token=page-secret" },
+      outputDir,
+      viewport: { width: 1280, height: 720 },
+      launchProfile,
+      startedAt: "2026-07-19T12:00:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "anti_bot_challenge",
+      diagnostic: {
+        provider: "cloudflare",
+        profileId: browserLaunchProfileId(launchProfile),
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("page-secret");
+    expect(driver.browser.context.closed).toBe(true);
+    expect(driver.browser.closed).toBe(true);
   });
 
   it("returns media and timing when the session stops", async () => {

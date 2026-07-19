@@ -1,4 +1,5 @@
 import { generateHeadlessVariants, type HeadlessVariantGenerationResult } from "@auto-demo/polish";
+import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import type { DiscoveryExpectationOrigin } from "./discoveryContract.js";
 import {
   loadProject,
@@ -160,6 +161,15 @@ export {
   createPlaywrightDiscoveryReplayBrowserFactory,
   type PlaywrightDiscoveryReplayOptions,
 } from "./playwrightDiscoveryReplay.js";
+
+export {
+  createPlaywrightDiscoveryBrowserLauncher,
+  type DiscoveryBrowserLaunchAttempt,
+  type DiscoveryBrowserLaunchFailure,
+  type DiscoveryBrowserLaunchHandle,
+  type DiscoveryBrowserLaunchResult,
+  type DiscoveryBrowserLauncher,
+} from "./playwrightDiscoveryBrowserLauncher.js";
 
 export {
   createDiscoveryObservationExtractor,
@@ -436,6 +446,7 @@ export type WalkthroughPlan = {
     kind: "browser";
     url: string;
   };
+  launchProfile?: BrowserLaunchProfileV1;
   mode: WalkthroughPlanMode;
   state: WalkthroughPlanState;
   source: WalkthroughPlanSource;

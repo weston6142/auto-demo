@@ -112,6 +112,72 @@ function dependencies(
 }
 
 describe("executeWalkthroughPlan", () => {
+  it("uses the approved launch profile for capture when no viewport override is supplied", async () => {
+    const draft = plan();
+    draft.launchProfile = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "chrome",
+      headless: false,
+      viewport: { width: 1440, height: 900 },
+    };
+    const approved = approveWalkthroughPlan(draft, {
+      allowBestGuessBypass: true,
+      now: () => new Date("2026-07-10T17:00:00.000Z"),
+    });
+    if (!approved.ok) throw new Error("test plan should approve");
+    const base = dependencies(session(browser([]), []), []);
+    let captureOptions: Parameters<WalkthroughExecutionDependencies["startCapture"]>[0] | undefined;
+    base.startCapture = async (options) => {
+      captureOptions = options;
+      return { ok: true, session: session(browser([]), []) };
+    };
+
+    const result = await executeWalkthroughPlan(
+      { plan: approved.plan, outputDir: "/captures/demo" },
+      base,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(captureOptions).toMatchObject({
+      viewport: { width: 1440, height: 900 },
+      launchProfile: approved.plan.launchProfile,
+    });
+  });
+
+  it("rejects a viewport override that differs from the approved launch profile", async () => {
+    const draft = plan();
+    draft.launchProfile = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "bundled",
+      headless: true,
+      viewport: { width: 1440, height: 900 },
+    };
+    const approved = approveWalkthroughPlan(draft, {
+      allowBestGuessBypass: true,
+      now: () => new Date("2026-07-10T17:00:00.000Z"),
+    });
+    if (!approved.ok) throw new Error("test plan should approve");
+    const starts: string[] = [];
+
+    const result = await executeWalkthroughPlan(
+      {
+        plan: approved.plan,
+        outputDir: "/captures/demo",
+        viewport: { width: 1280, height: 720 },
+      },
+      dependencies(session(browser([]), []), starts),
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "preflight",
+      errors: [{ code: "launch_profile_mismatch" }],
+    });
+    expect(starts).toEqual([]);
+  });
+
   it("rejects unapproved plans before capture starts", async () => {
     const starts: string[] = [];
     const result = await executeWalkthroughPlan(
@@ -444,5 +510,37 @@ describe("executeWalkthroughPlan", () => {
     });
     expect(stopReasons).toEqual(["failed"]);
     expect(JSON.stringify([setupResult, pacingResult])).not.toContain("private");
+  });
+
+  it("preserves a bounded anti-bot challenge from final capture", async () => {
+    const challengeDeps = dependencies(session(browser([]), []), []);
+    challengeDeps.startCapture = async () =>
+      ({
+        ok: false,
+        code: "anti_bot_challenge",
+        outputDir: "/captures/demo",
+        manifestPath: "/captures/demo/capture.manifest.json",
+        diagnostic: { provider: "cloudflare", profileId: "sha256:public-profile" },
+      }) as unknown as Awaited<ReturnType<WalkthroughExecutionDependencies["startCapture"]>>;
+
+    const result = await executeWalkthroughPlan(
+      {
+        plan: approvedPlan(),
+        outputDir: "/captures/demo",
+        viewport: { width: 1280, height: 720 },
+      },
+      challengeDeps,
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "capture-setup",
+      errors: [
+        {
+          code: "anti_bot_challenge",
+          diagnostic: { provider: "cloudflare", profileId: "sha256:public-profile" },
+        },
+      ],
+    });
   });
 });

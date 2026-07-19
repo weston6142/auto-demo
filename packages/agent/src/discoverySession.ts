@@ -1,4 +1,9 @@
 import {
+  browserLaunchProfileId,
+  validateBrowserLaunchProfile,
+  type BrowserLaunchProfileV1,
+} from "@auto-demo/browser-profile";
+import {
   DISCOVERY_LIMITS,
   DISCOVERY_SCHEMA_VERSION,
   type DiscoveryContractResult,
@@ -32,6 +37,7 @@ export type CreateDiscoverySessionInput = {
   target: { kind: "browser"; startUrl: string };
   goal: string;
   host: DiscoveryHostProvenance;
+  launchProfile?: BrowserLaunchProfileV1;
   parentSessionId?: string;
   createdAt: string;
 };
@@ -41,7 +47,15 @@ export function createDiscoverySession(
 ): DiscoveryContractResult {
   if (
     !isRecord(input) ||
-    !hasOnlyKeys(input, ["id", "target", "goal", "host", "parentSessionId", "createdAt"]) ||
+    !hasOnlyKeys(input, [
+      "id",
+      "target",
+      "goal",
+      "host",
+      "launchProfile",
+      "parentSessionId",
+      "createdAt",
+    ]) ||
     !isRecord(input.target) ||
     !hasOnlyKeys(input.target, ["kind", "startUrl"]) ||
     input.target.kind !== "browser" ||
@@ -56,6 +70,17 @@ export function createDiscoverySession(
     return {
       ok: false,
       errors: [discoveryError("invalid_discovery_input", "Discovery session input is invalid.")],
+    };
+  }
+
+  const launchProfileValidation =
+    input.launchProfile === undefined
+      ? undefined
+      : validateBrowserLaunchProfile(input.launchProfile);
+  if (launchProfileValidation !== undefined && !launchProfileValidation.ok) {
+    return {
+      ok: false,
+      errors: [discoveryError("invalid_discovery_input", "Discovery launch profile is invalid.")],
     };
   }
 
@@ -109,6 +134,9 @@ export function createDiscoverySession(
       version: hostVersion,
       ...(hostModel === undefined ? {} : { model: hostModel }),
     },
+    ...(launchProfileValidation?.ok === true
+      ? { launchProfile: launchProfileValidation.profile }
+      : {}),
     ...(input.parentSessionId === undefined ? {} : { parentSessionId: input.parentSessionId }),
     createdAt: input.createdAt,
     updatedAt: input.createdAt,
@@ -482,6 +510,23 @@ export function createChildDiscoverySession(
       ok: false,
       errors: [discoveryError("invalid_discovery_input", "Child session id must be new.")],
     };
+  }
+  if (validated.session.launchProfile !== undefined) {
+    const childProfile = validateBrowserLaunchProfile(input.launchProfile);
+    if (
+      !childProfile.ok ||
+      browserLaunchProfileId(validated.session.launchProfile) !== childProfile.profileId
+    ) {
+      return {
+        ok: false,
+        errors: [
+          discoveryError(
+            "invalid_discovery_transition",
+            "Child discovery must preserve the parent launch profile.",
+          ),
+        ],
+      };
+    }
   }
   return createDiscoverySession({ ...input, parentSessionId: terminalSession.id });
 }

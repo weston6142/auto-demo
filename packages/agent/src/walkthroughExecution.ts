@@ -3,6 +3,7 @@ import type {
   WalkthroughPlanExecutionStepOutcome,
   WalkthroughPlanStep,
 } from "./index.js";
+import type { BrowserChallenge, BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import {
   isUnsafeWalkthroughAction,
   isWalkthroughPlan,
@@ -35,6 +36,8 @@ export type WalkthroughExecutionErrorCode =
   | "invalid_input_binding"
   | "prohibited_input_target"
   | "capture_output_collision"
+  | "launch_profile_mismatch"
+  | "anti_bot_challenge"
   | "capture_setup_failed"
   | "capture_stop_failed"
   | "target_not_found"
@@ -50,6 +53,7 @@ export type WalkthroughExecutionError = {
   message: string;
   stepId?: string;
   bindingKey?: string;
+  diagnostic?: BrowserChallenge & { profileId: string };
 };
 
 export type WalkthroughExecutionTarget = {
@@ -106,15 +110,16 @@ export type WalkthroughExecutionCaptureStartResult =
   | { ok: true; session: WalkthroughExecutionCaptureSession }
   | {
       ok: false;
-      code: "capture_setup_failed";
+      code: "capture_setup_failed" | "anti_bot_challenge";
       outputDir: string;
       manifestPath: string;
+      diagnostic?: BrowserChallenge & { profileId: string };
     };
 
 export type WalkthroughExecutionInput = {
   plan: WalkthroughPlan;
   outputDir: string;
-  viewport: { width: number; height: number };
+  viewport?: { width: number; height: number };
   inputBindings?: Record<string, unknown>;
 };
 
@@ -127,6 +132,7 @@ export type WalkthroughExecutionDependencies = {
     sourceUrl: string;
     outputDir: string;
     viewport: { width: number; height: number };
+    launchProfile?: BrowserLaunchProfileV1;
   }): Promise<WalkthroughExecutionCaptureStartResult>;
 };
 
@@ -159,6 +165,7 @@ type PreparedExecution = {
   bindings: Record<string, string>;
   outputDir: string;
   viewport: { width: number; height: number };
+  launchProfile?: BrowserLaunchProfileV1;
 };
 
 class ExecutionInterrupted extends Error {}
@@ -176,6 +183,9 @@ export async function executeWalkthroughPlan(
       sourceUrl: preflight.prepared.plan.target.url,
       outputDir: preflight.prepared.outputDir,
       viewport: preflight.prepared.viewport,
+      ...(preflight.prepared.launchProfile === undefined
+        ? {}
+        : { launchProfile: preflight.prepared.launchProfile }),
     });
   } catch {
     return {
@@ -187,6 +197,7 @@ export async function executeWalkthroughPlan(
     };
   }
   if (!started.ok) {
+    const challenge = started.code === "anti_bot_challenge" ? started.diagnostic : undefined;
     return {
       ok: false,
       phase: "capture-setup",
@@ -196,7 +207,16 @@ export async function executeWalkthroughPlan(
         outputDir: started.outputDir,
         manifestPath: started.manifestPath,
       },
-      errors: [{ code: "capture_setup_failed", message: "Browser capture setup failed." }],
+      errors: [
+        {
+          code: started.code,
+          message:
+            started.code === "anti_bot_challenge"
+              ? "Browser capture encountered an anti-bot challenge."
+              : "Browser capture setup failed.",
+          ...(challenge === undefined ? {} : { diagnostic: challenge }),
+        },
+      ],
     };
   }
 
@@ -232,6 +252,20 @@ async function prepareExecution(
       "Execution capture output directory must be missing or empty.",
     );
   }
+
+  const approvedProfile = input.plan.launchProfile;
+  if (
+    approvedProfile !== undefined &&
+    input.viewport !== undefined &&
+    (approvedProfile.viewport.width !== input.viewport.width ||
+      approvedProfile.viewport.height !== input.viewport.height)
+  ) {
+    return preflightFailure(
+      "launch_profile_mismatch",
+      "Execution viewport must match the approved browser launch profile.",
+    );
+  }
+  const viewport = input.viewport ?? approvedProfile?.viewport ?? { width: 1280, height: 720 };
 
   const errors: WalkthroughExecutionError[] = [];
   const bindings: Record<string, string> = {};
@@ -306,7 +340,8 @@ async function prepareExecution(
       plan: approvedExecutionPlan(input.plan),
       bindings,
       outputDir: input.outputDir,
-      viewport: input.viewport,
+      viewport: { ...viewport },
+      ...(approvedProfile === undefined ? {} : { launchProfile: structuredClone(approvedProfile) }),
     },
   };
 }

@@ -7,11 +7,12 @@ import {
   type Page,
   type Video,
 } from "playwright";
+import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import type { BrowserCaptureController, CaptureViewport } from "./index.js";
 import { createPlaywrightExecutionController } from "./playwrightExecutionController.js";
 
 export type PlaywrightDriver = {
-  launchChromium(): Promise<PlaywrightBrowser>;
+  launchChromium(profile: BrowserLaunchProfileV1): Promise<PlaywrightBrowser>;
 };
 
 export type PlaywrightBrowser = {
@@ -73,6 +74,7 @@ export type PlaywrightPage = {
   onNavigation(callback: (phase: string) => void): void;
   onPageError(callback: (error: PlaywrightPageError) => void): void;
   snapshotMetadata(): Promise<PlaywrightPageSnapshot>;
+  challengeSummary?(): Promise<{ title: string; visibleText: string }>;
   executionController(): BrowserCaptureController;
 };
 
@@ -82,8 +84,11 @@ export type PlaywrightVideo = {
 
 export function createDefaultPlaywrightDriver(): PlaywrightDriver {
   return {
-    async launchChromium() {
-      const browser = await chromium.launch();
+    async launchChromium(profile) {
+      const browser = await chromium.launch({
+        headless: profile.headless,
+        ...(profile.channel === "bundled" ? {} : { channel: profile.channel }),
+      });
       return wrapBrowser(browser);
     },
   };
@@ -168,6 +173,16 @@ function wrapPage(page: Page): PlaywrightPage {
         pageTitle: await page.title().catch(() => undefined),
         viewport:
           viewport === undefined ? undefined : { width: viewport.width, height: viewport.height },
+      };
+    },
+    async challengeSummary() {
+      return {
+        title: await page.title().catch(() => ""),
+        visibleText: await page
+          .locator("body")
+          .innerText({ timeout: 1_000 })
+          .then((text) => text.slice(0, 8192))
+          .catch(() => ""),
       };
     },
     executionController() {

@@ -43,13 +43,15 @@ export async function runAgentExecuteCommand(
   if (!planResult.ok) return failure(planResult.errors, true);
   const inputsResult = await readInputs(parsed.inputsPath);
   if (!inputsResult.ok) return failure(inputsResult.errors, true);
+  const viewport =
+    parsed.viewport ?? planResult.plan.launchProfile?.viewport ?? DEFAULT_BROWSER_VIEWPORT;
 
   const result = await executeWalkthroughPlan(
     {
       plan: planResult.plan,
       inputBindings: inputsResult.inputs,
       outputDir: parsed.outputDir,
-      viewport: parsed.viewport,
+      viewport,
     },
     {
       now: dependencies.now,
@@ -61,6 +63,7 @@ export async function runAgentExecuteCommand(
           source: { kind: "browser", url: options.sourceUrl },
           outputDir: options.outputDir,
           viewport: options.viewport,
+          ...(options.launchProfile === undefined ? {} : { launchProfile: options.launchProfile }),
           startedAt: dependencies.now().toISOString(),
         });
         return adaptCaptureStartResult(started);
@@ -81,13 +84,13 @@ function parseAgentExecuteCommand(args: string[]):
       planPath: string;
       inputsPath?: string;
       outputDir: string;
-      viewport: CaptureViewport;
+      viewport?: CaptureViewport;
     }
   | { ok: false; json: boolean; errors: AgentExecuteParseError[] } {
   let planPath: string | undefined;
   let inputsPath: string | undefined;
   let outputDir: string | undefined;
-  let viewport: CaptureViewport = DEFAULT_BROWSER_VIEWPORT;
+  let viewport: CaptureViewport | undefined;
   let json = false;
   const errors: AgentExecuteParseError[] = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -222,6 +225,15 @@ function adaptCaptureStartResult(
   started: ControllableCaptureStartResult,
 ): WalkthroughExecutionCaptureStartResult {
   if (!started.ok) {
+    if (started.code === "anti_bot_challenge") {
+      return {
+        ok: false,
+        code: "anti_bot_challenge",
+        outputDir: started.outputDir,
+        manifestPath: started.manifestPath,
+        ...(started.diagnostic === undefined ? {} : { diagnostic: started.diagnostic }),
+      };
+    }
     return {
       ok: false,
       code: "capture_setup_failed",

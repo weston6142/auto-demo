@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import { describe, expect, it } from "vitest";
 import {
   compileDiscoverySessionToWalkthroughPlan,
@@ -19,7 +20,7 @@ class FakeReplayBrowser implements DiscoveryReplayBrowser {
   closeCalls = 0;
   matches: DiscoveryReplayMatch[] = [{ id: "candidate-1", label: "Checkout", role: "button" }];
   failNavigationAssertion = false;
-  clickFailure: "policy_blocked" | undefined;
+  clickFailure: "policy_blocked" | "anti_bot_challenge" | undefined;
 
   async open(url: string) {
     this.calls.push(`open:${url}`);
@@ -34,7 +35,11 @@ class FakeReplayBrowser implements DiscoveryReplayBrowser {
   async click(match: DiscoveryReplayMatch) {
     this.calls.push(`click:${match.id}`);
     if (this.clickFailure !== undefined) {
-      throw new DiscoveryReplayBrowserError(this.clickFailure);
+      throw new DiscoveryReplayBrowserError(
+        this.clickFailure,
+        undefined,
+        this.clickFailure === "anti_bot_challenge" ? { provider: "cloudflare" } : undefined,
+      );
     }
   }
   async type(match: DiscoveryReplayMatch, value: string) {
@@ -277,6 +282,88 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
 });
 
 describe("replayAndRepairDiscoveryPlan single attempt", () => {
+  it("passes the canonical discovery profile to the fresh replay factory", async () => {
+    const input = await safeCompiledFixture();
+    const launchProfile: BrowserLaunchProfileV1 = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "chrome",
+      headless: false,
+      viewport: { width: 1440, height: 900 },
+    };
+    input.sourceSession.launchProfile = launchProfile;
+    const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
+    if (!compiled.ok) throw new Error("profile replay fixture must compile");
+    input.plan = compiled.plan;
+    const received: unknown[] = [];
+    const browser = new FakeReplayBrowser();
+    browser.matches = [{ id: "candidate-1", label: "Continue", role: "button" }];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      { maxRepairs: 0 },
+      {
+        browserFactory: {
+          async create(options) {
+            received.push(structuredClone(options));
+            return browser;
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(received).toEqual([
+      {
+        policy: { mode: "safe", allowedOrigins: ["https://example.com"] },
+        attempt: 1,
+        launchProfile,
+      },
+    ]);
+  });
+
+  it("reports anti-bot setup as a non-repairable boundary distinct from policy", async () => {
+    const input = await safeCompiledFixture();
+    let repairCalls = 0;
+
+    const result = await replayAndRepairDiscoveryPlan(
+      input,
+      { maxRepairs: 1 },
+      {
+        browserFactory: {
+          async create() {
+            throw new DiscoveryReplayBrowserError("anti_bot_challenge", undefined, {
+              provider: "cloudflare",
+            });
+          },
+        },
+        repair: {
+          async repair() {
+            repairCalls += 1;
+            return { decision: "stop", reason: "repair_declined" };
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "replay",
+      attempts: [
+        {
+          status: "failed",
+          failure: {
+            code: "anti_bot_challenge",
+            repairability: "hard-boundary",
+            observed: { challenge: { provider: "cloudflare" } },
+            recommendation: "change-browser-profile",
+          },
+        },
+      ],
+    });
+    expect(repairCalls).toBe(0);
+  });
+
   it("redacts secret-like structural identifiers", async () => {
     const input = await safeCompiledFixture();
     const secretIdentifier = "sk-live-fc5cd6c9-bb35-49d7-9b33-7face638add4";
@@ -601,6 +688,49 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     });
   });
 
+  it("rejects a repair session that changes the resolved browser profile", async () => {
+    const root = await safeCompiledFixture();
+    root.sourceSession.launchProfile = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "chrome",
+      headless: false,
+      viewport: { width: 1440, height: 900 },
+    };
+    const compiled = compileDiscoverySessionToWalkthroughPlan(root.sourceSession);
+    if (!compiled.ok) throw new Error("profile fixture must compile");
+    root.plan = compiled.plan;
+    const child = completedChild(root.sourceSession, "session-repair-1", "Next");
+    child.launchProfile = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "bundled",
+      headless: true,
+      viewport: { width: 1280, height: 720 },
+    };
+    const browser = new FakeReplayBrowser();
+    browser.matches = [];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: browserFactory(browser),
+        repair: {
+          async repair() {
+            return { decision: "repaired", session: child };
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "repair",
+      errors: [{ code: "repair_launch_profile_mismatch" }],
+    });
+  });
+
   it("rejects repair sessions that are not direct changed children", async () => {
     const root = await safeCompiledFixture();
     const invalid = completedChild(root.sourceSession, "session-repair-1", "Next");
@@ -653,6 +783,42 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     expect(result).toMatchObject({
       ok: false,
       attempts: [{ failure: { code: "policy_blocked", repairability: "hard-boundary" } }],
+    });
+    expect(repairs).toBe(0);
+  });
+
+  it("does not invoke repair when a step reaches an anti-bot challenge", async () => {
+    const root = await safeCompiledFixture();
+    const browser = new FakeReplayBrowser();
+    browser.matches = [{ id: "candidate-1", label: "Continue", role: "button" }];
+    browser.clickFailure = "anti_bot_challenge";
+    let repairs = 0;
+
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: browserFactory(browser),
+        repair: {
+          async repair() {
+            repairs += 1;
+            return { decision: "stop", reason: "manual_review_required" };
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      attempts: [
+        {
+          failure: {
+            code: "anti_bot_challenge",
+            repairability: "hard-boundary",
+            observed: { challenge: { provider: "cloudflare" } },
+          },
+        },
+      ],
     });
     expect(repairs).toBe(0);
   });

@@ -1,4 +1,5 @@
 import { createPlaywrightBrowserCaptureAdapter } from "./playwrightAdapter.js";
+import type { BrowserChallenge, BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 export {
   CAPTURE_MANIFEST_SCHEMA_VERSION,
   CAPTURE_PACKAGE_VERSION,
@@ -45,6 +46,7 @@ export type BrowserCaptureOptions = {
   source: BrowserCaptureSource;
   outputDir: string;
   viewport: CaptureViewport;
+  launchProfile?: BrowserLaunchProfileV1;
   startedAt: string;
   childCommand?: CaptureChildCommand;
 };
@@ -80,7 +82,13 @@ export type CaptureOutput = {
 };
 
 export type CaptureErrorCode =
-  "capture_not_implemented" | "capture_setup_failed" | "capture_stop_failed";
+  | "capture_not_implemented"
+  | "capture_setup_failed"
+  | "capture_stop_failed"
+  | "invalid_browser_launch_profile"
+  | "anti_bot_challenge";
+
+export type CaptureDiagnostic = BrowserChallenge & { profileId: string };
 
 export type CaptureStartResult =
   | {
@@ -95,6 +103,7 @@ export type CaptureStartResult =
       message: string;
       outputDir: string;
       manifestPath: string;
+      diagnostic?: CaptureDiagnostic;
     };
 
 export type CaptureStopResult =
@@ -109,6 +118,7 @@ export type CaptureStopResult =
       message: string;
       outputDir: string;
       manifestPath: string;
+      diagnostic?: CaptureDiagnostic;
     };
 
 export type CaptureSession = {

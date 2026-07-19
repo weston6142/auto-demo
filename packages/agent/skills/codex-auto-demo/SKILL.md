@@ -76,6 +76,15 @@ After selection and the support check, use the public `@auto-demo/agent` library
 contracts directly. There is no discovery CLI, and risk-tiered discovery is not
 legacy `best-guess` planning.
 
+Before discovery navigation, declare a bounded browser launch profile plan: one
+primary plus at most two fallbacks. A profile contains only Chromium browser,
+`bundled`, `chrome`, or `msedge` channel, headless mode, and viewport. Use
+`createPlaywrightDiscoveryBrowserLauncher()` so each attempt owns a fresh
+isolated browser and context. Discovery is the only phase that may advance to a
+fallback. Persist the selected profile in `DiscoverySessionV1`; compilation and
+approval bind it into the plan. Treat `anti_bot_challenge` as distinct from a
+policy denial and report only its bounded provider and profile identifier.
+
 1. For `safe` and `public-browse`, declare exact allowed top-level origins. For
    `disposable`, obtain a fresh `environment-is-disposable` acknowledgement and
    exact allowed origins before each discovery or replay run. For `yolo`, do not
@@ -95,24 +104,30 @@ legacy `best-guess` planning.
    in memory with non-secret demo data.
 4. Compile with `compileDiscoverySessionToWalkthroughPlan()`, then call
    `replayAndRepairDiscoveryPlan()` in another fresh isolated context with the
-   same selected tier freshly established. Supply only completed direct-child
-   sessions for repair, at most two. Never edit a compiled plan or repair a hard
-   policy boundary.
+   same selected tier freshly established and the same resolved profile from
+   discovery. Supply only completed direct-child sessions for repair, at most
+   two. Replay must not choose a fallback. Never edit a compiled plan or repair
+   a hard policy boundary or `anti_bot_challenge`.
 5. Present the returned transcript-safe review. Only an `ok: true`,
    replay-validated, blocker-free plan may reach explicit approval. Review and
    explicit approval remain mandatory in every tier, including YOLO. The initial
    discovery request is not approval, and a discovery plan cannot use the
    best-guess approval bypass.
 6. After the user explicitly approves the displayed plan, select the same tier
-   again and start a fresh recording only in a new isolated capture context. For
-   YOLO, freshly establishing the tier means the capture context again has no
-   Auto Demo safeguard. Then use the existing `agent approve`, `agent execute`,
-   and `agent handoff` commands below.
+   again and start a fresh recording with the same resolved profile only in a
+   new isolated capture context. Capture must not choose a fallback. For YOLO,
+   freshly establishing the tier means the capture context again has no Auto
+   Demo safeguard. Then use the existing `agent approve`, `agent execute`, and
+   `agent handoff` commands below.
 
 Select the same tier again for discovery, replay, and fresh recording. Each phase
 uses a fresh isolated context. No policy object, permit, acknowledgement, page,
 cookies, storage, repair authority, or runtime value ever carries across phases.
 Review and explicit approval remain mandatory in every tier.
+
+Do not reuse cookies, storage state, or authenticated browser state. Do not use
+persistent contexts, arbitrary browser arguments, or executable paths to make
+replay or recording differ from the approved browser launch profile.
 
 Keep sessions, replay results, validated and approved plans, execution results,
 and runtime inputs in separate local artifacts. Never paste raw observations,

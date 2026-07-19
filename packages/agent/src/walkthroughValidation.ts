@@ -1,3 +1,4 @@
+import { validateBrowserLaunchProfile } from "@auto-demo/browser-profile";
 import type {
   WalkthroughPlan,
   WalkthroughPlanAssertion,
@@ -134,6 +135,8 @@ export function isWalkthroughPlan(value: unknown): value is WalkthroughPlan {
     isSafeIdentifier(candidate.id) &&
     candidate.target?.kind === "browser" &&
     isSafeHttpUrl(candidate.target.url) &&
+    (candidate.launchProfile === undefined ||
+      validateBrowserLaunchProfile(candidate.launchProfile).ok) &&
     (candidate.mode === "validate-first" || candidate.mode === "best-guess") &&
     (candidate.state === "draft" ||
       candidate.state === "needs-clarification" ||
@@ -1131,6 +1134,13 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
   return {
     id: sanitizeIdentifier(plan.id),
     target: { kind: "browser", url: sanitizeUrl(plan.target.url) },
+    ...(plan.launchProfile === undefined
+      ? {}
+      : {
+          launchProfile: validateBrowserLaunchProfile(plan.launchProfile).ok
+            ? structuredClone(plan.launchProfile)
+            : undefined,
+        }),
     mode: plan.mode,
     state: plan.state,
     source:
