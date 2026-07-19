@@ -162,6 +162,15 @@ export {
 } from "./playwrightDiscoveryReplay.js";
 
 export {
+  createPlaywrightDiscoveryBrowserLauncher,
+  type DiscoveryBrowserLaunchAttempt,
+  type DiscoveryBrowserLaunchFailure,
+  type DiscoveryBrowserLaunchHandle,
+  type DiscoveryBrowserLaunchResult,
+  type DiscoveryBrowserLauncher,
+} from "./playwrightDiscoveryBrowserLauncher.js";
+
+export {
   createDiscoveryObservationExtractor,
   type DiscoveryObservationArtifactSink,
   type DiscoveryObservationDiagnostic,
