@@ -8,6 +8,7 @@ import {
   type DiscoveryContractError,
   type DiscoveryContractResult,
   type DiscoveryExpectation,
+  type DiscoveryFormState,
   type DiscoveryObservedEffect,
   type DiscoveryObservation,
   type DiscoverySelectedPath,
@@ -143,6 +144,89 @@ function sanitizeRequiredPublicText(
     return undefined;
   }
   return sanitized;
+}
+
+function sanitizeFormState(
+  value: unknown,
+  path: string,
+  errors: DiscoveryContractError[],
+): DiscoveryFormState | undefined {
+  if (!isRecord(value)) {
+    errors.push(discoveryError("invalid_discovery_input", "Form state is invalid.", { path }));
+    return undefined;
+  }
+  const initialErrorCount = errors.length;
+  errors.push(
+    ...invalidUnknownFields(
+      value,
+      ["required", "hasValue", "validity", "checked", "selectedOption", "options"],
+      path,
+    ),
+  );
+  const selectedOption =
+    value.selectedOption === undefined
+      ? undefined
+      : sanitizeRequiredPublicText(value.selectedOption, `${path}.selectedOption`, errors);
+  let options: DiscoveryFormState["options"];
+  if (value.options !== undefined) {
+    if (
+      !Array.isArray(value.options) ||
+      value.options.length > DISCOVERY_LIMITS.formOptionsPerTarget
+    ) {
+      errors.push(discoveryError("invalid_discovery_input", "Form options are invalid.", { path }));
+    } else {
+      options = value.options.flatMap((option, index) => {
+        const optionPath = `${path}.options.${index}`;
+        if (!isRecord(option)) {
+          errors.push(
+            discoveryError("invalid_discovery_input", "Form option is invalid.", {
+              path: optionPath,
+            }),
+          );
+          return [];
+        }
+        errors.push(
+          ...invalidUnknownFields(option, ["label", "disabled", "selected"], optionPath),
+        );
+        const label = sanitizeRequiredPublicText(option.label, `${optionPath}.label`, errors);
+        if (
+          label === undefined ||
+          typeof option.disabled !== "boolean" ||
+          typeof option.selected !== "boolean"
+        ) {
+          errors.push(
+            discoveryError("invalid_discovery_input", "Form option is invalid.", {
+              path: optionPath,
+            }),
+          );
+          return [];
+        }
+        return [{ label, disabled: option.disabled, selected: option.selected }];
+      });
+    }
+  }
+  if (
+    typeof value.required !== "boolean" ||
+    typeof value.hasValue !== "boolean" ||
+    (value.validity !== "valid" &&
+      value.validity !== "invalid" &&
+      value.validity !== "unknown") ||
+    (value.checked !== undefined && typeof value.checked !== "boolean") ||
+    errors.length !== initialErrorCount
+  ) {
+    if (errors.length === initialErrorCount) {
+      errors.push(discoveryError("invalid_discovery_input", "Form state is invalid.", { path }));
+    }
+    return undefined;
+  }
+  return {
+    required: value.required,
+    hasValue: value.hasValue,
+    validity: value.validity,
+    ...(value.checked === undefined ? {} : { checked: value.checked }),
+    ...(selectedOption === undefined ? {} : { selectedOption }),
+    ...(options === undefined ? {} : { options }),
+  };
 }
 
 export function isSafeArtifactPath(value: unknown): value is string {
@@ -289,7 +373,7 @@ export function sanitizeObservationInput(
     errors.push(
       ...invalidUnknownFields(
         value,
-        ["id", "label", "role", "occurrence", "disabled", "actionRisk"],
+        ["id", "label", "role", "occurrence", "disabled", "actionRisk", "form"],
         path,
       ),
     );
@@ -298,6 +382,8 @@ export function sanitizeObservationInput(
       value.role === undefined
         ? undefined
         : sanitizeRequiredPublicText(value.role, `${path}.role`, errors);
+    const form =
+      value.form === undefined ? undefined : sanitizeFormState(value.form, `${path}.form`, errors);
     if (
       !isSafeDiscoveryId(value.id) ||
       nestedIds.has(value.id) ||
@@ -321,6 +407,7 @@ export function sanitizeObservationInput(
         ...(value.occurrence === undefined ? {} : { occurrence: Number(value.occurrence) }),
         disabled: value.disabled,
         ...(value.actionRisk === undefined ? {} : { actionRisk: value.actionRisk }),
+        ...(form === undefined ? {} : { form }),
       },
     ];
   });

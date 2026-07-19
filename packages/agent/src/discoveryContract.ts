@@ -7,6 +7,7 @@ export const DISCOVERY_LIMITS = {
   attempts: 256,
   selectedPathAttempts: 128,
   interactiveTargetsPerObservation: 100,
+  formOptionsPerTarget: 50,
   visibleStatesPerObservation: 50,
   artifactReferencesPerObservation: 8,
   identifierCharacters: 128,
@@ -53,6 +54,22 @@ export type DiscoveryInteractiveTarget = {
   occurrence?: number;
   disabled: boolean;
   actionRisk?: "potentially-mutating";
+  form?: DiscoveryFormState;
+};
+
+export type DiscoveryFormOption = {
+  label: string;
+  disabled: boolean;
+  selected: boolean;
+};
+
+export type DiscoveryFormState = {
+  required: boolean;
+  hasValue: boolean;
+  validity: "valid" | "invalid" | "unknown";
+  checked?: boolean;
+  selectedOption?: string;
+  options?: DiscoveryFormOption[];
 };
 
 export type DiscoveryObservation = {

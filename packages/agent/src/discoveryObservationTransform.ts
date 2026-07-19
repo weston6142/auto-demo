@@ -143,7 +143,15 @@ export function buildDiscoveryObservation(
           : publicText(candidate.role.toLowerCase(), LABEL_LIMIT).value;
       const role =
         candidateRole !== undefined && TARGET_ROLES.has(candidateRole) ? candidateRole : undefined;
-      return { candidate, sanitized, role };
+      const options = candidate.form?.options
+        ?.map((option) => ({ ...option, sanitized: publicText(option.label, LABEL_LIMIT) }))
+        .filter(({ sanitized: optionLabel }) => optionLabel.value.length > 0)
+        .slice(0, DISCOVERY_LIMITS.formOptionsPerTarget);
+      const selectedOption =
+        candidate.form?.selectedOption === undefined
+          ? undefined
+          : publicText(candidate.form.selectedOption, LABEL_LIMIT).value;
+      return { candidate, sanitized, role, options, selectedOption };
     })
     .filter(({ sanitized }) => {
       if (sanitized.changed) redactedCount += 1;
@@ -166,7 +174,7 @@ export function buildDiscoveryObservation(
     DISCOVERY_LIMITS.interactiveTargetsPerObservation,
   );
   const interactiveTargets: DiscoveryInteractiveTarget[] = selectedTargets.map(
-    ({ candidate, sanitized, role }) => {
+    ({ candidate, sanitized, role, options, selectedOption }) => {
       const key = `${sanitized.value}\u0000${role ?? ""}`;
       const occurrence = (occurrences.get(key) ?? 0) + 1;
       occurrences.set(key, occurrence);
@@ -177,6 +185,30 @@ export function buildDiscoveryObservation(
         ...((duplicateCounts.get(key) ?? 0) > 1 ? { occurrence } : {}),
         disabled: candidate.disabled,
         ...(candidate.actionRisk === undefined ? {} : { actionRisk: candidate.actionRisk }),
+        ...(candidate.form === undefined
+          ? {}
+          : {
+              form: {
+                required: candidate.form.required,
+                hasValue: candidate.form.hasValue,
+                validity: candidate.form.validity,
+                ...(candidate.form.checked === undefined
+                  ? {}
+                  : { checked: candidate.form.checked }),
+                ...(selectedOption === undefined || selectedOption.length === 0
+                  ? {}
+                  : { selectedOption }),
+                ...(options === undefined
+                  ? {}
+                  : {
+                      options: options.map(({ sanitized: optionLabel, disabled, selected }) => ({
+                        label: optionLabel.value,
+                        disabled,
+                        selected,
+                      })),
+                    }),
+              },
+            }),
       };
     },
   );
