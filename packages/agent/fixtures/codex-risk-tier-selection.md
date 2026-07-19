@@ -22,19 +22,24 @@ one focused question:
 
 > Use public-browse.
 
-Codex returns `risk_tier_not_supported` before browsing because public-browse is
-not implemented yet. It does not silently downgrade to safe. WES-269 must first
-provide sanitized request classification and WES-266 must provide the policy.
+Codex does not silently downgrade to safe. It selects public-browse, declares the
+exact top-level origins, and creates a fresh isolated discovery context.
+Same-origin subresource XHR/fetch and service-worker traffic plus known-origin
+cross-origin beacon traffic may proceed; cross-origin XHR/fetch, unclassified
+effects, account or data mutation, credentials, payments, uploads, downloads,
+and WebSockets remain blocked.
 
 ## Explicit YOLO Branch
 
 If the original prompt instead says “Use YOLO discovery,” Codex selects `yolo`:
-YOLO means the unrestricted Auto Demo tier. Codex still returns
-`risk_tier_not_supported` before browsing because yolo is not implemented yet.
-It never interprets YOLO as bounded safe-mode autonomy.
+YOLO means the unrestricted Auto Demo tier. It creates a fresh isolated context
+without Auto Demo action, network, WebSocket, popup, download, service-worker,
+or navigation safeguards. It never interprets YOLO as bounded safe-mode
+autonomy.
 
-Host, platform, repository, and system instructions still apply. In every tier,
-discovery, replay, and recording use a fresh isolated context with the same
-selected tier freshly established; no authority or browser state ever carries
-across phases. Review and explicit approval remain mandatory in every tier
-before recording.
+Host, platform, repository, and system instructions still apply. After discovery,
+Codex discards the context and selects the same tier again for a fresh replay.
+After review and explicit approval, Codex discards replay authority, selects the
+same tier again, and creates a fresh recording context. No authority or browser
+state ever carries across phases. Review and explicit approval remain mandatory
+in every tier before recording.

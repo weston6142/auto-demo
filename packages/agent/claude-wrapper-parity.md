@@ -97,33 +97,32 @@ ask one focused question when the prompt is missing, conflicting, or ambiguous.
 YOLO means the unrestricted Auto Demo tier; generic autonomous intent does not
 select it. Host, platform, repository, and system instructions still apply.
 
-Safe and freshly acknowledged exact-origin disposable discovery and replay are
-currently implemented. Public-browse and YOLO must return
-`risk_tier_not_supported` before browsing until their downstream policies land;
-the host must not silently downgrade or approximate them. A supported tier uses
-Auto Demo's structured observation and action interfaces rather than selectors,
-raw DOM, or a parallel browser path. The host preserves failed exploration
-outside the selected path, compiles the completed session, and runs bounded
-replay and repair with at most two completed direct-child sessions.
+Safe, public-browse, freshly acknowledged exact-origin disposable, and YOLO
+discovery and replay are implemented. The host must not silently downgrade or
+approximate the selected tier. Every tier uses Auto Demo's structured
+observation and action interfaces rather than selectors, raw DOM, or a parallel
+browser path. The host preserves failed exploration outside the selected path,
+compiles the completed session, and runs bounded replay and repair with at most
+two completed direct-child sessions.
 
 Safe enforcement now consumes WES-269's sanitized request classification:
 `document-navigation`, `xhr-fetch`, `beacon`, `service-worker`, or `other`, plus
 method category, same-origin/cross-origin relation, and top-level/subresource
 scope. Bounded diagnostics expose a blocked-request count and whether an
 expected visible effect was prevented. They never include request URLs, bodies,
-headers, credentials, or tokens. `public-browse` is not implemented yet; WES-266
-still owns that policy and Claude must continue returning
-`risk_tier_not_supported` for the tier.
+headers, credentials, or tokens. Public-browse allows same-origin subresource
+XHR/fetch and service-worker side effects, known-origin cross-origin beacon
+traffic, and active exact-origin public form navigation. It blocks cross-origin
+XHR/fetch, unknown methods or request classes, and idle top-level side effects.
 
-Discovery, replay, and recording each use a fresh isolated context with the same
-selected tier freshly established. No disposable authority, policy permit,
-browser state, repair authority, or runtime value carries across phases. Only a
+The host selects the same tier again for fresh discovery, fresh replay, and
+fresh recording contexts. No disposable authority, policy permit, browser
+state, repair authority, or runtime value carries across phases. Only a
 successful replay can reach transcript-safe review, and review and explicit
 approval remain mandatory in every tier. After approval, the wrapper uses the
-existing deterministic execute and handoff path only when the selected tier can
-be freshly established for capture. Claude production wrapper remains follow-up
-scope; this document defines parity but does not ship that host implementation,
-a discovery CLI, or the downstream public-browse and YOLO policies.
+existing deterministic execute and handoff path. Claude production wrapper
+remains follow-up scope; this document defines parity but does not ship that host
+implementation or a discovery CLI.
 
 ## Walkthrough Execution Parity
 

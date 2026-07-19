@@ -287,20 +287,20 @@ autonomous intent does not select a tier. An ambiguous prompt produces one focus
 question. YOLO now means the unrestricted Auto Demo tier, while host, platform, repository, and
 system instructions still apply.
 
-Safe and freshly acknowledged exact-origin disposable discovery and replay are currently
-implemented. Public-browse is contract-defined and uses WES-269 request classification, but it
-still awaits WES-266 policy behavior; YOLO also awaits WES-266. Either unsupported selection returns
-`risk_tier_not_supported` before browsing and is never silently downgraded or approximated. The
-package still does not expose a discovery CLI.
+Safe, public-browse, freshly acknowledged exact-origin disposable, and YOLO discovery and replay
+are implemented. The selected tier is never silently downgraded or approximated. The package still
+does not expose a discovery CLI.
 
-WES-269 now provides the classifier foundation used by safe enforcement and future WES-266
-policy decisions. Requests are reduced to `document-navigation`, `xhr-fetch`, `beacon`,
+WES-269 provides the classifier used by safe and public-browse policy decisions. Requests are
+reduced to `document-navigation`, `xhr-fetch`, `beacon`,
 `service-worker`, or `other`; a read, potential-side-effect, or other method category;
 same-origin, cross-origin, or unknown origin relation; and top-level or subresource scope.
 Policy-enforced rehearsal can return bounded classification aggregates, a blocked-request count,
 and whether an expected visible effect was prevented. Diagnostics never include request URLs,
 bodies, headers, credentials, or tokens, and replay still exposes only its existing hard-boundary
-failure. `public-browse` is not implemented yet; WES-266 owns that behavior.
+failure. Public-browse allows same-origin subresource XHR/fetch and service-worker side effects,
+known-origin cross-origin beacon traffic, and active exact-origin public form navigation. It blocks
+cross-origin XHR/fetch, unknown methods or request classes, and idle top-level side effects.
 
 For a supported tier, Codex drives one policy-authorized action at a time through
 `createPolicyEnforcedPlaywrightDiscoveryRehearsalController()`, keeps abandoned exploration out
@@ -309,11 +309,10 @@ result with bounded replay and repair through `replayAndRepairDiscoveryPlan()`.
 
 Only a successful fresh replay produces a validated, reviewable, unapproved plan. Codex presents
 the ordered transcript-safe review and asks for explicit approval in a separate conversational
-turn. Discovery plans never use the best-guess bypass. Discovery, replay, and recording each use
-a fresh isolated context with the same selected tier freshly established. No policy authority or
-browser state ever carries across phases, and review and explicit approval remain mandatory in
-every tier. Recording stops without fallback when the selected tier cannot be freshly established
-in the capture context. See `fixtures/codex-risk-tier-selection.md` for selection and support
+turn. Discovery plans never use the best-guess bypass. Codex must select the same tier again for
+fresh discovery, fresh replay, and fresh recording contexts. No policy authority or browser state
+ever carries across phases, and review and explicit approval remain mandatory in every tier. See
+`fixtures/codex-risk-tier-selection.md` for selection and support
 behavior. The WES-189 transcript remains at `fixtures/codex-yolo-discovery-approval.md` as
 historical bounded-discovery evidence.
 

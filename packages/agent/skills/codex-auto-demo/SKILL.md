@@ -48,18 +48,16 @@ one focused question and stop: “Choose discovery risk: safe, public-browse,
 disposable, or yolo?” Explain that disposable requires exact disposable origins
 and YOLO disables Auto Demo safeguards.
 
-| Tier            | Permits                                                                                                                                                  | Blocks                                                                                                                                     | Current support                                   |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| `safe`          | Read-only or idempotent rehearsal inside declared exact origins.                                                                                         | User mutation, non-idempotent requests, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins. | Discovery and replay.                             |
-| `public-browse` | Routine unauthenticated public-site navigation, search, filtering, and classified background traffic that does not represent a meaningful user mutation. | Account or data mutation, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and unclassified effects.             | Classification available; WES-266 policy pending. |
-| `disposable`    | Mutation and non-idempotent requests inside freshly acknowledged exact disposable origins.                                                               | Credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins.                                         | Discovery and replay.                             |
-| `yolo`          | Disables Auto Demo discovery and replay safeguards.                                                                                                      | No Auto Demo-specific boundary; host, platform, repository, and system instructions still apply.                                           | Contract only; WES-266 implements it later.       |
+| Tier            | Permits                                                                                                                                                  | Blocks                                                                                                                                     | Current support       |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
+| `safe`          | Read-only or idempotent rehearsal inside declared exact origins.                                                                                         | User mutation, non-idempotent requests, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins. | Discovery and replay. |
+| `public-browse` | Routine unauthenticated public-site navigation, search, filtering, and classified background traffic that does not represent a meaningful user mutation. | Account or data mutation, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and unclassified effects.             | Discovery and replay. |
+| `disposable`    | Mutation and non-idempotent requests inside freshly acknowledged exact disposable origins.                                                               | Credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins.                                         | Discovery and replay. |
+| `yolo`          | Disables Auto Demo discovery and replay safeguards.                                                                                                      | No Auto Demo-specific boundary; host, platform, repository, and system instructions still apply.                                           | Discovery and replay. |
 
-Resolve the discovery risk tier and its runtime support before continuing.
-`public-browse` is not implemented yet, and `yolo` is not implemented yet.
-For either unsupported selection, return `risk_tier_not_supported` before any
-browser or network activity and identify the downstream capability. The skill
-must not silently downgrade, broaden, or approximate the selected tier.
+Resolve the discovery risk tier before continuing. All four tiers are
+implemented for discovery and replay. The skill must not silently downgrade,
+broaden, or approximate the selected tier.
 
 Safe enforcement consumes the sanitized network classification published by
 `@auto-demo/agent`: `document-navigation`, `xhr-fetch`, `beacon`,
@@ -68,18 +66,24 @@ same-origin, cross-origin, or unknown origin relation; and top-level or
 subresource scope. A network diagnostic exposes only bounded classifications,
 the blocked-request count, and whether an expected visible effect was prevented.
 It never includes request URLs, bodies, headers, credentials, or tokens. Treat
-`network_request_blocked` as a hard boundary in safe mode. Classification does
-not enable public-browse; WES-266 still owns that policy.
+`network_request_blocked` as a hard boundary in safe mode. Public-browse allows
+same-origin subresource XHR/fetch and service-worker potential-side-effect
+traffic, known-origin subresource cross-origin beacon traffic, and an active
+exact-origin public form navigation. It blocks cross-origin XHR/fetch,
+unclassified methods or request classes, and idle top-level side effects.
 
 After selection and the support check, use the public `@auto-demo/agent` library
 contracts directly. There is no discovery CLI, and risk-tiered discovery is not
 legacy `best-guess` planning.
 
-1. For `safe`, declare exact allowed origins. For `disposable`, obtain a fresh
-   `environment-is-disposable` acknowledgement and exact allowed origins before
-   each discovery or replay run. Credential, payment, upload, unsafe-origin,
-   download, and WebSocket policy denials are a hard boundary in these modes:
-   stop and report the sanitized result instead of repairing around it.
+1. For `safe` and `public-browse`, declare exact allowed top-level origins. For
+   `disposable`, obtain a fresh `environment-is-disposable` acknowledgement and
+   exact allowed origins before each discovery or replay run. For `yolo`, do not
+   install an Auto Demo action, network, WebSocket, popup, download, service
+   worker, or navigation guard; host, platform, repository, and system
+   instructions still apply. Policy denials in enforced modes are a hard
+   boundary: stop and report the sanitized result instead of repairing around
+   it.
 2. Own a fresh isolated Playwright context and page, then create
    `createPolicyEnforcedPlaywrightDiscoveryRehearsalController(...)`. Read only
    its bounded observations. Choose one structured action with declared
@@ -99,16 +103,16 @@ legacy `best-guess` planning.
    explicit approval remain mandatory in every tier, including YOLO. The initial
    discovery request is not approval, and a discovery plan cannot use the
    best-guess approval bypass.
-6. After the user explicitly approves the displayed plan, start recording only
-   in a new isolated capture context where the same selected tier can be freshly
-   established. If recording support is unavailable, stop without fallback.
-   Then use the existing `agent approve`, `agent execute`, and `agent handoff`
-   commands below.
+6. After the user explicitly approves the displayed plan, select the same tier
+   again and start a fresh recording only in a new isolated capture context. For
+   YOLO, freshly establishing the tier means the capture context again has no
+   Auto Demo safeguard. Then use the existing `agent approve`, `agent execute`,
+   and `agent handoff` commands below.
 
-Discovery, replay, and recording each use a fresh isolated context with the same
-selected tier freshly established. No policy object, permit, acknowledgement,
-page, cookies, storage, repair authority, or runtime value ever carries across
-phases. Review and explicit approval remain mandatory in every tier.
+Select the same tier again for discovery, replay, and fresh recording. Each phase
+uses a fresh isolated context. No policy object, permit, acknowledgement, page,
+cookies, storage, repair authority, or runtime value ever carries across phases.
+Review and explicit approval remain mandatory in every tier.
 
 Keep sessions, replay results, validated and approved plans, execution results,
 and runtime inputs in separate local artifacts. Never paste raw observations,
