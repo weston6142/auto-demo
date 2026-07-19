@@ -148,6 +148,24 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     expect(mutations).toBe(0);
   });
 
+  it("allows classified same-origin public-browse traffic during bootstrap", async () => {
+    let requests = 0;
+    const origin = await fixture(
+      "<!doctype html><h1>Search</h1><script>fetch('/search', { method: 'POST' }).catch(() => {})</script>",
+    );
+    servers.at(-1)!.on("request", (request) => {
+      if (request.url === "/search" && request.method === "POST") requests += 1;
+    });
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "public-browse", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+
+    await expect(browser.open(origin)).resolves.toBeUndefined();
+    expect(requests).toBe(1);
+  });
+
   it("fails initial navigation when the page opens a popup", async () => {
     const origin = await fixture("<!doctype html><script>window.open('/next')</script>");
     const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
@@ -172,6 +190,22 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     await expect(browser.open(origin)).rejects.toMatchObject({ code: "policy_blocked" });
   });
 
+  it("does not install Auto Demo bootstrap enforcement for yolo replay", async () => {
+    const origin = await fixture(
+      "<!doctype html><h1>Loaded</h1><script>new WebSocket(`ws://${location.host}/socket`)</script>",
+    );
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "yolo" },
+      attempt: 1,
+    });
+    browsers.push(browser);
+
+    await expect(browser.open(origin)).resolves.toBeUndefined();
+    await expect(
+      browser.assertVisible({ kind: "visible-state", condition: "Loaded", role: "heading" }),
+    ).resolves.toBeUndefined();
+  });
+
   it("blocks a WebSocket opened by a replay action", async () => {
     const origin = await fixture(
       '<!doctype html><button onclick="new WebSocket(`ws://${location.host}/socket`)">Connect</button>',
@@ -189,6 +223,25 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     });
 
     await expect(browser.click(matches[0]!)).rejects.toMatchObject({ code: "policy_blocked" });
+  });
+
+  it("does not apply Auto Demo action enforcement during yolo replay", async () => {
+    const origin = await fixture(
+      '<!doctype html><button onclick="new WebSocket(`ws://${location.host}/socket`)">Connect</button>',
+    );
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "yolo" },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Connect",
+      role: "button",
+    });
+
+    await expect(browser.click(matches[0]!)).resolves.toBeUndefined();
   });
 
   it("fails initial navigation when the page starts a download", async () => {
