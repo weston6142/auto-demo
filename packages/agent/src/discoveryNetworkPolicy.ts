@@ -2,8 +2,7 @@ import type { DiscoveryNetworkClassification } from "./discoveryNetworkClassific
 import type { ValidatedDiscoveryPolicy } from "./discoveryPolicy.js";
 
 export type DiscoveryNetworkDecision =
-  | { decision: "allow" }
-  | { decision: "block"; code: "network_request_blocked" };
+  { decision: "allow" } | { decision: "block"; code: "network_request_blocked" };
 
 const ALLOW: DiscoveryNetworkDecision = { decision: "allow" };
 const BLOCK: DiscoveryNetworkDecision = {

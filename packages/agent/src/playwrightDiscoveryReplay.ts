@@ -74,10 +74,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   async open(url: string): Promise<void> {
     if (this.browser !== undefined) throw new DiscoveryReplayBrowserError("replay_setup_failed");
     const validation = validateDiscoveryPolicy(this.policy, url);
-    if (
-      !validation.ok ||
-      (validation.policy.mode !== "yolo" && hasCredentialLikeUrlData(url))
-    ) {
+    if (!validation.ok || (validation.policy.mode !== "yolo" && hasCredentialLikeUrlData(url))) {
       throw new DiscoveryReplayBrowserError("policy_blocked");
     }
     this.validatedPolicy = validation.policy;
