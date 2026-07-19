@@ -18,6 +18,7 @@ let context: BrowserContext;
 let page: Page;
 let mutationCount: number;
 let otherOriginRequestCount: number;
+let hostRequestUrls: string[];
 
 beforeEach(async () => {
   browser = await chromium.launch();
@@ -25,10 +26,19 @@ beforeEach(async () => {
   page = await context.newPage();
   mutationCount = 0;
   otherOriginRequestCount = 0;
+  hostRequestUrls = [];
   await page.route("https://example.test/**", hostRoute);
   await page.route("https://other.test/**", async (route) => {
     otherOriginRequestCount += 1;
-    await route.fulfill({ status: 200, contentType: "text/html", body: "escaped" });
+    await route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, POST, PROPFIND, OPTIONS",
+      },
+      body: "escaped",
+    });
   });
   await page.goto("https://example.test/start");
 });
@@ -40,6 +50,7 @@ afterEach(async () => {
 
 async function hostRoute(route: Route) {
   const request = route.request();
+  hostRequestUrls.push(request.url());
   const path = new URL(request.url()).pathname;
   if (path === "/download") {
     await route.fulfill({
@@ -96,15 +107,27 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await page.waitForTimeout(50);
 
     expect(guard.checkForViolation()).toEqual({
-      code: "mutating_request_blocked",
-      summary: "Discovery blocked a server-mutating request.",
+      code: "network_request_blocked",
+      summary: "Discovery blocked classified network activity.",
+      blockedNetworkEvidence: {
+        classifications: [
+          {
+            requestClass: "xhr-fetch",
+            methodCategory: "potential-side-effect",
+            originRelation: "same-origin",
+            scope: "subresource",
+            blockedRequestCount: 1,
+          },
+        ],
+        totalBlockedRequestCount: 1,
+      },
     });
     expect(guard.checkForViolation()).toBeUndefined();
     expect(mutationCount).toBe(0);
     await guard.dispose();
   });
 
-  it("blocks server-mutating requests in safe mode", async () => {
+  it("blocks and classifies potential network side effects in safe mode", async () => {
     const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
     const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
     guard.arm(permit(policy));
@@ -112,8 +135,20 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await page.evaluate(() => fetch("/mutate", { method: "POST" }).catch(() => undefined));
 
     expect(await guard.finishAction()).toEqual({
-      code: "mutating_request_blocked",
-      summary: "Discovery blocked a server-mutating request.",
+      code: "network_request_blocked",
+      summary: "Discovery blocked classified network activity.",
+      blockedNetworkEvidence: {
+        classifications: [
+          {
+            requestClass: "xhr-fetch",
+            methodCategory: "potential-side-effect",
+            originRelation: "same-origin",
+            scope: "subresource",
+            blockedRequestCount: 1,
+          },
+        ],
+        totalBlockedRequestCount: 1,
+      },
     });
     expect(mutationCount).toBe(0);
     await guard.dispose();
@@ -128,7 +163,12 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
       return fetch("/mutate", { method: requestMethod }).catch(() => undefined);
     }, method);
 
-    expect(await guard.finishAction()).toMatchObject({ code: "mutating_request_blocked" });
+    expect(await guard.finishAction()).toMatchObject({
+      code: "network_request_blocked",
+      blockedNetworkEvidence: {
+        classifications: [{ methodCategory: "potential-side-effect" }],
+      },
+    });
     expect(mutationCount).toBe(0);
     await guard.dispose();
   });
@@ -166,7 +206,7 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
 
       await page.evaluate(() => fetch("/sw-mutate", { method: "POST" }).catch(() => undefined));
 
-      expect(await guard.finishAction()).toMatchObject({ code: "mutating_request_blocked" });
+      expect(await guard.finishAction()).toMatchObject({ code: "network_request_blocked" });
       expect(serverMutationCount).toBe(0);
       await guard.dispose();
     } finally {
@@ -196,6 +236,177 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await guard.dispose();
   });
 
+  it("fails closed for unknown methods in disposable mode", async () => {
+    const policy = validatedPolicy({
+      mode: "disposable",
+      acknowledgement: "environment-is-disposable",
+      allowedOrigins: ["https://example.test"],
+    });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    await page.evaluate(() => fetch("/unknown", { method: "PROPFIND" }).catch(() => undefined));
+
+    expect(await guard.finishAction()).toMatchObject({
+      code: "network_request_blocked",
+      blockedNetworkEvidence: {
+        classifications: [
+          {
+            requestClass: "xhr-fetch",
+            methodCategory: "other",
+            originRelation: "same-origin",
+            scope: "subresource",
+            blockedRequestCount: 1,
+          },
+        ],
+      },
+    });
+    expect(mutationCount).toBe(0);
+    await guard.dispose();
+  });
+
+  it("classifies beacon and top-level document requests", async () => {
+    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    await page.evaluate(() => navigator.sendBeacon("/beacon", "private-beacon-body"));
+    await page.evaluate(() => {
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = "/form-submit";
+      document.body.append(form);
+      form.submit();
+    });
+
+    const violation = await guard.finishAction();
+    expect(violation).toMatchObject({
+      code: "network_request_blocked",
+      blockedNetworkEvidence: {
+        totalBlockedRequestCount: 2,
+        classifications: expect.arrayContaining([
+          {
+            requestClass: "beacon",
+            methodCategory: "potential-side-effect",
+            originRelation: "same-origin",
+            scope: "subresource",
+            blockedRequestCount: 1,
+          },
+          {
+            requestClass: "document-navigation",
+            methodCategory: "potential-side-effect",
+            originRelation: "same-origin",
+            scope: "top-level",
+            blockedRequestCount: 1,
+          },
+        ]),
+      },
+    });
+    expect(JSON.stringify(violation)).not.toContain("private-beacon-body");
+    expect(mutationCount).toBe(0);
+    await guard.dispose();
+  });
+
+  it("aggregates repeated classifications without retaining request details", async () => {
+    const policy = validatedPolicy({
+      mode: "safe",
+      allowedOrigins: ["https://example.test", "https://other.test"],
+    });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    await page.evaluate(async () => {
+      await Promise.all([
+        fetch("/mutate/a", { method: "POST", body: "first-body" }).catch(() => undefined),
+        fetch("/mutate/b", { method: "POST", body: "second-body" }).catch(() => undefined),
+        fetch("https://other.test/mutate/c", {
+          method: "POST",
+          body: "third-body",
+        }).catch(() => undefined),
+      ]);
+    });
+
+    const violation = await guard.finishAction();
+    expect(violation).toMatchObject({
+      code: "network_request_blocked",
+      blockedNetworkEvidence: {
+        totalBlockedRequestCount: 3,
+        classifications: expect.arrayContaining([
+          {
+            requestClass: "xhr-fetch",
+            methodCategory: "potential-side-effect",
+            originRelation: "same-origin",
+            scope: "subresource",
+            blockedRequestCount: 2,
+          },
+          {
+            requestClass: "xhr-fetch",
+            methodCategory: "potential-side-effect",
+            originRelation: "cross-origin",
+            scope: "subresource",
+            blockedRequestCount: 1,
+          },
+        ]),
+      },
+    });
+    expect(JSON.stringify(violation)).not.toMatch(/first-body|second-body|third-body/);
+    expect(mutationCount).toBe(0);
+    expect(otherOriginRequestCount).toBe(0);
+    await guard.dispose();
+  });
+
+  it("bounds distinct classified network evidence while preserving totals", async () => {
+    const policy = validatedPolicy({
+      mode: "safe",
+      allowedOrigins: ["https://example.test", "https://other.test"],
+    });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    await page.evaluate(async () => {
+      await fetch("/post", { method: "POST" }).catch(() => undefined);
+      await fetch("https://other.test/post", { method: "POST" }).catch(() => undefined);
+      await fetch("/custom", { method: "PROPFIND" }).catch(() => undefined);
+      await fetch("https://other.test/custom", { method: "PROPFIND" }).catch(() => undefined);
+      navigator.sendBeacon("/beacon", "same");
+      navigator.sendBeacon("https://other.test/beacon", "cross");
+    });
+    await page.evaluate(() => {
+      for (const [action, target] of [
+        ["/frame-same", "policy-frame-same"],
+        ["https://other.test/frame-cross", "policy-frame-cross"],
+      ] as const) {
+        const frame = document.createElement("iframe");
+        frame.name = target;
+        document.body.append(frame);
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = action;
+        form.target = target;
+        document.body.append(form);
+        form.submit();
+      }
+      for (const action of ["/top-same", "https://other.test/top-cross"]) {
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = action;
+        document.body.append(form);
+        form.submit();
+      }
+    });
+
+    const violation = await guard.finishAction();
+    expect(violation).toMatchObject({
+      code: "network_request_blocked",
+      blockedNetworkEvidence: {
+        totalBlockedRequestCount: 9,
+        omittedClassificationCount: 1,
+      },
+    });
+    expect(violation?.blockedNetworkEvidence?.classifications).toHaveLength(8);
+    await guard.dispose();
+  });
+
   it("blocks top-level navigation outside the exact origin scope", async () => {
     const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
     const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
@@ -207,7 +418,26 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
       code: "origin_not_allowed",
       summary: "Discovery blocked an origin outside the approved scope.",
     });
-    expect(page.url()).toBe("https://example.test/start");
+    expect(page.url()).toBe("https://example.test/");
+    await guard.dispose();
+  });
+
+  it("restores an unsafe page without retaining or replaying the prior raw URL", async () => {
+    const secretUrl = "https://example.test/private?marker=do-not-retain-this-value#fragment";
+    await page.goto(secretUrl);
+    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+    hostRequestUrls = [];
+
+    await page.goto("about:blank").catch(() => undefined);
+
+    expect(await guard.finishAction()).toEqual({
+      code: "unsafe_navigation_blocked",
+      summary: "Discovery blocked unsafe navigation.",
+    });
+    expect(hostRequestUrls.some((url) => url.includes("do-not-retain-this-value"))).toBe(false);
+    expect(page.url()).toBe("https://example.test/");
     await guard.dispose();
   });
 

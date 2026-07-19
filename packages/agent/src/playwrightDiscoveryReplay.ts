@@ -27,9 +27,9 @@ import {
   installPlaywrightDiscoveryPolicyGuard,
   type PlaywrightDiscoveryPolicyGuard,
 } from "./playwrightDiscoveryPolicyGuard.js";
+import { classifyDiscoveryNetworkRequest } from "./discoveryNetworkClassification.js";
 import type { WalkthroughPlanAssertion, WalkthroughPlanTargetHint } from "./index.js";
 
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MAX_RUNTIME_MATCHES = DISCOVERY_LIMITS.interactiveTargetsPerObservation;
 
 export type PlaywrightDiscoveryReplayOptions = {
@@ -278,7 +278,21 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       await route.abort("blockedbyclient");
       return false;
     }
-    if (!policy.allowedOrigins.has(origin) || !SAFE_METHODS.has(request.method().toUpperCase())) {
+    let isMainFrame = false;
+    try {
+      isMainFrame = request.frame() === this.requirePage().mainFrame();
+    } catch {
+      // Service-worker and early navigation requests may not have a frame.
+    }
+    const classification = classifyDiscoveryNetworkRequest({
+      method: request.method(),
+      resourceType: request.resourceType(),
+      isNavigationRequest: request.isNavigationRequest(),
+      isMainFrame,
+      isServiceWorker: request.serviceWorker() !== null,
+      requestOrigin: origin,
+    });
+    if (!policy.allowedOrigins.has(origin) || classification.methodCategory !== "read") {
       await route.abort("blockedbyclient");
       return false;
     }

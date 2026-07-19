@@ -239,9 +239,39 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
       role: "button",
     });
 
-    await expect(safe.click(safeMatch[0]!)).rejects.toMatchObject({ code: "policy_blocked" });
+    const safeBlock = await safe.click(safeMatch[0]!).catch((error: unknown) => error);
+    expect(safeBlock).toMatchObject({ code: "policy_blocked" });
+    expect(JSON.stringify(safeBlock)).not.toContain("/mutate");
     await expect(disposable.click(disposableMatch[0]!)).resolves.toBeUndefined();
     expect(mutations).toBe(1);
+  });
+
+  it("fails closed for unknown methods with a disposable replay policy", async () => {
+    let requests = 0;
+    const origin = await fixture(
+      "<!doctype html><button onclick=\"fetch('/unknown', { method: 'PROPFIND' })\">Probe</button>",
+    );
+    servers.at(-1)!.on("request", (request) => {
+      if (request.url === "/unknown") requests += 1;
+    });
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: {
+        mode: "disposable",
+        acknowledgement: "environment-is-disposable",
+        allowedOrigins: [origin],
+      },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Probe",
+      role: "button",
+    });
+
+    await expect(browser.click(matches[0]!)).rejects.toMatchObject({ code: "policy_blocked" });
+    expect(requests).toBe(0);
   });
 
   it("reports policy violations triggered while replay is waiting", async () => {

@@ -335,6 +335,89 @@ describe("createDiscoveryRehearsalController", () => {
     });
   });
 
+  it.each([
+    ["prevents", "Ready", true],
+    ["does not prevent", "Saved", false],
+  ] as const)(
+    "%s an expected visible effect when classified network activity is blocked",
+    async (_label, visibleSummary, expectedVisibleEffectPrevented) => {
+      const deps = dependencies();
+      const observations = [
+        initialObservation,
+        {
+          ...initialObservation,
+          id: "observation-2",
+          observedAt: "2026-07-15T12:00:04.000Z",
+          visibleStates: [
+            { id: "visible-after", kind: "status" as const, summary: visibleSummary },
+          ],
+        },
+      ];
+      deps.driver.observe = async () => ({
+        ok: true,
+        observation: observations.shift()!,
+        diagnostics: [],
+      });
+      deps.driver.execute = async () => ({
+        ok: false,
+        code: "network_request_blocked",
+        summary: "Discovery blocked classified network activity.",
+        recoverable: true,
+        blockedNetworkEvidence: {
+          classifications: [
+            {
+              requestClass: "xhr-fetch",
+              methodCategory: "potential-side-effect",
+              originRelation: "same-origin",
+              scope: "subresource",
+              blockedRequestCount: 1,
+            },
+          ],
+          totalBlockedRequestCount: 1,
+        },
+      });
+      const controller = createDiscoveryRehearsalController({
+        ...deps,
+        driverFailureOutcome: (result) => ({ code: result.code, summary: result.summary }),
+      });
+      await controller.start(startInput);
+
+      const result = await controller.perform({
+        action: { kind: "click", targetId: "target-next" },
+        expectations: [
+          {
+            id: "expect-saved",
+            kind: "visible-state",
+            origin: "declared-before-action",
+            publicCondition: "Saved",
+          },
+        ],
+        confidence: { level: "medium", bases: ["host-inference"] },
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        attempt: { status: "failed", outcome: { code: "network_request_blocked" } },
+        diagnostics: [
+          {
+            code: "network_requests_blocked",
+            totalBlockedRequestCount: 1,
+            classifications: [
+              {
+                requestClass: "xhr-fetch",
+                methodCategory: "potential-side-effect",
+                originRelation: "same-origin",
+                scope: "subresource",
+                blockedRequestCount: 1,
+              },
+            ],
+            expectedVisibleEffectPrevented,
+          },
+        ],
+      });
+    },
+  );
+
   it("validates and sanitizes action data before authorization and execution", async () => {
     const deps = dependencies();
     let authorizedUrl: string | undefined;

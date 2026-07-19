@@ -229,7 +229,7 @@ describe("agent wrapper documentation", () => {
     const publicBrowse = markdownTableRow(discovery, "public-browse");
     expect(publicBrowse.permits).toContain("classified background traffic");
     expect(publicBrowse.blocks).toContain("Account or data mutation");
-    expect(publicBrowse.support).toContain("WES-269 and WES-266 implement it later");
+    expect(publicBrowse.support).toContain("Classification available; WES-266 policy pending");
 
     const disposable = markdownTableRow(discovery, "disposable");
     expect(disposable.permits).toContain("freshly acknowledged exact disposable origins");
@@ -242,6 +242,36 @@ describe("agent wrapper documentation", () => {
     expect(yolo.permits).toContain("Disables Auto Demo discovery and replay safeguards");
     expect(yolo.blocks).toContain("No Auto Demo-specific boundary");
     expect(yolo.support).toContain("WES-266 implements it later");
+  });
+
+  it("documents sanitized network classification without claiming public-browse policy", async () => {
+    const combined = normalizeWhitespace(
+      [
+        await readRootDoc("README.md"),
+        await readAgentDoc("README.md"),
+        await readAgentDoc("skills/codex-auto-demo/SKILL.md"),
+        await readAgentDoc("claude-wrapper-parity.md"),
+      ].join("\n"),
+    );
+
+    for (const required of [
+      "document-navigation",
+      "xhr-fetch",
+      "beacon",
+      "service-worker",
+      "same-origin",
+      "cross-origin",
+      "top-level",
+      "subresource",
+      "blocked-request count",
+      "expected visible effect",
+      "request URLs, bodies, headers, credentials, or tokens",
+      "WES-266",
+    ]) {
+      expect(combined).toContain(required);
+    }
+
+    expect(combined).toContain("`public-browse` is not implemented yet");
   });
 
   it("keeps risk authority phase-scoped and approval mandatory in every tier", async () => {

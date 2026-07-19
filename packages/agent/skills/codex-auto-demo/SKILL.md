@@ -48,18 +48,28 @@ one focused question and stop: “Choose discovery risk: safe, public-browse,
 disposable, or yolo?” Explain that disposable requires exact disposable origins
 and YOLO disables Auto Demo safeguards.
 
-| Tier            | Permits                                                                                                                                                  | Blocks                                                                                                                                     | Current support                                        |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| `safe`          | Read-only or idempotent rehearsal inside declared exact origins.                                                                                         | User mutation, non-idempotent requests, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins. | Discovery and replay.                                  |
-| `public-browse` | Routine unauthenticated public-site navigation, search, filtering, and classified background traffic that does not represent a meaningful user mutation. | Account or data mutation, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and unclassified effects.             | Contract only; WES-269 and WES-266 implement it later. |
-| `disposable`    | Mutation and non-idempotent requests inside freshly acknowledged exact disposable origins.                                                               | Credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins.                                         | Discovery and replay.                                  |
-| `yolo`          | Disables Auto Demo discovery and replay safeguards.                                                                                                      | No Auto Demo-specific boundary; host, platform, repository, and system instructions still apply.                                           | Contract only; WES-266 implements it later.            |
+| Tier            | Permits                                                                                                                                                  | Blocks                                                                                                                                     | Current support                                   |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| `safe`          | Read-only or idempotent rehearsal inside declared exact origins.                                                                                         | User mutation, non-idempotent requests, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins. | Discovery and replay.                             |
+| `public-browse` | Routine unauthenticated public-site navigation, search, filtering, and classified background traffic that does not represent a meaningful user mutation. | Account or data mutation, credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and unclassified effects.             | Classification available; WES-266 policy pending. |
+| `disposable`    | Mutation and non-idempotent requests inside freshly acknowledged exact disposable origins.                                                               | Credentials, payment data, uploads, downloads, WebSockets, unsafe schemes, and undeclared origins.                                         | Discovery and replay.                             |
+| `yolo`          | Disables Auto Demo discovery and replay safeguards.                                                                                                      | No Auto Demo-specific boundary; host, platform, repository, and system instructions still apply.                                           | Contract only; WES-266 implements it later.       |
 
 Resolve the discovery risk tier and its runtime support before continuing.
 `public-browse` is not implemented yet, and `yolo` is not implemented yet.
 For either unsupported selection, return `risk_tier_not_supported` before any
 browser or network activity and identify the downstream capability. The skill
 must not silently downgrade, broaden, or approximate the selected tier.
+
+Safe enforcement consumes the sanitized network classification published by
+`@auto-demo/agent`: `document-navigation`, `xhr-fetch`, `beacon`,
+`service-worker`, or `other`; read, potential-side-effect, or other method;
+same-origin, cross-origin, or unknown origin relation; and top-level or
+subresource scope. A network diagnostic exposes only bounded classifications,
+the blocked-request count, and whether an expected visible effect was prevented.
+It never includes request URLs, bodies, headers, credentials, or tokens. Treat
+`network_request_blocked` as a hard boundary in safe mode. Classification does
+not enable public-browse; WES-266 still owns that policy.
 
 After selection and the support check, use the public `@auto-demo/agent` library
 contracts directly. There is no discovery CLI, and risk-tiered discovery is not

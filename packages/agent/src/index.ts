@@ -179,6 +179,19 @@ export {
 } from "./discoveryObservation.js";
 
 export {
+  classifyDiscoveryNetworkRequest,
+  type DiscoveryBlockedNetworkClassification,
+  type DiscoveryBlockedNetworkEvidence,
+  type DiscoveryNetworkClassification,
+  type DiscoveryNetworkDiagnostic,
+  type DiscoveryNetworkMethodCategory,
+  type DiscoveryNetworkOriginRelation,
+  type DiscoveryNetworkRequestClass,
+  type DiscoveryNetworkRequestMetadata,
+  type DiscoveryNetworkScope,
+} from "./discoveryNetworkClassification.js";
+
+export {
   createPlaywrightDiscoveryObservationExtractor,
   type PlaywrightDiscoveryObservationOptions,
 } from "./playwrightDiscoveryObservation.js";
@@ -214,6 +227,7 @@ export {
   type DiscoveryRehearsalControllerDependencies,
   type DiscoveryRehearsalDriver,
   type DiscoveryRehearsalDriverResult,
+  type DiscoveryRehearsalDiagnostic,
   type DiscoveryRehearsalError,
   type DiscoveryRehearsalResult,
   type DiscoveryRehearsalStartInput,
