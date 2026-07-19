@@ -239,7 +239,9 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
       role: "button",
     });
 
-    await expect(safe.click(safeMatch[0]!)).rejects.toMatchObject({ code: "policy_blocked" });
+    const safeBlock = await safe.click(safeMatch[0]!).catch((error: unknown) => error);
+    expect(safeBlock).toMatchObject({ code: "policy_blocked" });
+    expect(JSON.stringify(safeBlock)).not.toContain("/mutate");
     await expect(disposable.click(disposableMatch[0]!)).resolves.toBeUndefined();
     expect(mutations).toBe(1);
   });

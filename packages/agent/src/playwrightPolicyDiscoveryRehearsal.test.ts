@@ -80,6 +80,7 @@ async function hostRoute(route: Route) {
       <label>Card number <input autocomplete="cc-number" /></label>
       <label>Receipt <input type="file" /></label>
       <button onclick="document.querySelector('output').textContent='Previewed'">Preview</button>
+      <button onclick="fetch('/mutate?view=request-value', { method: 'POST', body: 'private-body-value', headers: { 'x-private': 'private-header-value' } }).then(() => { document.querySelector('output').textContent='Saved' }).catch(() => undefined)">Check availability</button>
       <form onsubmit="event.preventDefault(); fetch('/mutate', { method: 'POST' })">
         <button type="submit">Save</button>
       </form>
@@ -170,9 +171,88 @@ describe("createPolicyEnforcedPlaywrightDiscoveryRehearsalController", () => {
     const escaped = await controller.perform(click(targetId(submitted, "External action")));
     expect(escaped).toMatchObject({
       ok: true,
-      attempt: { status: "failed", outcome: { code: "mutating_request_blocked" } },
+      attempt: { status: "failed", outcome: { code: "network_request_blocked" } },
     });
     expect(otherOriginMutationCount).toBe(0);
+    await controller.dispose();
+  });
+
+  it("reports when a classified network block prevents a declared visible effect", async () => {
+    const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+      ...EXCLUSIVE_NETWORK,
+      policy: { mode: "safe", allowedOrigins: ["https://example.test"] },
+      inputResolver: {
+        async resolve() {
+          return { ok: true as const, value: "Demo" };
+        },
+      },
+    });
+    const started = await controller.start(SESSION_INPUT);
+
+    const blocked = await controller.perform({
+      ...click(targetId(started, "Check availability")),
+      expectations: [
+        {
+          id: "expect-saved",
+          kind: "visible-state",
+          origin: "declared-before-action",
+          publicCondition: "Saved",
+        },
+      ],
+    });
+
+    expect(blocked).toMatchObject({
+      ok: true,
+      attempt: { status: "failed", outcome: { code: "network_request_blocked" } },
+      diagnostics: expect.arrayContaining([
+        {
+          code: "network_requests_blocked",
+          totalBlockedRequestCount: 1,
+          classifications: [
+            {
+              requestClass: "xhr-fetch",
+              methodCategory: "potential-side-effect",
+              originRelation: "same-origin",
+              scope: "subresource",
+              blockedRequestCount: 1,
+            },
+          ],
+          expectedVisibleEffectPrevented: true,
+        },
+      ]),
+    });
+    expect(mutationCount).toBe(0);
+    expect(JSON.stringify(blocked)).not.toMatch(
+      /request-value|private-body-value|private-header-value/,
+    );
+    await controller.dispose();
+  });
+
+  it("does not claim a visible effect was prevented when none was declared", async () => {
+    const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+      ...EXCLUSIVE_NETWORK,
+      policy: { mode: "safe", allowedOrigins: ["https://example.test"] },
+      inputResolver: {
+        async resolve() {
+          return { ok: true as const, value: "Demo" };
+        },
+      },
+    });
+    const started = await controller.start(SESSION_INPUT);
+
+    const blocked = await controller.perform(click(targetId(started, "Check availability")));
+
+    expect(blocked).toMatchObject({
+      ok: true,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          code: "network_requests_blocked",
+          totalBlockedRequestCount: 1,
+          expectedVisibleEffectPrevented: false,
+        }),
+      ]),
+    });
+    expect(mutationCount).toBe(0);
     await controller.dispose();
   });
 

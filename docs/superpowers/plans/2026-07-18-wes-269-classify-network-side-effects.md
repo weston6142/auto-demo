@@ -415,7 +415,7 @@ npm exec vitest run packages/agent/src/discoveryNetworkClassification.test.ts pa
 
 Expected: PASS with classified safe blocks, unchanged disposable permits, bounded aggregation, and no secret-bearing output.
 
-- [ ] **Step 7: Commit the enforcement slice**
+- [x] **Step 7: Commit the enforcement slice**
 
 ```bash
 git add packages/agent/src/discoveryPolicy.ts packages/agent/src/playwrightDiscoveryPolicyGuard.ts packages/agent/src/playwrightDiscoveryPolicyGuard.test.ts
@@ -430,17 +430,17 @@ git commit -m "WES-269: classify policy-guard network blocks"
 - Modify: `packages/agent/src/playwrightPolicyDiscoveryRehearsal.ts`
 - Modify: `packages/agent/src/playwrightDiscoveryReplay.test.ts`
 
-- [ ] **Step 1: Write the failing policy-controller tests**
+- [x] **Step 1: Write the failing policy-controller tests**
 
 Add a safe-policy fixture action that triggers a same-origin fetch `POST` and declares an expected visible state that the server response would create. Assert the request does not reach the server, the attempt outcome is `network_request_blocked`, and the result includes one `network_requests_blocked` diagnostic with `expectedVisibleEffectPrevented: true`.
 
 Add a background blocked request with no declared expectation and assert `expectedVisibleEffectPrevented: false`. Serialize both results and assert raw paths, queries, bodies, headers, and fixture tokens are absent.
 
-- [ ] **Step 2: Write the failing replay regression assertion**
+- [x] **Step 2: Write the failing replay regression assertion**
 
 Update the safe form-mutation replay test to prove the classified block still rejects with public error code `policy_blocked`, the mutation count remains zero, and the serialized error contains no request data.
 
-- [ ] **Step 3: Run controller and replay tests and verify RED**
+- [x] **Step 3: Run controller and replay tests and verify RED**
 
 Run:
 
@@ -450,7 +450,7 @@ npm exec vitest run packages/agent/src/playwrightPolicyDiscoveryRehearsal.test.t
 
 Expected: FAIL because the policy adapter drops guard evidence and old outcome expectations remain.
 
-- [ ] **Step 4: Pass guard evidence through the driver result**
+- [x] **Step 4: Pass guard evidence through the driver result**
 
 Change `policyDriverFailure()` to accept a `DiscoveryPolicyViolation` rather than only a code:
 
@@ -470,7 +470,7 @@ function policyDriverFailure(violation: DiscoveryPolicyViolation) {
 
 Fixed pre-execution failures continue to use a small helper that creates a violation from `DISCOVERY_POLICY_SUMMARIES`. `afterExecute()` passes the complete guard violation. Replay continues to ignore evidence and translate any violation to `policy_blocked`.
 
-- [ ] **Step 5: Run controller and replay tests and verify GREEN**
+- [x] **Step 5: Run controller and replay tests and verify GREEN**
 
 Run:
 

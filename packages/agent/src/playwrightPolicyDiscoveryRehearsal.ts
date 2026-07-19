@@ -31,6 +31,7 @@ import {
 import {
   DiscoveryPolicyGuardError,
   installPlaywrightDiscoveryPolicyGuard,
+  type DiscoveryPolicyViolation,
   type PlaywrightDiscoveryPolicyGuard,
 } from "./playwrightDiscoveryPolicyGuard.js";
 
@@ -96,18 +97,18 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
           resolvedValue.length > DISCOVERY_LIMITS.publicStringCharacters ||
           isSecretLikeValue(resolvedValue))
       ) {
-        return policyDriverFailure("sensitive_input_blocked");
+        return policyDriverFailure(fixedPolicyViolation("sensitive_input_blocked"));
       }
       try {
         guard.arm(permit);
         return undefined;
       } catch {
-        return policyDriverFailure("policy_guard_unavailable");
+        return policyDriverFailure(fixedPolicyViolation("policy_guard_unavailable"));
       }
     },
     async afterExecute() {
       const violation = await guard.finishAction();
-      return violation === undefined ? undefined : policyDriverFailure(violation.code);
+      return violation === undefined ? undefined : policyDriverFailure(violation);
     },
   };
 
@@ -253,12 +254,19 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
   };
 }
 
-function policyDriverFailure(code: DiscoveryPolicyOutcomeCode) {
+function fixedPolicyViolation(code: DiscoveryPolicyOutcomeCode): DiscoveryPolicyViolation {
+  return { code, summary: DISCOVERY_POLICY_SUMMARIES[code] };
+}
+
+function policyDriverFailure(violation: DiscoveryPolicyViolation) {
   return {
     ok: false as const,
-    code,
-    summary: DISCOVERY_POLICY_SUMMARIES[code],
+    code: violation.code,
+    summary: violation.summary,
     recoverable: true,
+    ...(violation.blockedNetworkEvidence === undefined
+      ? {}
+      : { blockedNetworkEvidence: structuredClone(violation.blockedNetworkEvidence) }),
   };
 }
 
