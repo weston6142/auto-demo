@@ -114,6 +114,20 @@ export function validateDiscoveryPolicy(
   ) {
     return policyError("invalid_discovery_policy", "Discovery policy mode is invalid.", "mode");
   }
+  const allowedKeys =
+    input.mode === "yolo"
+      ? new Set(["mode"])
+      : input.mode === "disposable"
+        ? new Set(["mode", "allowedOrigins", "acknowledgement"])
+        : new Set(["mode", "allowedOrigins"]);
+  const unexpectedKey = Object.keys(input).find((key) => !allowedKeys.has(key));
+  if (unexpectedKey !== undefined) {
+    return policyError(
+      "invalid_discovery_policy",
+      "Discovery policy contains a field that is invalid for its mode.",
+      unexpectedKey,
+    );
+  }
   if (input.mode === "yolo") {
     return { ok: true, policy: { mode: "yolo", allowedOrigins: new Set() } };
   }

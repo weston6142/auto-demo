@@ -177,6 +177,26 @@ describe("createPolicyEnforcedPlaywrightDiscoveryRehearsalController", () => {
     await controller.dispose();
   });
 
+  it("allows a public search action and its same-origin background request", async () => {
+    const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+      ...EXCLUSIVE_NETWORK,
+      policy: { mode: "public-browse", allowedOrigins: ["https://example.test"] },
+      inputResolver: {
+        async resolve() {
+          return { ok: true as const, value: "Demo" };
+        },
+      },
+    });
+    const started = await controller.start(SESSION_INPUT);
+
+    const searched = await controller.perform(click(targetId(started, "Check availability")));
+
+    expect(searched).toMatchObject({ ok: true, attempt: { status: "succeeded" } });
+    expect(mutationCount).toBe(1);
+    expect(await page.locator("output").textContent()).toBe("Saved");
+    await controller.dispose();
+  });
+
   it("reports when a classified network block prevents a declared visible effect", async () => {
     const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
       ...EXCLUSIVE_NETWORK,

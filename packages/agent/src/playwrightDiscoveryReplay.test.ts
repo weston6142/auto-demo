@@ -166,6 +166,43 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     expect(requests).toBe(1);
   });
 
+  it("allows same-origin search traffic and blocks cross-origin XHR at action time", async () => {
+    let sameOriginRequests = 0;
+    let crossOriginRequests = 0;
+    const otherOrigin = await fixture("<!doctype html><h1>Other</h1>");
+    servers.at(-1)!.on("request", (request) => {
+      if (request.url === "/search" && request.method === "POST") crossOriginRequests += 1;
+    });
+    const origin = await fixture(`<!doctype html>
+      <button onclick="fetch('/search', { method: 'POST' })">Search</button>
+      <button onclick="fetch('${otherOrigin}/search', { method: 'POST' })">External search</button>`);
+    servers.at(-1)!.on("request", (request) => {
+      if (request.url === "/search" && request.method === "POST") sameOriginRequests += 1;
+    });
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "public-browse", allowedOrigins: [origin, otherOrigin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    const search = await browser.findMatches({
+      kind: "accessible",
+      label: "Search",
+      role: "button",
+    });
+    await expect(browser.click(search[0]!)).resolves.toBeUndefined();
+    expect(sameOriginRequests).toBe(1);
+
+    const external = await browser.findMatches({
+      kind: "accessible",
+      label: "External search",
+      role: "button",
+    });
+    await expect(browser.click(external[0]!)).rejects.toMatchObject({ code: "policy_blocked" });
+    expect(crossOriginRequests).toBe(0);
+  });
+
   it("fails initial navigation when the page opens a popup", async () => {
     const origin = await fixture("<!doctype html><script>window.open('/next')</script>");
     const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({

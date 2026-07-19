@@ -260,6 +260,44 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await guard.dispose();
   });
 
+  it("blocks cross-origin XHR and unknown methods in public-browse mode", async () => {
+    const policy = validatedPolicy({
+      mode: "public-browse",
+      allowedOrigins: ["https://example.test", "https://other.test"],
+    });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    await page.evaluate(async () => {
+      await Promise.all([
+        fetch("https://other.test/search", { method: "POST" }).catch(() => undefined),
+        fetch("/unknown", { method: "PROPFIND" }).catch(() => undefined),
+      ]);
+    });
+
+    expect(await guard.finishAction()).toMatchObject({
+      code: "network_request_blocked",
+      blockedNetworkEvidence: {
+        totalBlockedRequestCount: 2,
+        classifications: expect.arrayContaining([
+          expect.objectContaining({
+            requestClass: "xhr-fetch",
+            methodCategory: "potential-side-effect",
+            originRelation: "cross-origin",
+          }),
+          expect.objectContaining({
+            requestClass: "xhr-fetch",
+            methodCategory: "other",
+            originRelation: "same-origin",
+          }),
+        ]),
+      },
+    });
+    expect(mutationCount).toBe(0);
+    expect(otherOriginRequestCount).toBe(0);
+    await guard.dispose();
+  });
+
   it("fails closed for unknown methods in disposable mode", async () => {
     const policy = validatedPolicy({
       mode: "disposable",
@@ -431,39 +469,45 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await guard.dispose();
   });
 
-  it("blocks top-level navigation outside the exact origin scope", async () => {
-    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
-    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
-    guard.arm(permit(policy));
+  it.each(["safe", "public-browse"] as const)(
+    "blocks top-level navigation outside the exact origin scope in %s mode",
+    async (mode) => {
+      const policy = validatedPolicy({ mode, allowedOrigins: ["https://example.test"] });
+      const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+      guard.arm(permit(policy));
 
-    await page.goto("https://other.test/escape").catch(() => undefined);
+      await page.goto("https://other.test/escape").catch(() => undefined);
 
-    expect(await guard.finishAction()).toEqual({
-      code: "origin_not_allowed",
-      summary: "Discovery blocked an origin outside the approved scope.",
-    });
-    expect(page.url()).toBe("https://example.test/");
-    await guard.dispose();
-  });
+      expect(await guard.finishAction()).toEqual({
+        code: "origin_not_allowed",
+        summary: "Discovery blocked an origin outside the approved scope.",
+      });
+      expect(page.url()).toBe("https://example.test/");
+      await guard.dispose();
+    },
+  );
 
-  it("restores an unsafe page without retaining or replaying the prior raw URL", async () => {
-    const secretUrl = "https://example.test/private?marker=do-not-retain-this-value#fragment";
-    await page.goto(secretUrl);
-    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
-    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
-    guard.arm(permit(policy));
-    hostRequestUrls = [];
+  it.each(["safe", "public-browse"] as const)(
+    "restores an unsafe page without retaining or replaying the prior raw URL in %s mode",
+    async (mode) => {
+      const secretUrl = "https://example.test/private?marker=do-not-retain-this-value#fragment";
+      await page.goto(secretUrl);
+      const policy = validatedPolicy({ mode, allowedOrigins: ["https://example.test"] });
+      const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+      guard.arm(permit(policy));
+      hostRequestUrls = [];
 
-    await page.goto("about:blank").catch(() => undefined);
+      await page.goto("about:blank").catch(() => undefined);
 
-    expect(await guard.finishAction()).toEqual({
-      code: "unsafe_navigation_blocked",
-      summary: "Discovery blocked unsafe navigation.",
-    });
-    expect(hostRequestUrls.some((url) => url.includes("do-not-retain-this-value"))).toBe(false);
-    expect(page.url()).toBe("https://example.test/");
-    await guard.dispose();
-  });
+      expect(await guard.finishAction()).toEqual({
+        code: "unsafe_navigation_blocked",
+        summary: "Discovery blocked unsafe navigation.",
+      });
+      expect(hostRequestUrls.some((url) => url.includes("do-not-retain-this-value"))).toBe(false);
+      expect(page.url()).toBe("https://example.test/");
+      await guard.dispose();
+    },
+  );
 
   it("blocks every redirect hop before an allowed navigation escapes scope", async () => {
     const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
@@ -530,45 +574,51 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await guard.dispose();
   });
 
-  it("cancels downloads without exposing the filename", async () => {
-    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
-    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
-    guard.arm(permit(policy));
+  it.each(["safe", "public-browse"] as const)(
+    "cancels downloads without exposing the filename in %s mode",
+    async (mode) => {
+      const policy = validatedPolicy({ mode, allowedOrigins: ["https://example.test"] });
+      const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+      guard.arm(permit(policy));
 
-    const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("link", { name: "Download" }).click();
-    const download = await downloadPromise;
+      const downloadPromise = page.waitForEvent("download");
+      await page.getByRole("link", { name: "Download" }).click();
+      const download = await downloadPromise;
 
-    expect(await download.failure()).toBe("canceled");
-    const violation = await guard.finishAction();
-    expect(violation).toEqual({
-      code: "download_blocked",
-      summary: "Discovery blocked a download.",
-    });
-    expect(JSON.stringify(violation)).not.toContain("secret-name.txt");
-    await guard.dispose();
-  });
+      expect(await download.failure()).toBe("canceled");
+      const violation = await guard.finishAction();
+      expect(violation).toEqual({
+        code: "download_blocked",
+        summary: "Discovery blocked a download.",
+      });
+      expect(JSON.stringify(violation)).not.toContain("secret-name.txt");
+      await guard.dispose();
+    },
+  );
 
-  it("closes WebSockets and reports a fixed violation", async () => {
-    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
-    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
-    guard.arm(permit(policy));
+  it.each(["safe", "public-browse"] as const)(
+    "closes WebSockets and reports a fixed violation in %s mode",
+    async (mode) => {
+      const policy = validatedPolicy({ mode, allowedOrigins: ["https://example.test"] });
+      const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+      guard.arm(permit(policy));
 
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) => {
-          const socket = new WebSocket("wss://socket.example.test/private");
-          socket.addEventListener("close", () => resolve());
-          socket.addEventListener("error", () => resolve());
-        }),
-    );
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            const socket = new WebSocket("wss://socket.example.test/private");
+            socket.addEventListener("close", () => resolve());
+            socket.addEventListener("error", () => resolve());
+          }),
+      );
 
-    expect(await guard.finishAction()).toEqual({
-      code: "websocket_blocked",
-      summary: "Discovery blocked a WebSocket connection.",
-    });
-    await guard.dispose();
-  });
+      expect(await guard.finishAction()).toEqual({
+        code: "websocket_blocked",
+        summary: "Discovery blocked a WebSocket connection.",
+      });
+      await guard.dispose();
+    },
+  );
 
   it("consumes permits once and removes only removable policy hooks", async () => {
     const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });

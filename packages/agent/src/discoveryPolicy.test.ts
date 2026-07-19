@@ -48,6 +48,41 @@ describe("validateDiscoveryPolicy", () => {
     });
   });
 
+  it.each([
+    [
+      "safe acknowledgement",
+      {
+        mode: "safe",
+        allowedOrigins: ["https://example.test"],
+        acknowledgement: "environment-is-disposable",
+      },
+    ],
+    [
+      "public-browse acknowledgement",
+      {
+        mode: "public-browse",
+        allowedOrigins: ["https://example.test"],
+        acknowledgement: "environment-is-disposable",
+      },
+    ],
+    [
+      "disposable extra field",
+      {
+        mode: "disposable",
+        allowedOrigins: ["https://example.test"],
+        acknowledgement: "environment-is-disposable",
+        unrestricted: true,
+      },
+    ],
+    ["scoped yolo", { mode: "yolo", allowedOrigins: ["https://example.test"] }],
+    ["acknowledged yolo", { mode: "yolo", acknowledgement: "environment-is-disposable" }],
+  ])("rejects mode-inapplicable policy fields for %s", (_label, input) => {
+    expect(validateDiscoveryPolicy(input as never, CURRENT_URL)).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid_discovery_policy" }],
+    });
+  });
+
   it("normalizes and deduplicates exact origins", () => {
     expect(
       validateDiscoveryPolicy(
