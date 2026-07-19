@@ -480,7 +480,7 @@ npm exec vitest run packages/agent/src/discoveryRehearsal.test.ts packages/agent
 
 Expected: PASS with public rehearsal diagnostics and unchanged replay hard-boundary behavior.
 
-- [ ] **Step 6: Commit the integration slice**
+- [x] **Step 6: Commit the integration slice**
 
 ```bash
 git add packages/agent/src/playwrightPolicyDiscoveryRehearsal.ts packages/agent/src/playwrightPolicyDiscoveryRehearsal.test.ts packages/agent/src/playwrightDiscoveryReplay.test.ts
@@ -498,11 +498,11 @@ git commit -m "WES-269: surface classified network evidence"
 - Modify: `README.md`
 - Modify: `docs/linear/auto-demo-project-structure.md`
 
-- [ ] **Step 1: Write failing documentation-contract assertions**
+- [x] **Step 1: Write failing documentation-contract assertions**
 
 Update `wrapper-docs.test.ts` to require the repository-owned skill and parity document to state that sanitized classification is implemented, that diagnostics never include request URLs/bodies/headers/credentials/tokens, and that `public-browse` remains unsupported until WES-266.
 
-- [ ] **Step 2: Run wrapper documentation tests and verify RED**
+- [x] **Step 2: Run wrapper documentation tests and verify RED**
 
 Run:
 
@@ -512,7 +512,7 @@ npm exec vitest run packages/agent/src/wrapper-docs.test.ts
 
 Expected: FAIL because the docs still say WES-269 classification is pending.
 
-- [ ] **Step 3: Update public documentation**
+- [x] **Step 3: Update public documentation**
 
 Document:
 
@@ -526,7 +526,7 @@ Document:
 
 Add the WES-269 design and plan links plus current implementation evidence to the project map. Do not change the deterministic next pointer from WES-269 until merge evidence exists.
 
-- [ ] **Step 4: Run documentation tests and verify GREEN**
+- [x] **Step 4: Run documentation tests and verify GREEN**
 
 Run:
 
@@ -536,7 +536,7 @@ npm exec vitest run packages/agent/src/wrapper-docs.test.ts
 
 Expected: PASS with WES-269 available and WES-266 explicitly deferred.
 
-- [ ] **Step 5: Run the complete agent package test suite**
+- [x] **Step 5: Run the complete agent package test suite**
 
 Run:
 

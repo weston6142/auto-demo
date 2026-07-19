@@ -288,10 +288,19 @@ question. YOLO now means the unrestricted Auto Demo tier, while host, platform, 
 system instructions still apply.
 
 Safe and freshly acknowledged exact-origin disposable discovery and replay are currently
-implemented. Public-browse is contract-defined but awaits WES-269 request classification and
-WES-266 policy behavior; YOLO also awaits WES-266. Either unsupported selection returns
+implemented. Public-browse is contract-defined and uses WES-269 request classification, but it
+still awaits WES-266 policy behavior; YOLO also awaits WES-266. Either unsupported selection returns
 `risk_tier_not_supported` before browsing and is never silently downgraded or approximated. The
 package still does not expose a discovery CLI.
+
+WES-269 now provides the classifier foundation used by safe enforcement and future WES-266
+policy decisions. Requests are reduced to `document-navigation`, `xhr-fetch`, `beacon`,
+`service-worker`, or `other`; a read, potential-side-effect, or other method category;
+same-origin, cross-origin, or unknown origin relation; and top-level or subresource scope.
+Policy-enforced rehearsal can return bounded classification aggregates, a blocked-request count,
+and whether an expected visible effect was prevented. Diagnostics never include request URLs,
+bodies, headers, credentials, or tokens, and replay still exposes only its existing hard-boundary
+failure. `public-browse` is not implemented yet; WES-266 owns that behavior.
 
 For a supported tier, Codex drives one policy-authorized action at a time through
 `createPolicyEnforcedPlaywrightDiscoveryRehearsalController()`, keeps abandoned exploration out

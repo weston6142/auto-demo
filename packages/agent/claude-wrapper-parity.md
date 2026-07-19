@@ -106,6 +106,15 @@ raw DOM, or a parallel browser path. The host preserves failed exploration
 outside the selected path, compiles the completed session, and runs bounded
 replay and repair with at most two completed direct-child sessions.
 
+Safe enforcement now consumes WES-269's sanitized request classification:
+`document-navigation`, `xhr-fetch`, `beacon`, `service-worker`, or `other`, plus
+method category, same-origin/cross-origin relation, and top-level/subresource
+scope. Bounded diagnostics expose a blocked-request count and whether an
+expected visible effect was prevented. They never include request URLs, bodies,
+headers, credentials, or tokens. `public-browse` is not implemented yet; WES-266
+still owns that policy and Claude must continue returning
+`risk_tier_not_supported` for the tier.
+
 Discovery, replay, and recording each use a fresh isolated context with the same
 selected tier freshly established. No disposable authority, policy permit,
 browser state, repair authority, or runtime value carries across phases. Only a
