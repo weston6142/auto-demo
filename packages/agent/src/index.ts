@@ -179,6 +179,16 @@ export {
 } from "./discoveryObservation.js";
 
 export {
+  classifyDiscoveryNetworkRequest,
+  type DiscoveryNetworkClassification,
+  type DiscoveryNetworkMethodCategory,
+  type DiscoveryNetworkOriginRelation,
+  type DiscoveryNetworkRequestClass,
+  type DiscoveryNetworkRequestMetadata,
+  type DiscoveryNetworkScope,
+} from "./discoveryNetworkClassification.js";
+
+export {
   createPlaywrightDiscoveryObservationExtractor,
   type PlaywrightDiscoveryObservationOptions,
 } from "./playwrightDiscoveryObservation.js";
