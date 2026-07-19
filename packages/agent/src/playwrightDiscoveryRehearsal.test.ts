@@ -42,6 +42,116 @@ function allowOptions() {
 }
 
 describe("createPlaywrightDiscoveryRehearsalController", () => {
+  it("selects vehicle-search controls and records conditional observable form effects", async () => {
+    await openHtml(`
+      <title>Vehicle search</title>
+      <label>Condition
+        <select onchange="document.querySelector('output').textContent = this.selectedOptions[0].textContent">
+          <option>Any</option>
+          <option>New</option>
+        </select>
+      </label>
+      <label>Make
+        <select><option>Any</option><option>Kia</option></select>
+      </label>
+      <label>Model
+        <select><option>Any</option><option>Sorento</option></select>
+      </label>
+      <label>Distance
+        <select onchange="document.querySelector('#zip-label').hidden = this.value !== 'Nationwide'">
+          <option>50 miles</option><option>Nationwide</option>
+        </select>
+      </label>
+      <label id="zip-label" hidden>ZIP <input /></label>
+      <output>Any</output>
+    `);
+    const controller = createPlaywrightDiscoveryRehearsalController(page, allowOptions());
+    const started = await controller.start({
+      id: "session-select",
+      target: { kind: "browser", startUrl: "https://example.test/" },
+      goal: "Select new vehicles",
+      host: { name: "codex", version: "1.0.0" },
+    });
+    if (!started.ok || started.observation === undefined) throw new Error("start must succeed");
+    const condition = started.observation.interactiveTargets.find(
+      (target) => target.label === "Condition",
+    );
+    if (condition === undefined) throw new Error("condition target missing");
+
+    const selected = await controller.perform({
+      action: { kind: "select", targetId: condition.id, optionLabel: "New" },
+      expectations: [],
+      confidence: { level: "high", bases: ["exact-accessible-target"] },
+    });
+
+    expect(selected).toMatchObject({
+      ok: true,
+      attempt: {
+        status: "succeeded",
+        derivedExpectations: expect.arrayContaining([
+          expect.objectContaining({ kind: "control-state", targetId: condition.id }),
+        ]),
+        outcome: { code: "action_completed" },
+      },
+      observation: {
+        interactiveTargets: expect.arrayContaining([
+          expect.objectContaining({
+            id: condition.id,
+            form: expect.objectContaining({ selectedOption: "New" }),
+          }),
+        ]),
+      },
+    });
+    let latest = selected;
+    for (const [label, optionLabel] of [
+      ["Make", "Kia"],
+      ["Model", "Sorento"],
+      ["Distance", "Nationwide"],
+    ] as const) {
+      if (!latest.ok || latest.observation === undefined) throw new Error("observation missing");
+      const target = latest.observation.interactiveTargets.find(
+        (candidate) => candidate.label === label,
+      );
+      if (target === undefined) throw new Error(`${label} target missing`);
+      latest = await controller.perform({
+        action: { kind: "select", targetId: target.id, optionLabel },
+        expectations: [],
+        confidence: { level: "high", bases: ["exact-accessible-target"] },
+      });
+      expect(latest).toMatchObject({ ok: true, attempt: { status: "succeeded" } });
+    }
+    expect(latest).toMatchObject({
+      observation: {
+        interactiveTargets: expect.arrayContaining([
+          expect.objectContaining({ label: "ZIP", role: "textbox" }),
+        ]),
+      },
+    });
+  });
+
+  it("fails a state-changing action that has no declared or observable effect", async () => {
+    await openHtml("<title>No-op</title><button>Continue</button>");
+    const controller = createPlaywrightDiscoveryRehearsalController(page, allowOptions());
+    const started = await controller.start({
+      id: "session-no-op",
+      target: { kind: "browser", startUrl: "https://example.test/" },
+      goal: "Continue",
+      host: { name: "codex", version: "1.0.0" },
+    });
+    if (!started.ok || started.observation === undefined) throw new Error("start must succeed");
+
+    const clicked = await controller.perform({
+      action: { kind: "click", targetId: started.observation.interactiveTargets[0]!.id },
+      expectations: [],
+      confidence: { level: "high", bases: ["exact-accessible-target"] },
+    });
+
+    expect(clicked).toMatchObject({
+      ok: true,
+      attempt: { status: "failed", outcome: { code: "action_no_observable_effect" } },
+    });
+  });
+
   it("acts on observed opaque targets without exposing runtime input values", async () => {
     await openHtml(`
       <title>Profile</title>

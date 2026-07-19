@@ -198,7 +198,11 @@ export function authorizeDiscoveryPolicyAction(input: {
     return allow(input.policy);
   }
 
-  if (input.action.kind === "click" || input.action.kind === "type") {
+  if (
+    input.action.kind === "click" ||
+    input.action.kind === "type" ||
+    input.action.kind === "select"
+  ) {
     if (input.target === undefined || input.target.disabled) {
       return block(
         input.action.kind === "type" ? "sensitive_input_blocked" : "destructive_action_blocked",

@@ -125,7 +125,9 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
   const authorizer: DiscoveryActionAuthorizer<DiscoveryPolicyPermit> = {
     async authorize(input) {
       const targetId =
-        input.action.kind === "click" || input.action.kind === "type"
+        input.action.kind === "click" ||
+        input.action.kind === "type" ||
+        input.action.kind === "select"
           ? input.action.targetId
           : undefined;
       return authorizeDiscoveryPolicyAction({

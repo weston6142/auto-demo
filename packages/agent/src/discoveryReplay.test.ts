@@ -46,6 +46,9 @@ class FakeReplayBrowser implements DiscoveryReplayBrowser {
     this.calls.push(`type:${match.id}`);
     this.typedValues.push(value);
   }
+  async select(match: DiscoveryReplayMatch, optionLabel: string) {
+    this.calls.push(`select:${match.id}:${optionLabel}`);
+  }
   async wait(durationMs: number) {
     this.calls.push(`wait:${durationMs}`);
   }
@@ -58,6 +61,9 @@ class FakeReplayBrowser implements DiscoveryReplayBrowser {
   async assertNavigation() {
     this.calls.push("assertNavigation");
     if (this.failNavigationAssertion) throw new Error("private page failure");
+  }
+  async assertControlState() {
+    this.calls.push("assertControlState");
   }
   async inspectPage() {
     return { url: "https://example.com/payment?token=private" };

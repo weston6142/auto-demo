@@ -485,6 +485,8 @@ function isWalkthroughPlanStep(value: unknown): value is WalkthroughPlanStep {
       (step.action === "navigate" && isSafeHttpUrl(step.navigationUrl))) &&
     (step.inputBinding === undefined ||
       (step.action === "type" && isSafeIdentifier(step.inputBinding))) &&
+    (step.optionLabel === undefined ||
+      (step.action === "select" && isNonEmptyString(step.optionLabel))) &&
     (step.waitDurationMs === undefined ||
       (step.action === "wait" &&
         typeof step.waitDurationMs === "number" &&
@@ -546,6 +548,26 @@ function isWalkthroughPlanAssertion(
       step.targetHint === undefined &&
       isSafeHttpUrl(value.url) &&
       (value.match === "exact-url" || value.match === "same-origin-path")
+    );
+  }
+  if (value.kind === "control-state") {
+    const state = value.state;
+    return (
+      hasExactKeys(value, ["kind", "target", "state"]) &&
+      step.targetHint !== undefined &&
+      isWalkthroughPlanTargetHint(value.target) &&
+      JSON.stringify(step.targetHint) === JSON.stringify(value.target) &&
+      typeof state === "object" &&
+      state !== null &&
+      hasExactKeys(state, ["hasValue", "validity", "checked", "selectedOption"]) &&
+      Object.keys(state).length > 0 &&
+      (state.hasValue === undefined || typeof state.hasValue === "boolean") &&
+      (state.validity === undefined ||
+        state.validity === "valid" ||
+        state.validity === "invalid" ||
+        state.validity === "unknown") &&
+      (state.checked === undefined || typeof state.checked === "boolean") &&
+      (state.selectedOption === undefined || isNonEmptyString(state.selectedOption))
     );
   }
   if (!hasExactKeys(value, ["kind", "condition", "role", "occurrence"])) return false;
@@ -977,6 +999,7 @@ function isStepAction(value: unknown): value is WalkthroughPlanStepAction {
     value === "navigate" ||
     value === "click" ||
     value === "type" ||
+    value === "select" ||
     value === "wait" ||
     value === "assert" ||
     value === "question"
@@ -984,7 +1007,12 @@ function isStepAction(value: unknown): value is WalkthroughPlanStepAction {
 }
 
 function isStateChanging(step: WalkthroughPlanStep): boolean {
-  return step.action === "click" || step.action === "type" || step.action === "navigate";
+  return (
+    step.action === "click" ||
+    step.action === "type" ||
+    step.action === "select" ||
+    step.action === "navigate"
+  );
 }
 
 export function isUnsafeWalkthroughAction(
@@ -1090,6 +1118,7 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
     ...(step.inputBinding === undefined
       ? {}
       : { inputBinding: sanitizeIdentifier(step.inputBinding) }),
+    ...(step.optionLabel === undefined ? {} : { optionLabel: sanitizeText(step.optionLabel) }),
     ...(step.waitDurationMs === undefined ? {} : { waitDurationMs: step.waitDurationMs }),
     ...(step.assertion === undefined
       ? {}
@@ -1101,16 +1130,44 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
                   url: sanitizeUrl(step.assertion.url),
                   match: step.assertion.match,
                 }
-              : {
-                  kind: "visible-state" as const,
-                  condition: sanitizeText(step.assertion.condition),
-                  ...(step.assertion.role === undefined
-                    ? {}
-                    : { role: sanitizeText(step.assertion.role) }),
-                  ...(step.assertion.occurrence === undefined
-                    ? {}
-                    : { occurrence: step.assertion.occurrence }),
-                },
+              : step.assertion.kind === "visible-state"
+                ? {
+                    kind: "visible-state" as const,
+                    condition: sanitizeText(step.assertion.condition),
+                    ...(step.assertion.role === undefined
+                      ? {}
+                      : { role: sanitizeText(step.assertion.role) }),
+                    ...(step.assertion.occurrence === undefined
+                      ? {}
+                      : { occurrence: step.assertion.occurrence }),
+                  }
+                : {
+                    kind: "control-state" as const,
+                    target: {
+                      kind: "accessible" as const,
+                      label: sanitizeText(step.assertion.target.label),
+                      ...(step.assertion.target.role === undefined
+                        ? {}
+                        : { role: sanitizeText(step.assertion.target.role) }),
+                      ...(step.assertion.target.occurrence === undefined
+                        ? {}
+                        : { occurrence: step.assertion.target.occurrence }),
+                    },
+                    state: {
+                      ...(step.assertion.state.hasValue === undefined
+                        ? {}
+                        : { hasValue: step.assertion.state.hasValue }),
+                      ...(step.assertion.state.validity === undefined
+                        ? {}
+                        : { validity: step.assertion.state.validity }),
+                      ...(step.assertion.state.checked === undefined
+                        ? {}
+                        : { checked: step.assertion.state.checked }),
+                      ...(step.assertion.state.selectedOption === undefined
+                        ? {}
+                        : { selectedOption: sanitizeText(step.assertion.state.selectedOption) }),
+                    },
+                  },
         }),
     ...(step.provenance === undefined
       ? {}

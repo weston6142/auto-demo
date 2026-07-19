@@ -90,6 +90,7 @@ export type DiscoveryObservation = {
 export type DiscoveryAction =
   | { kind: "navigate"; url: string }
   | { kind: "click"; targetId: string }
+  | { kind: "select"; targetId: string; optionLabel: string }
   | {
       kind: "type";
       targetId: string;
@@ -118,6 +119,18 @@ export type DiscoveryExpectation =
       targetId?: string;
       publicCondition?: string;
       role?: string;
+    }
+  | {
+      id: string;
+      kind: "control-state";
+      origin: DiscoveryExpectationOrigin;
+      targetId: string;
+      state: {
+        hasValue?: boolean;
+        validity?: "valid" | "invalid" | "unknown";
+        checked?: boolean;
+        selectedOption?: string;
+      };
     };
 
 export type DiscoveryObservedEffect = {

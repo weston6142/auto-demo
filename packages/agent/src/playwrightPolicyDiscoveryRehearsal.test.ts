@@ -81,12 +81,12 @@ async function hostRoute(route: Route) {
       <label>Receipt <input type="file" /></label>
       <button onclick="document.querySelector('output').textContent='Previewed'">Preview</button>
       <button onclick="fetch('/mutate?view=request-value', { method: 'POST', body: 'private-body-value', headers: { 'x-private': 'private-header-value' } }).then(() => { document.querySelector('output').textContent='Saved' }).catch(() => undefined)">Check availability</button>
-      <form onsubmit="event.preventDefault(); fetch('/mutate', { method: 'POST' })">
+      <form onsubmit="event.preventDefault(); fetch('/mutate', { method: 'POST' }).then(() => { document.querySelector('output').textContent='Saved' })">
         <button type="submit">Save</button>
       </form>
       <button onclick="fetch('https://other.test/mutate', { method: 'POST' })">External action</button>
       <button onclick="setTimeout(() => { const link = document.createElement('a'); link.href = '/download'; link.download = ''; link.click(); }, 125)">Download report</button>
-      <button onclick="new WebSocket('wss://socket.example.test/private')">Open socket</button>
+      <button onclick="new WebSocket('wss://socket.example.test/private'); document.querySelector('output').textContent='Socket opened'">Open socket</button>
       <button onclick="location.href='about:blank'">Leave browser scope</button>
       <output>Idle</output>
     `,

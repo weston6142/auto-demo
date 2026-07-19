@@ -101,10 +101,13 @@ export function createPlaywrightDiscoveryRehearsalRuntime<TPermit>(
     isAvailable: () => adapter.isAvailable(),
     async execute({ action, permit, resolvedValue }) {
       const target =
-        action.kind === "click" || action.kind === "type"
+        action.kind === "click" || action.kind === "type" || action.kind === "select"
           ? registry.resolve(action.targetId)
           : undefined;
-      if ((action.kind === "click" || action.kind === "type") && target === undefined) {
+      if (
+        (action.kind === "click" || action.kind === "type" || action.kind === "select") &&
+        target === undefined
+      ) {
         return {
           ok: false,
           code: "target_stale",

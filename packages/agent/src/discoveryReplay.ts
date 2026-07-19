@@ -50,6 +50,7 @@ export type DiscoveryReplayBrowser = {
   navigate(url: string): Promise<void>;
   click(match: DiscoveryReplayMatch): Promise<void>;
   type(match: DiscoveryReplayMatch, value: string): Promise<void>;
+  select(match: DiscoveryReplayMatch, optionLabel: string): Promise<void>;
   wait(durationMs: number): Promise<void>;
   waitForSettled(): Promise<void>;
   assertVisible(
@@ -57,6 +58,9 @@ export type DiscoveryReplayBrowser = {
   ): Promise<void>;
   assertNavigation(
     assertion: Extract<WalkthroughPlanAssertion, { kind: "navigation" }>,
+  ): Promise<void>;
+  assertControlState(
+    assertion: Extract<WalkthroughPlanAssertion, { kind: "control-state" }>,
   ): Promise<void>;
   inspectPage(): Promise<{ url: string }>;
   close(): Promise<void>;
@@ -599,6 +603,9 @@ async function runReplayAttempt(
           await requireReplayMatch(browser, step.targetHint),
           prepared.bindings[step.inputBinding]!,
         );
+      } else if (step.action === "select") {
+        if (step.optionLabel === undefined) throw new DiscoveryReplayBrowserError("action_failed");
+        await browser.select(await requireReplayMatch(browser, step.targetHint), step.optionLabel);
       } else if (step.action === "wait") {
         if (step.waitDurationMs === undefined)
           throw new DiscoveryReplayBrowserError("timing_failure");
@@ -608,6 +615,8 @@ async function runReplayAttempt(
           await browser.assertVisible(step.assertion);
         } else if (step.assertion?.kind === "navigation") {
           await browser.assertNavigation(step.assertion);
+        } else if (step.assertion?.kind === "control-state") {
+          await browser.assertControlState(step.assertion);
         } else {
           throw new DiscoveryReplayBrowserError("action_failed");
         }

@@ -219,7 +219,12 @@ const created = createDiscoverySession({
 // observation, finish it with matched effects, select its ID, then complete.
 ```
 
-Actions that type demo data retain runtime-only input bindings, never input values. The
+Actions that type demo data retain runtime-only input bindings, never input values. Native select
+targets expose bounded public option labels plus required, value-present, validity, selected-option,
+and checked state without option values or other form values. Select actions persist only the public
+option label. A click, type, or select attempt without declared expectations must produce a bounded
+navigation, newly visible target/state, or changed public control state; otherwise it finishes as
+`action_no_observable_effect` and cannot enter the selected path. The
 artifact keeps failed or abandoned exploration for diagnostics while the selected path
 references only continuous, successful attempts with matched navigation and visible-state
 evidence. The fixtures under `fixtures/discovery-session-*.json` demonstrate the handoff.
@@ -243,7 +248,8 @@ if (!compiled.ok) throw new Error(compiled.errors[0]?.code ?? "compilation_faile
 ```
 
 Opaque discovery target IDs are resolved to bounded accessible labels, roles, and occurrences.
-Type actions retain only runtime input binding names. Matched navigation and visible-state
+Type actions retain only runtime input binding names, and native select actions retain only public
+option labels. Matched navigation, visible-state, and bounded control-state
 expectations become structured assertion steps, while inspect, back, and refresh are normalized
 into deterministic plan behavior with a fixed review warning. Failed, blocked, abandoned, and
 unselected attempts stay in the discovery artifact and never enter the plan.

@@ -175,4 +175,80 @@ describe("compileDiscoverySessionToWalkthroughPlan", () => {
     });
     expect(JSON.stringify(result)).not.toContain("Payment details are visible");
   });
+
+  it("compiles semantic selection and its observable control state", async () => {
+    const session = (await fixture("discovery-session-completed.json")) as DiscoverySessionV1;
+    const before = session.observations[0]!;
+    const after = session.observations[1]!;
+    before.interactiveTargets[0] = {
+      id: "target-condition",
+      label: "Condition",
+      role: "combobox",
+      disabled: false,
+      form: {
+        required: true,
+        hasValue: true,
+        validity: "valid",
+        selectedOption: "Any",
+        options: [
+          { label: "Any", disabled: false, selected: true },
+          { label: "New", disabled: false, selected: false },
+        ],
+      },
+    };
+    after.page = structuredClone(before.page);
+    after.visibleStates = structuredClone(before.visibleStates);
+    after.interactiveTargets = [
+      {
+        ...structuredClone(before.interactiveTargets[0]!),
+        form: {
+          ...structuredClone(before.interactiveTargets[0]!.form!),
+          selectedOption: "New",
+          options: [
+            { label: "Any", disabled: false, selected: false },
+            { label: "New", disabled: false, selected: true },
+          ],
+        },
+      },
+    ];
+    const attempt = session.attempts[0]!;
+    if (attempt.status === "pending") throw new Error("fixture attempt must be finalized");
+    attempt.action = { kind: "select", targetId: "target-condition", optionLabel: "New" };
+    attempt.expectations = [];
+    attempt.derivedExpectations = [
+      {
+        id: "expect-condition-new",
+        kind: "control-state",
+        origin: "derived-from-observation",
+        targetId: "target-condition",
+        state: { selectedOption: "New" },
+      },
+    ];
+    attempt.observedEffects = [
+      {
+        expectationId: "expect-condition-new",
+        status: "matched",
+        observationId: after.id,
+        summary: "Expected page evidence matched.",
+      },
+    ];
+
+    const result = compileDiscoverySessionToWalkthroughPlan(session);
+
+    expect(result.ok && result.plan.steps).toEqual([
+      expect.objectContaining({
+        action: "select",
+        targetHint: { kind: "accessible", label: "Condition", role: "combobox" },
+        optionLabel: "New",
+      }),
+      expect.objectContaining({
+        action: "assert",
+        assertion: {
+          kind: "control-state",
+          target: { kind: "accessible", label: "Condition", role: "combobox" },
+          state: { selectedOption: "New" },
+        },
+      }),
+    ]);
+  });
 });

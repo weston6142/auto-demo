@@ -70,11 +70,15 @@ export type WalkthroughExecutionBrowser = {
     value: string,
     options: { delayMs: number },
   ): Promise<void>;
+  select(target: WalkthroughExecutionTarget, optionLabel: string): Promise<void>;
   assertVisible(target: WalkthroughExecutionTarget): Promise<void>;
   assertNavigation(expectation: {
     url: string;
     match: "exact-url" | "same-origin-path";
   }): Promise<void>;
+  assertControlState(
+    assertion: Extract<NonNullable<WalkthroughPlanStep["assertion"]>, { kind: "control-state" }>,
+  ): Promise<void>;
   waitForSettled(): Promise<void>;
 };
 
@@ -320,6 +324,11 @@ async function prepareExecution(
         bindings[step.inputBinding] = value;
       }
     }
+    if (step.action === "select" && step.optionLabel === undefined) {
+      errors.push(
+        stepError("missing_execution_data", step, "Select step requires an option label."),
+      );
+    }
   }
   for (const key of Object.keys(provided)) {
     if (!expectedBindings.has(key)) {
@@ -516,6 +525,10 @@ async function performStep(
     await browser.assertNavigation(step.assertion);
     return;
   }
+  if (step.action === "assert" && step.assertion?.kind === "control-state") {
+    await browser.assertControlState(step.assertion);
+    return;
+  }
   const target = executionTargetForStep(step);
   if (step.action === "click") {
     await sleep(NATURAL_EXECUTION_PACING.anticipationMs);
@@ -525,6 +538,9 @@ async function performStep(
     await browser.type(target, prepared.bindings[step.inputBinding as string], {
       delayMs: NATURAL_EXECUTION_PACING.typingDelayMs,
     });
+  } else if (step.action === "select") {
+    await sleep(NATURAL_EXECUTION_PACING.anticipationMs);
+    await browser.select(target, step.optionLabel as string);
   } else if (step.action === "assert") await browser.assertVisible(target);
   else throw Object.assign(new Error("unsupported"), { code: "unsupported_execution_action" });
   await browser.waitForSettled();

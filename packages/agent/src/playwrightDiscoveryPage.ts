@@ -83,7 +83,8 @@ export class PlaywrightDiscoveryObservationPage implements DiscoveryObservationP
         await this.page.reload();
         return;
       case "click":
-      case "type": {
+      case "type":
+      case "select": {
         if (input.identityKey === undefined) throw new Error("target unavailable");
         const handle = await this.page.evaluateHandle(
           ({ registryKey, identityKey }) => {
@@ -100,7 +101,22 @@ export class PlaywrightDiscoveryObservationPage implements DiscoveryObservationP
         }
         try {
           if (input.action.kind === "click") await element.click();
-          else await element.fill(input.resolvedValue ?? "");
+          else if (input.action.kind === "type") await element.fill(input.resolvedValue ?? "");
+          else {
+            const matches = await element.evaluate(
+              (node, label) =>
+                node instanceof HTMLSelectElement
+                  ? Array.from(node.options).filter(
+                      (option) =>
+                        option.textContent?.replace(/\s+/g, " ").trim() === label &&
+                        !option.disabled,
+                    ).length
+                  : 0,
+              input.action.optionLabel,
+            );
+            if (matches !== 1) throw new Error("option unavailable");
+            await element.selectOption({ label: input.action.optionLabel });
+          }
         } finally {
           await element.dispose();
         }

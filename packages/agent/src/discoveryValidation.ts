@@ -185,9 +185,7 @@ function sanitizeFormState(
           );
           return [];
         }
-        errors.push(
-          ...invalidUnknownFields(option, ["label", "disabled", "selected"], optionPath),
-        );
+        errors.push(...invalidUnknownFields(option, ["label", "disabled", "selected"], optionPath));
         const label = sanitizeRequiredPublicText(option.label, `${optionPath}.label`, errors);
         if (
           label === undefined ||
@@ -208,9 +206,7 @@ function sanitizeFormState(
   if (
     typeof value.required !== "boolean" ||
     typeof value.hasValue !== "boolean" ||
-    (value.validity !== "valid" &&
-      value.validity !== "invalid" &&
-      value.validity !== "unknown") ||
+    (value.validity !== "valid" && value.validity !== "invalid" && value.validity !== "unknown") ||
     (value.checked !== undefined && typeof value.checked !== "boolean") ||
     errors.length !== initialErrorCount
   ) {
@@ -546,6 +542,25 @@ function sanitizeAction(
     }
     return { kind: "click", targetId: value.targetId as string };
   }
+  if (value.kind === "select") {
+    errors.push(...invalidUnknownFields(value, ["kind", "targetId", "optionLabel"], "action"));
+    const optionLabel = sanitizeRequiredPublicText(value.optionLabel, "action.optionLabel", errors);
+    const target = before.interactiveTargets.find((candidate) => candidate.id === value.targetId);
+    const matchingOptions = target?.form?.options?.filter(
+      (option) => option.label === optionLabel && !option.disabled,
+    );
+    if (
+      !targetExists(value.targetId) ||
+      optionLabel === undefined ||
+      matchingOptions?.length !== 1
+    ) {
+      errors.push(
+        discoveryError("invalid_discovery_input", "Select action is invalid.", { path: "action" }),
+      );
+      return undefined;
+    }
+    return { kind: "select", targetId: value.targetId as string, optionLabel };
+  }
   if (value.kind === "type") {
     errors.push(
       ...invalidUnknownFields(value, ["kind", "targetId", "inputBinding", "valueClass"], "action"),
@@ -672,6 +687,66 @@ function sanitizeExpectation(
       origin: expectedOrigin,
       ...(hasTarget ? { targetId: value.targetId as string } : { publicCondition }),
       ...(role === undefined ? {} : { role }),
+    };
+  }
+  if (value.kind === "control-state") {
+    errors.push(
+      ...invalidUnknownFields(value, ["id", "kind", "origin", "targetId", "state"], path),
+    );
+    if (!isSafeDiscoveryId(value.targetId) || !isRecord(value.state)) {
+      errors.push(
+        discoveryError("invalid_discovery_input", "Control-state expectation is invalid.", {
+          path,
+        }),
+      );
+      return undefined;
+    }
+    errors.push(
+      ...invalidUnknownFields(
+        value.state,
+        ["hasValue", "validity", "checked", "selectedOption"],
+        `${path}.state`,
+      ),
+    );
+    const selectedOption =
+      value.state.selectedOption === undefined
+        ? undefined
+        : sanitizeRequiredPublicText(
+            value.state.selectedOption,
+            `${path}.state.selectedOption`,
+            errors,
+          );
+    const validity = value.state.validity;
+    const validState =
+      (value.state.hasValue === undefined || typeof value.state.hasValue === "boolean") &&
+      (validity === undefined ||
+        validity === "valid" ||
+        validity === "invalid" ||
+        validity === "unknown") &&
+      (value.state.checked === undefined || typeof value.state.checked === "boolean") &&
+      (value.state.selectedOption === undefined || selectedOption !== undefined) &&
+      Object.keys(value.state).length > 0;
+    if (!validState) {
+      errors.push(
+        discoveryError("invalid_discovery_input", "Control-state expectation is invalid.", {
+          path,
+        }),
+      );
+      return undefined;
+    }
+    return {
+      id: value.id,
+      kind: "control-state",
+      origin: expectedOrigin,
+      targetId: value.targetId,
+      state: {
+        ...(value.state.hasValue === undefined
+          ? {}
+          : { hasValue: value.state.hasValue as boolean }),
+        ...(validity === undefined ? {} : { validity }),
+        ...(value.state.checked === undefined ? {} : { checked: value.state.checked as boolean }),
+        ...(selectedOption === undefined ? {} : { selectedOption }),
+      },
     };
   }
   errors.push(
@@ -1125,7 +1200,11 @@ export function validateSelectedPath(
     ) {
       errors.push(pathError("Selected attempt observations are not chronological.", attemptId));
     }
-    if (attempt.action.kind === "click" || attempt.action.kind === "type") {
+    if (
+      attempt.action.kind === "click" ||
+      attempt.action.kind === "type" ||
+      attempt.action.kind === "select"
+    ) {
       const targetId = attempt.action.targetId;
       if (!before.interactiveTargets.some((target) => target.id === targetId)) {
         errors.push(pathError("Selected action target is missing.", attemptId));
@@ -1156,6 +1235,11 @@ export function validateSelectedPath(
           after.interactiveTargets.some((target) => target.id === expectation.targetId);
         if (!targetExists) {
           errors.push(pathError("Visible-state target is missing.", attemptId));
+        }
+      } else if (expectation.kind === "control-state") {
+        hasVisibleEvidence = true;
+        if (!after.interactiveTargets.some((target) => target.id === expectation.targetId)) {
+          errors.push(pathError("Control-state target is missing.", attemptId));
         }
       } else if (!matchesNavigationExpectation(expectation, after.page.url)) {
         errors.push(pathError("Navigation expectation contradicts the observation.", attemptId));

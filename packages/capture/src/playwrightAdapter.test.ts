@@ -82,11 +82,17 @@ class FakePage implements PlaywrightPage {
       type: async (target) => {
         this.controlledActions.push(`type:${target.label}`);
       },
+      select: async (target, optionLabel) => {
+        this.controlledActions.push(`select:${target.label}:${optionLabel}`);
+      },
       assertVisible: async (target) => {
         this.controlledActions.push(`assert:${target.label}`);
       },
       assertNavigation: async (expectation) => {
         this.controlledActions.push(`assert-navigation:${expectation.url}`);
+      },
+      assertControlState: async (assertion) => {
+        this.controlledActions.push(`assert-control:${assertion.target.label}`);
       },
       waitForSettled: async () => {
         this.controlledActions.push("settled");

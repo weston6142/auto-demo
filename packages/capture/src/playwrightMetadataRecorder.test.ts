@@ -105,8 +105,10 @@ class FakePage implements PlaywrightPage {
       async navigate() {},
       async click() {},
       async type() {},
+      async select() {},
       async assertVisible() {},
       async assertNavigation() {},
+      async assertControlState() {},
       async waitForSettled() {},
     };
   }

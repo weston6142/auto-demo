@@ -501,7 +501,7 @@ describe("createDiscoveryRehearsalController", () => {
     expect(controller.getSession()?.attempts).toEqual([]);
   });
 
-  it("records a stale target once and requires an explicit linked retry", async () => {
+  it("records a stale target and keeps a no-effect linked retry failed", async () => {
     const deps = dependencies();
     let live = false;
     const observations = [
@@ -540,7 +540,11 @@ describe("createDiscoveryRehearsalController", () => {
     });
     expect(retried).toMatchObject({
       ok: true,
-      attempt: { status: "succeeded", retryOfAttemptId: "attempt-1" },
+      attempt: {
+        status: "failed",
+        retryOfAttemptId: "attempt-1",
+        outcome: { code: "action_no_observable_effect" },
+      },
     });
   });
 
