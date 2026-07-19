@@ -54,6 +54,8 @@ The classifier input is an internal adapter boundary containing only values requ
 
 Raw browser URLs may be inspected transiently to derive a normalized origin relation, but they are never copied into the classifier result, guard state, thrown errors, attempt outcomes, or diagnostics. Request bodies, headers, cookies, credentials, filenames, and tokens are never inputs to the classifier.
 
+Unsafe top-level recovery retains only the last approved normalized origin. Recovery returns to that origin root instead of retaining or replaying the prior path, query, or fragment.
+
 The sanitized classification contains exactly:
 
 - `requestClass`: `document-navigation`, `xhr-fetch`, `beacon`, `service-worker`, or `other`;

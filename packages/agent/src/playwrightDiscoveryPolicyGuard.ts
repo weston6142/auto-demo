@@ -131,7 +131,10 @@ export async function installPlaywrightDiscoveryPolicyGuard(
   const pendingInterceptions = new Set<Promise<void>>();
   const pendingSideEffects = new Set<Promise<void>>();
   let lastActivityAt = Date.now();
-  let lastSafePageUrl = page.url();
+  let lastSafePageOrigin = safeRequestOrigin(page.url());
+  if (lastSafePageOrigin === undefined) {
+    throw new DiscoveryPolicyGuardError("policy_guard_unavailable");
+  }
   let unsafePageState = false;
 
   const markActivity = () => {
@@ -214,6 +217,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
     });
     if (classification.methodCategory !== "read") {
       const disposableMutationAllowed =
+        classification.methodCategory === "potential-side-effect" &&
         activePermit?.mode === "disposable" &&
         activePermit.allowedOrigins.has(requestOrigin) &&
         policy.allowedOrigins.has(requestOrigin);
@@ -291,7 +295,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       void cdpSession?.send("Page.stopLoading").catch(() => undefined);
       return;
     }
-    lastSafePageUrl = event.frame.url;
+    lastSafePageOrigin = origin;
     unsafePageState = false;
   };
 
@@ -480,7 +484,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       }
       if (unsafePageState) {
         try {
-          await page.goto(lastSafePageUrl, { waitUntil: "domcontentloaded", timeout: 500 });
+          await page.goto(lastSafePageOrigin, { waitUntil: "domcontentloaded", timeout: 500 });
           unsafePageState = false;
         } catch {
           unhealthy = true;

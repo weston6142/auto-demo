@@ -18,6 +18,7 @@ let context: BrowserContext;
 let page: Page;
 let mutationCount: number;
 let otherOriginRequestCount: number;
+let hostRequestUrls: string[];
 
 beforeEach(async () => {
   browser = await chromium.launch();
@@ -25,6 +26,7 @@ beforeEach(async () => {
   page = await context.newPage();
   mutationCount = 0;
   otherOriginRequestCount = 0;
+  hostRequestUrls = [];
   await page.route("https://example.test/**", hostRoute);
   await page.route("https://other.test/**", async (route) => {
     otherOriginRequestCount += 1;
@@ -48,6 +50,7 @@ afterEach(async () => {
 
 async function hostRoute(route: Route) {
   const request = route.request();
+  hostRequestUrls.push(request.url());
   const path = new URL(request.url()).pathname;
   if (path === "/download") {
     await route.fulfill({
@@ -233,6 +236,35 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await guard.dispose();
   });
 
+  it("fails closed for unknown methods in disposable mode", async () => {
+    const policy = validatedPolicy({
+      mode: "disposable",
+      acknowledgement: "environment-is-disposable",
+      allowedOrigins: ["https://example.test"],
+    });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    await page.evaluate(() => fetch("/unknown", { method: "PROPFIND" }).catch(() => undefined));
+
+    expect(await guard.finishAction()).toMatchObject({
+      code: "network_request_blocked",
+      blockedNetworkEvidence: {
+        classifications: [
+          {
+            requestClass: "xhr-fetch",
+            methodCategory: "other",
+            originRelation: "same-origin",
+            scope: "subresource",
+            blockedRequestCount: 1,
+          },
+        ],
+      },
+    });
+    expect(mutationCount).toBe(0);
+    await guard.dispose();
+  });
+
   it("classifies beacon and top-level document requests", async () => {
     const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
     const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
@@ -386,7 +418,26 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
       code: "origin_not_allowed",
       summary: "Discovery blocked an origin outside the approved scope.",
     });
-    expect(page.url()).toBe("https://example.test/start");
+    expect(page.url()).toBe("https://example.test/");
+    await guard.dispose();
+  });
+
+  it("restores an unsafe page without retaining or replaying the prior raw URL", async () => {
+    const secretUrl = "https://example.test/private?marker=do-not-retain-this-value#fragment";
+    await page.goto(secretUrl);
+    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+    hostRequestUrls = [];
+
+    await page.goto("about:blank").catch(() => undefined);
+
+    expect(await guard.finishAction()).toEqual({
+      code: "unsafe_navigation_blocked",
+      summary: "Discovery blocked unsafe navigation.",
+    });
+    expect(hostRequestUrls.some((url) => url.includes("do-not-retain-this-value"))).toBe(false);
+    expect(page.url()).toBe("https://example.test/");
     await guard.dispose();
   });
 
