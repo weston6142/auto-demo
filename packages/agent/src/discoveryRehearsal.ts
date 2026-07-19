@@ -69,8 +69,7 @@ export type DiscoveryRehearsalDriverResult =
     };
 
 export type DiscoveryRehearsalDiagnostic =
-  | DiscoveryObservationDiagnostic
-  | DiscoveryNetworkDiagnostic;
+  DiscoveryObservationDiagnostic | DiscoveryNetworkDiagnostic;
 
 export interface DiscoveryRehearsalDriver<TPermit> {
   observe(): Promise<DiscoveryObservationExtractionResult>;

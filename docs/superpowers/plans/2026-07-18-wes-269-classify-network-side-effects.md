@@ -49,19 +49,81 @@ import { classifyDiscoveryNetworkRequest } from "./index.js";
 
 describe("classifyDiscoveryNetworkRequest", () => {
   it.each([
-    ["document navigation", { resourceType: "Document", isNavigationRequest: true, isMainFrame: true, isServiceWorker: false }, "document-navigation", "top-level"],
-    ["XHR", { resourceType: "XHR", isNavigationRequest: false, isMainFrame: false, isServiceWorker: false }, "xhr-fetch", "subresource"],
-    ["fetch", { resourceType: "Fetch", isNavigationRequest: false, isMainFrame: false, isServiceWorker: false }, "xhr-fetch", "subresource"],
-    ["beacon", { resourceType: "Ping", isNavigationRequest: false, isMainFrame: false, isServiceWorker: false }, "beacon", "subresource"],
-    ["service worker", { resourceType: "Fetch", isNavigationRequest: false, isMainFrame: false, isServiceWorker: true }, "service-worker", "subresource"],
-    ["other", { resourceType: "Image", isNavigationRequest: false, isMainFrame: false, isServiceWorker: false }, "other", "subresource"],
+    [
+      "document navigation",
+      {
+        resourceType: "Document",
+        isNavigationRequest: true,
+        isMainFrame: true,
+        isServiceWorker: false,
+      },
+      "document-navigation",
+      "top-level",
+    ],
+    [
+      "XHR",
+      {
+        resourceType: "XHR",
+        isNavigationRequest: false,
+        isMainFrame: false,
+        isServiceWorker: false,
+      },
+      "xhr-fetch",
+      "subresource",
+    ],
+    [
+      "fetch",
+      {
+        resourceType: "Fetch",
+        isNavigationRequest: false,
+        isMainFrame: false,
+        isServiceWorker: false,
+      },
+      "xhr-fetch",
+      "subresource",
+    ],
+    [
+      "beacon",
+      {
+        resourceType: "Ping",
+        isNavigationRequest: false,
+        isMainFrame: false,
+        isServiceWorker: false,
+      },
+      "beacon",
+      "subresource",
+    ],
+    [
+      "service worker",
+      {
+        resourceType: "Fetch",
+        isNavigationRequest: false,
+        isMainFrame: false,
+        isServiceWorker: true,
+      },
+      "service-worker",
+      "subresource",
+    ],
+    [
+      "other",
+      {
+        resourceType: "Image",
+        isNavigationRequest: false,
+        isMainFrame: false,
+        isServiceWorker: false,
+      },
+      "other",
+      "subresource",
+    ],
   ] as const)("classifies %s", (_label, request, requestClass, scope) => {
-    expect(classifyDiscoveryNetworkRequest({
-      method: "POST",
-      currentOrigin: "https://example.test",
-      requestOrigin: "https://example.test",
-      ...request,
-    })).toEqual({
+    expect(
+      classifyDiscoveryNetworkRequest({
+        method: "POST",
+        currentOrigin: "https://example.test",
+        requestOrigin: "https://example.test",
+        ...request,
+      }),
+    ).toEqual({
       requestClass,
       methodCategory: "potential-side-effect",
       originRelation: "same-origin",
@@ -79,15 +141,17 @@ describe("classifyDiscoveryNetworkRequest", () => {
     ["DELETE", "potential-side-effect"],
     ["PROPFIND", "other"],
   ] as const)("classifies %s methods", (method, methodCategory) => {
-    expect(classifyDiscoveryNetworkRequest({
-      method,
-      resourceType: "Fetch",
-      isNavigationRequest: false,
-      isMainFrame: false,
-      isServiceWorker: false,
-      currentOrigin: "https://example.test",
-      requestOrigin: "https://other.test",
-    })).toMatchObject({ methodCategory, originRelation: "cross-origin" });
+    expect(
+      classifyDiscoveryNetworkRequest({
+        method,
+        resourceType: "Fetch",
+        isNavigationRequest: false,
+        isMainFrame: false,
+        isServiceWorker: false,
+        currentOrigin: "https://example.test",
+        requestOrigin: "https://other.test",
+      }),
+    ).toMatchObject({ methodCategory, originRelation: "cross-origin" });
   });
 
   it("returns only closed sanitized fields", () => {
@@ -128,11 +192,7 @@ Create `discoveryNetworkClassification.ts` with closed types and deterministic o
 
 ```ts
 export type DiscoveryNetworkRequestClass =
-  | "document-navigation"
-  | "xhr-fetch"
-  | "beacon"
-  | "service-worker"
-  | "other";
+  "document-navigation" | "xhr-fetch" | "beacon" | "service-worker" | "other";
 export type DiscoveryNetworkMethodCategory = "read" | "potential-side-effect" | "other";
 export type DiscoveryNetworkOriginRelation = "same-origin" | "cross-origin" | "unknown";
 export type DiscoveryNetworkScope = "top-level" | "subresource";
@@ -546,7 +606,7 @@ npm --workspace @auto-demo/agent test
 
 Expected: PASS with the classifier test included in the package command.
 
-- [ ] **Step 6: Commit the documentation slice**
+- [x] **Step 6: Commit the documentation slice**
 
 ```bash
 git add packages/agent/src/wrapper-docs.test.ts packages/agent/README.md packages/agent/skills/codex-auto-demo/SKILL.md packages/agent/claude-wrapper-parity.md README.md docs/linear/auto-demo-project-structure.md
@@ -559,7 +619,7 @@ git commit -m "docs: explain classified network diagnostics"
 
 - Modify: `docs/linear/auto-demo-project-structure.md`
 
-- [ ] **Step 1: Run focused classification and policy verification**
+- [x] **Step 1: Run focused classification and policy verification**
 
 ```bash
 npm exec vitest run packages/agent/src/discoveryNetworkClassification.test.ts packages/agent/src/discoveryRehearsal.test.ts packages/agent/src/discoveryPolicy.test.ts packages/agent/src/playwrightDiscoveryPolicyGuard.test.ts packages/agent/src/playwrightPolicyDiscoveryRehearsal.test.ts packages/agent/src/playwrightDiscoveryReplay.test.ts packages/agent/src/wrapper-docs.test.ts
@@ -567,7 +627,7 @@ npm exec vitest run packages/agent/src/discoveryNetworkClassification.test.ts pa
 
 Expected: PASS with zero failures.
 
-- [ ] **Step 2: Run repository verification**
+- [x] **Step 2: Run repository verification**
 
 ```bash
 npm test
@@ -580,7 +640,7 @@ git diff --check origin/develop...HEAD
 
 Expected: every issue-owned check passes. If full lint observes the preserved untracked `workflow/` artifacts, record that separately and run the tracked-file/clean-checkout equivalent without changing those artifacts.
 
-- [ ] **Step 3: Inspect the complete issue diff and requirements**
+- [x] **Step 3: Inspect the complete issue diff and requirements**
 
 ```bash
 git diff --stat origin/develop...HEAD

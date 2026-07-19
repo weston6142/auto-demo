@@ -285,12 +285,8 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
 
     await page.evaluate(async () => {
       await Promise.all([
-        fetch("/mutate/a", { method: "POST", body: "first-body" }).catch(
-          () => undefined,
-        ),
-        fetch("/mutate/b", { method: "POST", body: "second-body" }).catch(
-          () => undefined,
-        ),
+        fetch("/mutate/a", { method: "POST", body: "first-body" }).catch(() => undefined),
+        fetch("/mutate/b", { method: "POST", body: "second-body" }).catch(() => undefined),
         fetch("https://other.test/mutate/c", {
           method: "POST",
           body: "third-body",

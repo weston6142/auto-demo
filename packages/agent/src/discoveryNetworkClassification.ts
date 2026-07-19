@@ -1,9 +1,5 @@
 export type DiscoveryNetworkRequestClass =
-  | "document-navigation"
-  | "xhr-fetch"
-  | "beacon"
-  | "service-worker"
-  | "other";
+  "document-navigation" | "xhr-fetch" | "beacon" | "service-worker" | "other";
 
 export type DiscoveryNetworkMethodCategory = "read" | "potential-side-effect" | "other";
 
