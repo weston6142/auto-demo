@@ -4,6 +4,7 @@ import {
   compileDiscoverySessionToWalkthroughPlan,
   DiscoveryReplayBrowserError,
   replayAndRepairDiscoveryPlan,
+  type DiscoveryPolicy,
   type DiscoveryReplayBrowser,
   type DiscoveryReplayBrowserFactory,
   type DiscoveryReplayMatch,
@@ -244,6 +245,34 @@ describe("replayAndRepairDiscoveryPlan preflight", () => {
       errors: [{ code: "replay_navigation_out_of_scope" }],
     });
     expect(counter.creates).toBe(0);
+  });
+
+  it("does not apply Auto Demo navigation scope during yolo replay preflight", async () => {
+    const input = await compiledFixture();
+    input.sourceSession.attempts[0].action = {
+      kind: "navigate",
+      url: "https://other.example.com/public-results",
+    };
+    const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
+    if (!compiled.ok) throw new Error("navigation replay fixture must compile");
+    input.plan = compiled.plan;
+    const receivedPolicies: DiscoveryPolicy[] = [];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      { ...input, policy: { mode: "yolo" } },
+      { maxRepairs: 0 },
+      {
+        browserFactory: {
+          async create({ policy }) {
+            receivedPolicies.push(structuredClone(policy));
+            return new FakeReplayBrowser();
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(receivedPolicies).toEqual([{ mode: "yolo" }]);
   });
 });
 

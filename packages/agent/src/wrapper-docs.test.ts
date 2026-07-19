@@ -204,7 +204,6 @@ describe("agent wrapper documentation", () => {
       "Choose discovery risk",
       "before opening a browser or making a network request",
       "environment-is-disposable",
-      "risk_tier_not_supported",
       "must not silently downgrade",
     ]) {
       expect(normalized).toContain(required);
@@ -215,6 +214,7 @@ describe("agent wrapper documentation", () => {
     );
     expect(normalized).toContain("YOLO means the unrestricted Auto Demo tier");
     expect(normalized).toContain("generic autonomous discovery does not select a tier");
+    expect(discovery).not.toContain("risk_tier_not_supported");
   });
 
   it("publishes distinct permission boundaries for every discovery risk tier", async () => {
@@ -229,7 +229,7 @@ describe("agent wrapper documentation", () => {
     const publicBrowse = markdownTableRow(discovery, "public-browse");
     expect(publicBrowse.permits).toContain("classified background traffic");
     expect(publicBrowse.blocks).toContain("Account or data mutation");
-    expect(publicBrowse.support).toContain("Classification available; WES-266 policy pending");
+    expect(publicBrowse.support).toContain("Discovery and replay");
 
     const disposable = markdownTableRow(discovery, "disposable");
     expect(disposable.permits).toContain("freshly acknowledged exact disposable origins");
@@ -241,10 +241,10 @@ describe("agent wrapper documentation", () => {
     const yolo = markdownTableRow(discovery, "yolo");
     expect(yolo.permits).toContain("Disables Auto Demo discovery and replay safeguards");
     expect(yolo.blocks).toContain("No Auto Demo-specific boundary");
-    expect(yolo.support).toContain("WES-266 implements it later");
+    expect(yolo.support).toContain("Discovery and replay");
   });
 
-  it("documents sanitized network classification without claiming public-browse policy", async () => {
+  it("documents sanitized classifier-driven public-browse policy", async () => {
     const combined = normalizeWhitespace(
       [
         await readRootDoc("README.md"),
@@ -266,12 +266,15 @@ describe("agent wrapper documentation", () => {
       "blocked-request count",
       "expected visible effect",
       "request URLs, bodies, headers, credentials, or tokens",
-      "WES-266",
+      "same-origin subresource",
+      "cross-origin beacon",
+      "cross-origin XHR/fetch",
     ]) {
       expect(combined).toContain(required);
     }
 
-    expect(combined).toContain("`public-browse` is not implemented yet");
+    expect(combined).not.toContain("`public-browse` is not implemented yet");
+    expect(combined).not.toContain("`yolo` is not implemented yet");
   });
 
   it("keeps risk authority phase-scoped and approval mandatory in every tier", async () => {
@@ -286,14 +289,15 @@ describe("agent wrapper documentation", () => {
       "ever carries across phases",
       "review and explicit approval remain mandatory in every tier",
       "host, platform, repository, and system instructions still apply",
-      "public-browse is not implemented yet",
-      "yolo is not implemented yet",
+      "select the same tier again",
+      "fresh recording",
       "does not open a browser",
     ]) {
       expect(combined).toContain(required);
     }
 
     expect(combined).not.toContain("--allow-best-guess-bypass");
+    expect(combined).not.toContain("risk_tier_not_supported");
     expect(pressure.indexOf("Choose discovery risk")).toBeLessThan(
       pressure.indexOf("User Selects Public Browse"),
     );

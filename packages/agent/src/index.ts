@@ -192,6 +192,11 @@ export {
 } from "./discoveryNetworkClassification.js";
 
 export {
+  decideDiscoveryNetworkRequest,
+  type DiscoveryNetworkDecision,
+} from "./discoveryNetworkPolicy.js";
+
+export {
   createPlaywrightDiscoveryObservationExtractor,
   type PlaywrightDiscoveryObservationOptions,
 } from "./playwrightDiscoveryObservation.js";
@@ -215,7 +220,9 @@ export {
   type DiscoveryPolicyValidationErrorCode,
   type DiscoveryPolicyValidationResult,
   type DisposableDiscoveryPolicy,
+  type PublicBrowseDiscoveryPolicy,
   type SafeDiscoveryPolicy,
+  type YoloDiscoveryPolicy,
 } from "./discoveryPolicy.js";
 
 export {

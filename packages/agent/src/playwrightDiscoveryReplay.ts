@@ -28,6 +28,7 @@ import {
   type PlaywrightDiscoveryPolicyGuard,
 } from "./playwrightDiscoveryPolicyGuard.js";
 import { classifyDiscoveryNetworkRequest } from "./discoveryNetworkClassification.js";
+import { decideDiscoveryNetworkRequest } from "./discoveryNetworkPolicy.js";
 import type { WalkthroughPlanAssertion, WalkthroughPlanTargetHint } from "./index.js";
 
 const MAX_RUNTIME_MATCHES = DISCOVERY_LIMITS.interactiveTargetsPerObservation;
@@ -73,7 +74,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   async open(url: string): Promise<void> {
     if (this.browser !== undefined) throw new DiscoveryReplayBrowserError("replay_setup_failed");
     const validation = validateDiscoveryPolicy(this.policy, url);
-    if (!validation.ok || hasCredentialLikeUrlData(url)) {
+    if (!validation.ok || (validation.policy.mode !== "yolo" && hasCredentialLikeUrlData(url))) {
       throw new DiscoveryReplayBrowserError("policy_blocked");
     }
     this.validatedPolicy = validation.policy;
@@ -81,11 +82,20 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     try {
       this.browser = await chromium.launch({ headless: true });
       this.context = await this.browser.newContext({
-        serviceWorkers: "block",
+        ...(validation.policy.mode === "yolo" ? {} : { serviceWorkers: "block" as const }),
         viewport: this.options.viewport,
       });
       this.context.setDefaultTimeout(this.options.actionTimeoutMs);
       this.context.setDefaultNavigationTimeout(this.options.actionTimeoutMs);
+      if (validation.policy.mode === "yolo") {
+        this.page = await this.context.newPage();
+        await this.page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: this.options.actionTimeoutMs,
+        });
+        await this.page.waitForTimeout(this.options.stabilityDurationMs);
+        return;
+      }
       let bootstrapActive = true;
       await this.context.routeWebSocket("**/*", async (socket) => {
         this.routedWebSocketViolation = true;
@@ -290,9 +300,16 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       isNavigationRequest: request.isNavigationRequest(),
       isMainFrame,
       isServiceWorker: request.serviceWorker() !== null,
+      currentOrigin: safePageOrigin(this.requirePage().url()),
       requestOrigin: origin,
     });
-    if (!policy.allowedOrigins.has(origin) || classification.methodCategory !== "read") {
+    const decision = decideDiscoveryNetworkRequest({
+      policy,
+      classification,
+      requestOrigin: origin,
+      actionActive: false,
+    });
+    if (decision.decision === "block") {
       await route.abort("blockedbyclient");
       return false;
     }
@@ -321,6 +338,14 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     action: () => Promise<unknown>,
     failureCode: "navigation_failed" | "action_failed",
   ): Promise<void> {
+    if (this.validatedPolicy?.mode === "yolo") {
+      try {
+        await action();
+        return;
+      } catch {
+        throw new DiscoveryReplayBrowserError(failureCode);
+      }
+    }
     const guard = this.guard;
     if (guard === undefined) throw new DiscoveryReplayBrowserError("browser_closed");
     guard.arm(permit);
@@ -360,6 +385,15 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     const violation = this.routedWebSocketViolation;
     this.routedWebSocketViolation = false;
     return violation;
+  }
+}
+
+function safePageOrigin(value: string): string | undefined {
+  if (hasCredentialLikeUrlData(value)) return undefined;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return undefined;
   }
 }
 

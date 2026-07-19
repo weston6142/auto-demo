@@ -177,6 +177,26 @@ describe("createPolicyEnforcedPlaywrightDiscoveryRehearsalController", () => {
     await controller.dispose();
   });
 
+  it("allows a public search action and its same-origin background request", async () => {
+    const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+      ...EXCLUSIVE_NETWORK,
+      policy: { mode: "public-browse", allowedOrigins: ["https://example.test"] },
+      inputResolver: {
+        async resolve() {
+          return { ok: true as const, value: "Demo" };
+        },
+      },
+    });
+    const started = await controller.start(SESSION_INPUT);
+
+    const searched = await controller.perform(click(targetId(started, "Check availability")));
+
+    expect(searched).toMatchObject({ ok: true, attempt: { status: "succeeded" } });
+    expect(mutationCount).toBe(1);
+    expect(await page.locator("output").textContent()).toBe("Saved");
+    await controller.dispose();
+  });
+
   it("reports when a classified network block prevents a declared visible effect", async () => {
     const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
       ...EXCLUSIVE_NETWORK,
@@ -329,6 +349,27 @@ describe("createPolicyEnforcedPlaywrightDiscoveryRehearsalController", () => {
       attempt: { status: "failed", outcome: { code: "websocket_blocked" } },
     });
     await controller.dispose();
+  });
+
+  it("does not install Auto Demo WebSocket enforcement for yolo rehearsal", async () => {
+    const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+      ...EXCLUSIVE_NETWORK,
+      policy: { mode: "yolo" },
+      inputResolver: {
+        async resolve() {
+          return { ok: true as const, value: "Demo" };
+        },
+      },
+    });
+    const started = await controller.start(SESSION_INPUT);
+    expect(started).toMatchObject({ ok: true });
+
+    const socket = await controller.perform(click(targetId(started, "Open socket")));
+
+    expect(socket).toMatchObject({ ok: true, attempt: { status: "succeeded" } });
+    await controller.dispose();
+    await controller.dispose();
+    expect(page.isClosed()).toBe(false);
   });
 
   it("fails and restores a click-triggered non-network navigation", async () => {

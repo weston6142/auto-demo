@@ -12,6 +12,7 @@ import {
   type DiscoveryBlockedNetworkEvidence,
   type DiscoveryNetworkClassification,
 } from "./discoveryNetworkClassification.js";
+import { decideDiscoveryNetworkRequest } from "./discoveryNetworkPolicy.js";
 
 export type DiscoveryPolicyViolation = {
   code: DiscoveryPolicyOutcomeCode;
@@ -216,17 +217,16 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       currentOrigin: safeRequestOrigin(page.url()),
       requestOrigin,
     });
-    if (classification.methodCategory !== "read") {
-      const disposableMutationAllowed =
-        classification.methodCategory === "potential-side-effect" &&
-        activePermit?.mode === "disposable" &&
-        activePermit.allowedOrigins.has(requestOrigin) &&
-        policy.allowedOrigins.has(requestOrigin);
-      if (!disposableMutationAllowed) {
-        recordNetworkViolation(classification);
-        await failRequest(event.requestId);
-        return;
-      }
+    const decision = decideDiscoveryNetworkRequest({
+      policy,
+      classification,
+      requestOrigin,
+      actionActive: activePermit !== undefined,
+    });
+    if (decision.decision === "block") {
+      recordNetworkViolation(classification);
+      await failRequest(event.requestId);
+      return;
     }
 
     await cdpSession!.send("Fetch.continueRequest", { requestId: event.requestId });

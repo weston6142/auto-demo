@@ -11,16 +11,29 @@ export type SafeDiscoveryPolicy = {
   allowedOrigins: string[];
 };
 
+export type PublicBrowseDiscoveryPolicy = {
+  mode: "public-browse";
+  allowedOrigins: string[];
+};
+
 export type DisposableDiscoveryPolicy = {
   mode: "disposable";
   acknowledgement: "environment-is-disposable";
   allowedOrigins: string[];
 };
 
-export type DiscoveryPolicy = SafeDiscoveryPolicy | DisposableDiscoveryPolicy;
+export type YoloDiscoveryPolicy = {
+  mode: "yolo";
+};
+
+export type DiscoveryPolicy =
+  | SafeDiscoveryPolicy
+  | PublicBrowseDiscoveryPolicy
+  | DisposableDiscoveryPolicy
+  | YoloDiscoveryPolicy;
 
 export type ValidatedDiscoveryPolicy = {
-  readonly mode: "safe" | "disposable";
+  readonly mode: "safe" | "public-browse" | "disposable" | "yolo";
   readonly allowedOrigins: ReadonlySet<string>;
 };
 
@@ -66,7 +79,7 @@ export const DISCOVERY_POLICY_SUMMARIES: Record<DiscoveryPolicyOutcomeCode, stri
 
 export type DiscoveryPolicyPermit = {
   readonly token: symbol;
-  readonly mode: "safe" | "disposable";
+  readonly mode: "safe" | "public-browse" | "disposable" | "yolo";
   readonly allowedOrigins: ReadonlySet<string>;
 };
 
@@ -93,8 +106,30 @@ export function validateDiscoveryPolicy(
   if (input === null || typeof input !== "object") {
     return policyError("invalid_discovery_policy", "Discovery policy is invalid.");
   }
-  if (input.mode !== "safe" && input.mode !== "disposable") {
+  if (
+    input.mode !== "safe" &&
+    input.mode !== "public-browse" &&
+    input.mode !== "disposable" &&
+    input.mode !== "yolo"
+  ) {
     return policyError("invalid_discovery_policy", "Discovery policy mode is invalid.", "mode");
+  }
+  const allowedKeys =
+    input.mode === "yolo"
+      ? new Set(["mode"])
+      : input.mode === "disposable"
+        ? new Set(["mode", "allowedOrigins", "acknowledgement"])
+        : new Set(["mode", "allowedOrigins"]);
+  const unexpectedKey = Object.keys(input).find((key) => !allowedKeys.has(key));
+  if (unexpectedKey !== undefined) {
+    return policyError(
+      "invalid_discovery_policy",
+      "Discovery policy contains a field that is invalid for its mode.",
+      unexpectedKey,
+    );
+  }
+  if (input.mode === "yolo") {
+    return { ok: true, policy: { mode: "yolo", allowedOrigins: new Set() } };
   }
   if (input.mode === "disposable" && input.acknowledgement !== "environment-is-disposable") {
     return policyError(
@@ -141,6 +176,9 @@ export function authorizeDiscoveryPolicyAction(input: {
   target?: DiscoveryInteractiveTarget;
   risk?: DiscoveryRuntimeTargetRisk;
 }): DiscoveryPolicyAuthorization {
+  if (input.policy.mode === "yolo") {
+    return allow(input.policy);
+  }
   const observationOrigin = safeOrigin(input.observationUrl);
   if (observationOrigin === undefined) {
     return block("unsafe_navigation_blocked");
@@ -184,10 +222,11 @@ export function authorizeDiscoveryPolicyAction(input: {
       }
       return allow(input.policy);
     }
+    const destructiveLanguage = hasDestructiveActionLanguage(targetDescription(input.target));
     if (
-      input.policy.mode === "safe" &&
-      (input.target.actionRisk === "potentially-mutating" ||
-        hasDestructiveActionLanguage(targetDescription(input.target)))
+      (input.policy.mode === "safe" && input.target.actionRisk === "potentially-mutating") ||
+      ((input.policy.mode === "safe" || input.policy.mode === "public-browse") &&
+        destructiveLanguage)
     ) {
       return block("destructive_action_blocked");
     }

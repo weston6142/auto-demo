@@ -519,6 +519,7 @@ function prepareRepair(
 }
 
 function policyAllowsUrl(policy: ValidatedDiscoveryPolicy, value: string): boolean {
+  if (policy.mode === "yolo") return true;
   const origin = normalizeHttpOrigin(value);
   return origin !== undefined && policy.allowedOrigins.has(origin);
 }
@@ -850,6 +851,7 @@ function defaultPolicy(targetUrl: string): DiscoveryPolicy {
 }
 
 function planNavigationIsAllowed(plan: WalkthroughPlan, policy: ValidatedDiscoveryPolicy): boolean {
+  if (policy.mode === "yolo") return true;
   const urls = plan.steps.flatMap((step) => {
     const values: string[] = [];
     if (step.navigationUrl !== undefined) values.push(step.navigationUrl);
