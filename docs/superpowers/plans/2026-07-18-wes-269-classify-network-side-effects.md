@@ -665,10 +665,10 @@ git add docs/linear/auto-demo-project-structure.md
 git commit -m "docs: record WES-269 verification evidence"
 ```
 
-- [ ] **Step 7: Publish, monitor, and squash merge**
+- [x] **Step 7: Publish, monitor, and squash merge**
 
 Push the feature branch, open a PR targeting `develop`, include Linear/spec/plan/verification evidence, monitor required checks and review threads, repair only verified issue-scoped findings, update the project map with durable PR evidence before merge, and squash merge when all gates pass.
 
-- [ ] **Step 8: Synchronize and complete Linear**
+- [x] **Step 8: Synchronize and complete Linear**
 
 Switch to `develop`, verify its upstream owns the PR base, fetch and fast-forward from the explicit base remote, confirm the squash commit locally, run the Linear completion gate, add the completion comment, move WES-269 to Done, add WES-266's readiness note, and set WES-266 as the deterministic next-task pointer without starting it.
