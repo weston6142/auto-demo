@@ -143,6 +143,9 @@ function compileValidatedSession(session: DiscoverySessionV1): CompileDiscoveryS
   const plan: WalkthroughPlan = {
     id: `plan-${planHash}`,
     target: { kind: "browser", url: targetUrl },
+    ...(session.launchProfile === undefined
+      ? {}
+      : { launchProfile: structuredClone(session.launchProfile) }),
     mode: "validate-first",
     state: "draft",
     source: {

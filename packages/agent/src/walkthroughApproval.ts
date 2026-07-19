@@ -85,9 +85,11 @@ export function verifyWalkthroughPlanApproval(
   }
   const fingerprintMatches = plan.approvals.planFingerprint === walkthroughPlanFingerprint(plan);
   const preDiscoveryFingerprintMatches =
+    plan.launchProfile === undefined &&
     !plan.steps.some(hasDiscoveryStepData) &&
     plan.approvals.planFingerprint === preDiscoveryWalkthroughPlanFingerprint(plan);
   const legacyFingerprintMatches =
+    plan.launchProfile === undefined &&
     !plan.steps.some(hasStructuredExecutionData) &&
     plan.approvals.planFingerprint === legacyWalkthroughPlanFingerprint(plan);
   if (!fingerprintMatches && !preDiscoveryFingerprintMatches && !legacyFingerprintMatches) {
@@ -124,6 +126,7 @@ function preDiscoveryWalkthroughPlanFingerprint(plan: WalkthroughPlan): string {
 export function walkthroughPlanFingerprint(plan: WalkthroughPlan): string {
   return fingerprint({
     target: plan.target,
+    launchProfile: plan.launchProfile ?? null,
     mode: plan.mode,
     steps: plan.steps.map((step) => ({
       id: step.id,

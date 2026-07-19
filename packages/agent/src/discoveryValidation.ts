@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { isDeepStrictEqual } from "node:util";
+import { validateBrowserLaunchProfile } from "@auto-demo/browser-profile";
 import {
   DISCOVERY_LIMITS,
   type DiscoveryAction,
@@ -32,6 +33,7 @@ const SESSION_KEYS = [
   "target",
   "goal",
   "host",
+  "launchProfile",
   "parentSessionId",
   "createdAt",
   "updatedAt",
@@ -1141,6 +1143,7 @@ function isBaseSession(value: Record<string, unknown>): value is DiscoverySessio
     !isNonEmptyBoundedText(value.host.version, DISCOVERY_LIMITS.identifierCharacters) ||
     (value.host.model !== undefined &&
       !isNonEmptyBoundedText(value.host.model, DISCOVERY_LIMITS.identifierCharacters)) ||
+    (value.launchProfile !== undefined && !validateBrowserLaunchProfile(value.launchProfile).ok) ||
     (value.parentSessionId !== undefined && !isSafeDiscoveryId(value.parentSessionId)) ||
     !isNormalizedIsoTime(value.createdAt) ||
     !isNormalizedIsoTime(value.updatedAt) ||

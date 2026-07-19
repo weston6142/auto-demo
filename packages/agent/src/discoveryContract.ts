@@ -1,3 +1,5 @@
+import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
+
 export const DISCOVERY_SCHEMA_VERSION = 1 as const;
 
 export const DISCOVERY_LIMITS = {
@@ -158,6 +160,7 @@ export type DiscoverySessionV1 = {
   target: { kind: "browser"; startUrl: string };
   goal: string;
   host: DiscoveryHostProvenance;
+  launchProfile?: BrowserLaunchProfileV1;
   parentSessionId?: string;
   createdAt: string;
   updatedAt: string;
