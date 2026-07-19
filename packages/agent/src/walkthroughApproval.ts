@@ -139,7 +139,7 @@ export function walkthroughPlanFingerprint(plan: WalkthroughPlan): string {
       questionId: step.questionId ?? null,
       navigationUrl: step.navigationUrl ?? null,
       inputBinding: step.inputBinding ?? null,
-      optionLabel: step.optionLabel ?? null,
+      ...(step.optionLabel === undefined ? {} : { optionLabel: step.optionLabel }),
       waitDurationMs: step.waitDurationMs ?? null,
       assertion: step.assertion ?? null,
       provenance: step.provenance ?? null,

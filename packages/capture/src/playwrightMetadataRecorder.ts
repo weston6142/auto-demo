@@ -463,16 +463,38 @@ function stringValue(value: unknown): string | undefined {
 function publicOptionLabel(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.replace(/\s+/g, " ").trim();
-  if (normalized.length === 0 || normalized.length > OPTION_LABEL_LIMIT) return undefined;
   if (
-    /\[redacted-secret\]/i.test(normalized) ||
-    /\bsk-[a-z0-9_-]{8,}\b/i.test(normalized) ||
-    /\b[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\b/i.test(normalized) ||
-    /\b(token|api[ _-]?key|password|passcode|secret|credential)\s*[:=]\s*\S+/i.test(normalized)
-  ) {
+    normalized !== value ||
+    normalized.length === 0 ||
+    normalized.length > OPTION_LABEL_LIMIT ||
+    sanitizePublicOptionText(normalized) !== normalized
+  )
     return undefined;
-  }
   return normalized;
+}
+
+function sanitizePublicOptionText(value: string): string {
+  return value
+    .replace(/https?:\/\/[^\s]+/gi, (url) => stripUrlSecrets(url))
+    .replace(/\bsk-[a-z0-9_-]{8,}\b/gi, "[redacted-secret]")
+    .replace(/\b[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\b/gi, "[redacted-secret]")
+    .replace(/\bBearer\s+[a-z0-9._~-]{8,}\b/gi, "Bearer [redacted-secret]")
+    .replace(
+      /\b(token|api[ _-]?key|password|passcode|secret|credential)\s*[:=]\s*[^\s,;]+/gi,
+      "$1=[redacted-secret]",
+    )
+    .replace(
+      /\b(token|api[ _-]?key|password|passcode|secret|credential)\s+(is\s+)?(?!field\b|input\b|manager\b|reset\b)([^\s,;]+)/gi,
+      (_match, kind: string, linking: string | undefined) =>
+        `${kind} ${linking ?? ""}[redacted-secret]`,
+    )
+    .replace(/\b[a-z0-9_-]{24,}\b/gi, (candidate) =>
+      isSecretLikeOptionValue(candidate) ? "[redacted-secret]" : candidate,
+    );
+}
+
+function isSecretLikeOptionValue(value: string): boolean {
+  return value.length >= 24 && /[a-z]/i.test(value) && /\d/.test(value);
 }
 
 function setValue(value: unknown, allowed: Set<string>): string | undefined {

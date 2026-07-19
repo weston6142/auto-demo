@@ -409,6 +409,38 @@ describe("createPlaywrightMetadataRecorder", () => {
     );
   });
 
+  it("rejects every established secret-like or unstable semantic option label", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+    for (const optionLabel of [
+      "abcdefghijklmnopqrstuvwx1",
+      "Bearer abcdefghijklmnop",
+      "abcdefgh.abcdefgh.abcdefgh",
+      "password hunter2",
+      "token=private-value",
+      "x".repeat(257),
+      "  New  ",
+    ]) {
+      await page.binding?.(
+        trustedBrowserPayload(page, {
+          type: "select",
+          data: { target: { tagName: "SELECT", label: "Condition" }, optionLabel },
+        }),
+      );
+    }
+    await recorder.close();
+
+    expect(writer.events).toEqual([]);
+  });
+
   it("records a real controller selection as semantic metadata", async () => {
     const browser = await chromium.launch();
     try {
