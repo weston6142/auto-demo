@@ -314,7 +314,7 @@ npm exec vitest run packages/agent/src/discoveryRehearsal.test.ts packages/agent
 
 Expected: PASS; existing observation diagnostics remain unchanged and new network diagnostics reflect observable expectations.
 
-- [ ] **Step 6: Commit the propagation slice**
+- [x] **Step 6: Commit the propagation slice**
 
 ```bash
 git add packages/agent/src/discoveryNetworkClassification.ts packages/agent/src/discoveryRehearsal.ts packages/agent/src/discoveryRehearsal.test.ts packages/agent/src/index.ts
@@ -329,7 +329,7 @@ git commit -m "WES-269: expose blocked network diagnostics"
 - Modify: `packages/agent/src/playwrightDiscoveryPolicyGuard.test.ts`
 - Modify: `packages/agent/src/playwrightDiscoveryPolicyGuard.ts`
 
-- [ ] **Step 1: Replace legacy outcome expectations with classified evidence assertions**
+- [x] **Step 1: Replace legacy outcome expectations with classified evidence assertions**
 
 Update the existing safe `POST`/`PUT`/`PATCH`/`DELETE` tests to expect `network_request_blocked` and sanitized `blockedNetworkEvidence`. Add browser-level cases for:
 
@@ -355,7 +355,7 @@ Use `navigator.sendBeacon()` to assert `beacon`; use a POST form submission to a
 
 Add a request containing a secret query, body, and header. Assert none appear in `JSON.stringify(violation)`, errors, or fixed summaries.
 
-- [ ] **Step 2: Run the guard tests and verify RED**
+- [x] **Step 2: Run the guard tests and verify RED**
 
 Run:
 
@@ -365,7 +365,7 @@ npm exec vitest run packages/agent/src/playwrightDiscoveryPolicyGuard.test.ts
 
 Expected: FAIL because the guard still emits `mutating_request_blocked` without classified evidence.
 
-- [ ] **Step 3: Add the neutral policy outcome**
+- [x] **Step 3: Add the neutral policy outcome**
 
 In `discoveryPolicy.ts`, replace new runtime use of `mutating_request_blocked` with:
 
@@ -381,7 +381,7 @@ network_request_blocked: "Discovery blocked classified network activity.",
 
 Retain the historical string only if an existing saved-artifact validation test proves it is required; do not emit it from new guard paths.
 
-- [ ] **Step 4: Implement a bounded sanitized accumulator**
+- [x] **Step 4: Implement a bounded sanitized accumulator**
 
 In the guard, define `MAX_NETWORK_CLASSIFICATIONS = 8` and an internal accumulator that stores only classification keys, counts, a bounded public entry list, total blocked requests, and a bounded set of omitted enum keys. Its snapshot returns `DiscoveryBlockedNetworkEvidence` and never accepts a URL or arbitrary browser string.
 
@@ -401,11 +401,11 @@ const classification = classifyDiscoveryNetworkRequest({
 
 Use `classification.methodCategory` for safe/disposable network decisions. Unknown methods fail closed. On a block, add the classification to the active or idle accumulator and record `network_request_blocked`.
 
-- [ ] **Step 5: Return and clear evidence at the existing action boundaries**
+- [x] **Step 5: Return and clear evidence at the existing action boundaries**
 
 Extend `DiscoveryPolicyViolation` with optional `blockedNetworkEvidence`. `finishAction()` and `checkForViolation()` attach an immutable snapshot only for `network_request_blocked`, then clear the corresponding accumulator exactly when the violation is consumed. Preserve first-violation behavior for unrelated hard boundaries.
 
-- [ ] **Step 6: Run guard and policy tests and verify GREEN**
+- [x] **Step 6: Run guard and policy tests and verify GREEN**
 
 Run:
 

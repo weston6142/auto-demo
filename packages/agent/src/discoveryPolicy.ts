@@ -45,6 +45,7 @@ export type DiscoveryPolicyOutcomeCode =
   | "destructive_action_blocked"
   | "origin_not_allowed"
   | "unsafe_navigation_blocked"
+  | "network_request_blocked"
   | "mutating_request_blocked"
   | "websocket_blocked"
   | "download_blocked"
@@ -57,6 +58,7 @@ export const DISCOVERY_POLICY_SUMMARIES: Record<DiscoveryPolicyOutcomeCode, stri
   destructive_action_blocked: "Discovery blocked a potentially destructive action.",
   origin_not_allowed: "Discovery blocked an origin outside the approved scope.",
   unsafe_navigation_blocked: "Discovery blocked unsafe navigation.",
+  network_request_blocked: "Discovery blocked classified network activity.",
   mutating_request_blocked: "Discovery blocked a server-mutating request.",
   websocket_blocked: "Discovery blocked a WebSocket connection.",
   download_blocked: "Discovery blocked a download.",

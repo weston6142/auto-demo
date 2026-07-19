@@ -6,10 +6,17 @@ import {
   type DiscoveryPolicyPermit,
   type ValidatedDiscoveryPolicy,
 } from "./discoveryPolicy.js";
+import {
+  classifyDiscoveryNetworkRequest,
+  type DiscoveryBlockedNetworkClassification,
+  type DiscoveryBlockedNetworkEvidence,
+  type DiscoveryNetworkClassification,
+} from "./discoveryNetworkClassification.js";
 
 export type DiscoveryPolicyViolation = {
   code: DiscoveryPolicyOutcomeCode;
   summary: string;
+  blockedNetworkEvidence?: DiscoveryBlockedNetworkEvidence;
 };
 
 export type PlaywrightDiscoveryPolicyGuard = {
@@ -47,9 +54,64 @@ type FrameTreeResult = { frameTree: { frame: { id: string } } };
 type FrameNavigated = { frame: { id: string; url: string } };
 
 const ROUTE_MATCHER = "**/*";
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const MAX_NETWORK_CLASSIFICATIONS = 8;
 const ACTION_QUIET_PERIOD_MS = 200;
 const ACTION_SETTLE_TIMEOUT_MS = 750;
+
+type BlockedNetworkAccumulator = {
+  classifications: Map<string, DiscoveryBlockedNetworkClassification>;
+  omittedClassificationKeys: Set<string>;
+  totalBlockedRequestCount: number;
+};
+
+function createBlockedNetworkAccumulator(): BlockedNetworkAccumulator {
+  return {
+    classifications: new Map(),
+    omittedClassificationKeys: new Set(),
+    totalBlockedRequestCount: 0,
+  };
+}
+
+function classificationKey(classification: DiscoveryNetworkClassification): string {
+  return [
+    classification.requestClass,
+    classification.methodCategory,
+    classification.originRelation,
+    classification.scope,
+  ].join(":");
+}
+
+function recordBlockedNetworkClassification(
+  accumulator: BlockedNetworkAccumulator,
+  classification: DiscoveryNetworkClassification,
+): void {
+  accumulator.totalBlockedRequestCount += 1;
+  const key = classificationKey(classification);
+  const existing = accumulator.classifications.get(key);
+  if (existing !== undefined) {
+    existing.blockedRequestCount += 1;
+    return;
+  }
+  if (accumulator.classifications.size < MAX_NETWORK_CLASSIFICATIONS) {
+    accumulator.classifications.set(key, { ...classification, blockedRequestCount: 1 });
+    return;
+  }
+  accumulator.omittedClassificationKeys.add(key);
+}
+
+function blockedNetworkEvidence(
+  accumulator: BlockedNetworkAccumulator,
+): DiscoveryBlockedNetworkEvidence | undefined {
+  if (accumulator.totalBlockedRequestCount === 0) return undefined;
+  const omittedClassificationCount = accumulator.omittedClassificationKeys.size;
+  return {
+    classifications: [...accumulator.classifications.values()].map((classification) => ({
+      ...classification,
+    })),
+    totalBlockedRequestCount: accumulator.totalBlockedRequestCount,
+    ...(omittedClassificationCount === 0 ? {} : { omittedClassificationCount }),
+  };
+}
 
 export async function installPlaywrightDiscoveryPolicyGuard(
   page: Page,
@@ -61,6 +123,8 @@ export async function installPlaywrightDiscoveryPolicyGuard(
   let activePermit: DiscoveryPolicyPermit | undefined;
   let activeViolation: DiscoveryPolicyViolation | undefined;
   let idleViolation: DiscoveryPolicyViolation | undefined;
+  let activeBlockedNetwork = createBlockedNetworkAccumulator();
+  let idleBlockedNetwork = createBlockedNetworkAccumulator();
   let disposed = false;
   let unhealthy = false;
   const consumedTokens = new Set<symbol>();
@@ -81,6 +145,25 @@ export async function installPlaywrightDiscoveryPolicyGuard(
     } else {
       activeViolation ??= violation;
     }
+  };
+
+  const recordNetworkViolation = (classification: DiscoveryNetworkClassification) => {
+    const violation = activePermit === undefined ? idleViolation : activeViolation;
+    if (violation !== undefined && violation.code !== "network_request_blocked") return;
+    recordBlockedNetworkClassification(
+      activePermit === undefined ? idleBlockedNetwork : activeBlockedNetwork,
+      classification,
+    );
+    recordViolation("network_request_blocked");
+  };
+
+  const withBlockedNetworkEvidence = (
+    violation: DiscoveryPolicyViolation | undefined,
+    accumulator: BlockedNetworkAccumulator,
+  ): DiscoveryPolicyViolation | undefined => {
+    if (violation?.code !== "network_request_blocked") return violation;
+    const evidence = blockedNetworkEvidence(accumulator);
+    return evidence === undefined ? violation : { ...violation, blockedNetworkEvidence: evidence };
   };
 
   let cdpSession: CDPSession | undefined;
@@ -120,14 +203,22 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       return;
     }
 
-    const method = event.request.method.toUpperCase();
-    if (!SAFE_METHODS.has(method)) {
+    const classification = classifyDiscoveryNetworkRequest({
+      method: event.request.method,
+      resourceType: event.resourceType,
+      isNavigationRequest: event.resourceType === "Document",
+      isMainFrame: topLevelNavigation,
+      isServiceWorker: event.resourceType !== "Document" && event.frameId === undefined,
+      currentOrigin: safeRequestOrigin(page.url()),
+      requestOrigin,
+    });
+    if (classification.methodCategory !== "read") {
       const disposableMutationAllowed =
         activePermit?.mode === "disposable" &&
         activePermit.allowedOrigins.has(requestOrigin) &&
         policy.allowedOrigins.has(requestOrigin);
       if (!disposableMutationAllowed) {
-        recordViolation("mutating_request_blocked");
+        recordNetworkViolation(classification);
         await failRequest(event.requestId);
         return;
       }
@@ -348,6 +439,7 @@ export async function installPlaywrightDiscoveryPolicyGuard(
       consumedTokens.add(permit.token);
       activePermit = permit;
       activeViolation = undefined;
+      activeBlockedNetwork = createBlockedNetworkAccumulator();
       markActivity();
     },
     async finishAction() {
@@ -395,14 +487,16 @@ export async function installPlaywrightDiscoveryPolicyGuard(
           recordViolation("policy_guard_unavailable");
         }
       }
-      const violation = activeViolation;
+      const violation = withBlockedNetworkEvidence(activeViolation, activeBlockedNetwork);
       activePermit = undefined;
       activeViolation = undefined;
+      activeBlockedNetwork = createBlockedNetworkAccumulator();
       return violation;
     },
     checkForViolation() {
-      const violation = idleViolation;
+      const violation = withBlockedNetworkEvidence(idleViolation, idleBlockedNetwork);
       idleViolation = undefined;
+      idleBlockedNetwork = createBlockedNetworkAccumulator();
       return violation;
     },
     async dispose() {
