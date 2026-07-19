@@ -10,6 +10,7 @@ import type {
 } from "./playwrightDriver.js";
 
 const BINDING_NAME = "__autoDemoCaptureEvent";
+const OPTION_LABEL_LIMIT = 256;
 const NON_PRINTABLE_KEYS = new Set([
   "Alt",
   "AltGraph",
@@ -330,6 +331,7 @@ function parseBrowserBindingPayload(payload: unknown): BrowserBindingPayload | u
   if (
     payload.type !== "click" &&
     payload.type !== "fill" &&
+    payload.type !== "select" &&
     payload.type !== "press" &&
     payload.type !== "viewport" &&
     payload.type !== "navigation"
@@ -379,6 +381,15 @@ function parseBrowserPayloadData(
       value: stringValue(data.value),
       inputType: setValue(data.inputType, TARGET_INPUT_TYPES),
       inputMethod: setValue(data.inputMethod, INPUT_METHODS),
+    });
+  }
+
+  if (type === "select") {
+    const optionLabel = publicOptionLabel(data.optionLabel);
+    if (optionLabel === undefined) return undefined;
+    return omitUndefined({
+      target: parseTargetHint(data.target),
+      optionLabel,
     });
   }
 
@@ -447,6 +458,43 @@ function omitUndefined<T extends Record<string, unknown>>(record: T): Record<str
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function publicOptionLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (
+    normalized !== value ||
+    normalized.length === 0 ||
+    normalized.length > OPTION_LABEL_LIMIT ||
+    sanitizePublicOptionText(normalized) !== normalized
+  )
+    return undefined;
+  return normalized;
+}
+
+function sanitizePublicOptionText(value: string): string {
+  return value
+    .replace(/https?:\/\/[^\s]+/gi, (url) => stripUrlSecrets(url))
+    .replace(/\bsk-[a-z0-9_-]{8,}\b/gi, "[redacted-secret]")
+    .replace(/\b[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\b/gi, "[redacted-secret]")
+    .replace(/\bBearer\s+[a-z0-9._~-]{8,}\b/gi, "Bearer [redacted-secret]")
+    .replace(
+      /\b(token|api[ _-]?key|password|passcode|secret|credential)\s*[:=]\s*[^\s,;]+/gi,
+      "$1=[redacted-secret]",
+    )
+    .replace(
+      /\b(token|api[ _-]?key|password|passcode|secret|credential)\s+(is\s+)?(?!field\b|input\b|manager\b|reset\b)([^\s,;]+)/gi,
+      (_match, kind: string, linking: string | undefined) =>
+        `${kind} ${linking ?? ""}[redacted-secret]`,
+    )
+    .replace(/\b[a-z0-9_-]{24,}\b/gi, (candidate) =>
+      isSecretLikeOptionValue(candidate) ? "[redacted-secret]" : candidate,
+    );
+}
+
+function isSecretLikeOptionValue(value: string): boolean {
+  return value.length >= 24 && /[a-z]/i.test(value) && /\d/.test(value);
 }
 
 function setValue(value: unknown, allowed: Set<string>): string | undefined {
@@ -732,6 +780,18 @@ function browserInstrumentationScript(bindingName: string): string {
   }, true);
   document.addEventListener("input", (event) => {
     const target = event.target;
+    if (target instanceof HTMLSelectElement) {
+      const optionLabel = target.selectedOptions[0]?.textContent?.replace(/\\s+/g, " ").trim();
+      send({
+        type: "select",
+        ...pageFields(),
+        data: {
+          target: targetHint(target),
+          optionLabel
+        }
+      });
+      return;
+    }
     const value = target && "value" in target ? String(target.value) : undefined;
     const inputType = target instanceof HTMLInputElement ? target.type : undefined;
     send({

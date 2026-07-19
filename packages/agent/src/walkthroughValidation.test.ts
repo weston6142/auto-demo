@@ -62,6 +62,27 @@ function runner(
 }
 
 describe("validateWalkthroughPlan", () => {
+  it("requires exactly one bounded sanitizer-stable label for select steps", () => {
+    const selected = plan("Verify Results.");
+    selected.steps[0] = {
+      ...selected.steps[0],
+      action: "select",
+      assertion: undefined,
+      optionLabel: "New",
+    };
+    expect(isWalkthroughPlan(selected)).toBe(true);
+
+    for (const optionLabel of [undefined, "x".repeat(257), "token=private-value"] as const) {
+      const malformed = structuredClone(selected);
+      malformed.steps[0].optionLabel = optionLabel;
+      expect(isWalkthroughPlan(malformed), String(optionLabel)).toBe(false);
+    }
+
+    const unexpected = structuredClone(selected);
+    unexpected.steps[0].action = "click";
+    expect(isWalkthroughPlan(unexpected)).toBe(false);
+  });
+
   it("requires validate-first mode for discovery plans", () => {
     const discovered = plan("Verify Results.");
     discovered.mode = "best-guess";

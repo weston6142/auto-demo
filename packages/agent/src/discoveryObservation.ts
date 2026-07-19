@@ -62,6 +62,14 @@ export type DiscoveryObservationRawTarget = {
   sensitivePayment?: boolean;
   upload?: boolean;
   actionRisk?: "potentially-mutating";
+  form?: {
+    required: boolean;
+    hasValue: boolean;
+    validity: "valid" | "invalid" | "unknown";
+    checked?: boolean;
+    selectedOption?: string;
+    options?: Array<{ label: string; disabled: boolean; selected: boolean }>;
+  };
 };
 
 export type DiscoveryObservationPageSnapshot = {

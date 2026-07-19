@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+
 import type { Locator, Page } from "playwright";
 import type {
   BrowserCaptureController,
@@ -64,6 +66,29 @@ export function createPlaywrightExecutionController(
         );
       }
     },
+    async select(target, optionLabel) {
+      const locator = await requireOneVisibleTarget(page, target, timeoutMs);
+      try {
+        const matches = await locator
+          .locator("option")
+          .evaluateAll(
+            (options, label) =>
+              options.filter(
+                (option) =>
+                  option.textContent?.replace(/\s+/g, " ").trim() === label &&
+                  !(option as HTMLOptionElement).disabled,
+              ).length,
+            optionLabel,
+          );
+        if (matches !== 1) throw new PlaywrightExecutionControllerError("action_failed");
+        await locator.selectOption({ label: optionLabel });
+      } catch (error) {
+        if (error instanceof PlaywrightExecutionControllerError) throw error;
+        throw new PlaywrightExecutionControllerError(
+          isPlaywrightTimeout(error) ? "execution_timeout" : "action_failed",
+        );
+      }
+    },
     async assertVisible(target) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       if (!(await locator.isVisible())) {
@@ -72,6 +97,45 @@ export function createPlaywrightExecutionController(
     },
     async assertNavigation(expectation) {
       if (!matchesNavigation(expectation, page.url())) {
+        throw new PlaywrightExecutionControllerError("assertion_failed");
+      }
+    },
+    async assertControlState(assertion) {
+      const locator = await requireOneVisibleTarget(page, assertion.target, timeoutMs);
+      const state = await locator.evaluate((element) => {
+        if (!(
+          element instanceof HTMLInputElement ||
+          element instanceof HTMLTextAreaElement ||
+          element instanceof HTMLSelectElement
+        )) {
+          return undefined;
+        }
+        const checkable =
+          element instanceof HTMLInputElement &&
+          (element.type === "checkbox" || element.type === "radio");
+        return {
+          hasValue: checkable ? element.checked : element.value.length > 0,
+          validity: element.willValidate
+            ? element.validity.valid
+              ? "valid"
+              : "invalid"
+            : "unknown",
+          ...(checkable ? { checked: element.checked } : {}),
+          ...(element instanceof HTMLSelectElement
+            ? {
+                selectedOption: element.selectedOptions[0]?.textContent
+                  ?.replace(/\s+/g, " ")
+                  .trim(),
+              }
+            : {}),
+        };
+      });
+      if (
+        state === undefined ||
+        !Object.entries(assertion.state).every(
+          ([key, value]) => state[key as keyof typeof state] === value,
+        )
+      ) {
         throw new PlaywrightExecutionControllerError("assertion_failed");
       }
     },

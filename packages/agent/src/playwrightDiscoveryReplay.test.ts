@@ -136,6 +136,66 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("selects native options by public label and verifies bounded control state", async () => {
+    const origin = await fixture(`<!doctype html>
+      <label>Condition
+        <select required>
+          <option value="any-private">Any</option>
+          <option value="new-private">New</option>
+        </select>
+      </label>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+
+    await browser.open(origin);
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Condition",
+      role: "combobox",
+    });
+    await browser.select(matches[0]!, "New");
+    await browser.waitForSettled();
+
+    await expect(
+      browser.assertControlState({
+        kind: "control-state",
+        target: { kind: "accessible", label: "Condition", role: "combobox" },
+        state: { selectedOption: "New", hasValue: true, validity: "valid" },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects missing, disabled, and ambiguous public option labels", async () => {
+    const origin = await fixture(`<!doctype html>
+      <label>Condition
+        <select>
+          <option disabled>Used</option>
+          <option>New</option>
+          <option>New</option>
+        </select>
+      </label>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Condition",
+      role: "combobox",
+    });
+
+    for (const label of ["Missing", "Used", "New"]) {
+      await expect(browser.select(matches[0]!, label)).rejects.toMatchObject({
+        code: "action_failed",
+      });
+    }
+  });
+
   it("blocks replay from typing credential fields", async () => {
     const origin = await fixture(`<!doctype html><input type="password" aria-label="Password">`);
     const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({

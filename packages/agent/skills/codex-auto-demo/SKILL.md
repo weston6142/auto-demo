@@ -95,8 +95,13 @@ policy denial and report only its bounded provider and profile identifier.
    it.
 2. Own a fresh isolated Playwright context and page, then create
    `createPolicyEnforcedPlaywrightDiscoveryRehearsalController(...)`. Read only
-   its bounded observations. Choose one structured action with declared
-   expectations per `perform()` call. Do not use selectors, raw DOM, arbitrary
+   its bounded observations. Native form targets may include required, value-present,
+   validity, selected public option, checked state, and bounded public option labels;
+   never infer or request raw form or option values. Select native options with the
+   returned public label. Choose one structured action with declared expectations or
+   require the returned attempt to contain a meaningful derived navigation, visible,
+   or control-state effect. Treat `action_no_observable_effect` as a failed path
+   candidate. Do not use selectors, raw DOM, arbitrary
    page evaluation, or a parallel browser-action path.
 3. Preserve failed exploration as evidence. Use explicit back, refresh, retry,
    or alternative-target actions when the evidence supports them, and complete

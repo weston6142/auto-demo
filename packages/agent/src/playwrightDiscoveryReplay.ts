@@ -233,6 +233,35 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     await this.guarded(permit, () => locator.fill(value), "action_failed");
   }
 
+  async select(match: DiscoveryReplayMatch, optionLabel: string): Promise<void> {
+    const locator = this.requireLocator(match);
+    const { target, risk } = await inspectTarget(locator, match);
+    const permit = this.authorize(
+      { kind: "select", targetId: target.id, optionLabel },
+      target,
+      risk,
+    );
+    await this.guarded(
+      permit,
+      async () => {
+        const matches = await locator
+          .locator("option")
+          .evaluateAll(
+            (options, label) =>
+              options.filter(
+                (option) =>
+                  option.textContent?.replace(/\s+/g, " ").trim() === label &&
+                  !(option as HTMLOptionElement).disabled,
+              ).length,
+            optionLabel,
+          );
+        if (matches !== 1) throw new DiscoveryReplayBrowserError("action_failed");
+        await locator.selectOption({ label: optionLabel });
+      },
+      "action_failed",
+    );
+  }
+
   async wait(durationMs: number): Promise<void> {
     await this.requirePage().waitForTimeout(durationMs);
     this.assertNoIdleViolation();
@@ -284,6 +313,50 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
         : actual.origin === expected.origin && actual.pathname === expected.pathname;
     if (!matches) throw new DiscoveryReplayBrowserError("navigation_mismatch");
     this.assertNoIdleViolation();
+  }
+
+  async assertControlState(
+    assertion: Extract<WalkthroughPlanAssertion, { kind: "control-state" }>,
+  ): Promise<void> {
+    await this.assertNoBrowserChallenge();
+    const matches = await this.findMatches(assertion.target);
+    const selected =
+      assertion.target.occurrence === undefined
+        ? matches.length === 1
+          ? matches[0]
+          : undefined
+        : matches[assertion.target.occurrence - 1];
+    if (selected === undefined) throw new DiscoveryReplayBrowserError("visible_state_mismatch");
+    const state = await this.requireLocator(selected).evaluate((element) => {
+      if (!(
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element instanceof HTMLSelectElement
+      )) {
+        return undefined;
+      }
+      const checkable =
+        element instanceof HTMLInputElement &&
+        (element.type === "checkbox" || element.type === "radio");
+      return {
+        hasValue: checkable ? element.checked : element.value.length > 0,
+        validity: element.willValidate ? (element.validity.valid ? "valid" : "invalid") : "unknown",
+        ...(checkable ? { checked: element.checked } : {}),
+        ...(element instanceof HTMLSelectElement
+          ? {
+              selectedOption: element.selectedOptions[0]?.textContent?.replace(/\s+/g, " ").trim(),
+            }
+          : {}),
+      };
+    });
+    if (
+      state === undefined ||
+      !Object.entries(assertion.state).every(
+        ([key, value]) => state[key as keyof typeof state] === value,
+      )
+    ) {
+      throw new DiscoveryReplayBrowserError("visible_state_mismatch");
+    }
   }
 
   async inspectPage(): Promise<{ url: string }> {

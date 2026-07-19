@@ -235,6 +235,87 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
     );
   });
 
+  it("exposes bounded public native form state without exposing control values", async () => {
+    await openHtml(`
+      <title>Vehicle search</title>
+      <form>
+        <label>Condition
+          <select required>
+            <option value="any-secret-value">Any</option>
+            <option value="new-secret-value" selected>New</option>
+          </select>
+        </label>
+        <label>Make
+          <select>
+            <option value="kia-secret-value" selected>Kia</option>
+            <option value="disabled-secret-value" disabled>Other</option>
+          </select>
+        </label>
+        <label>Private choice
+          <select>
+            <option value="private-native-value" selected>token=private-option-value</option>
+          </select>
+        </label>
+        <label><input type="radio" name="distance" checked value="nationwide-secret-value"> Nationwide</label>
+        <label>ZIP <input value="30301-secret-value"></label>
+      </form>
+    `);
+
+    const result = await createPlaywrightDiscoveryObservationExtractor(page).observe();
+    if (!result.ok) throw new Error("form observation must succeed");
+
+    expect(result.observation.interactiveTargets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Condition",
+          role: "combobox",
+          form: {
+            required: true,
+            hasValue: true,
+            validity: "valid",
+            selectedOption: "New",
+            options: [
+              { label: "Any", disabled: false, selected: false },
+              { label: "New", disabled: false, selected: true },
+            ],
+          },
+        }),
+        expect.objectContaining({
+          label: "Make",
+          role: "combobox",
+          form: expect.objectContaining({
+            selectedOption: "Kia",
+            options: [
+              { label: "Kia", disabled: false, selected: true },
+              { label: "Other", disabled: true, selected: false },
+            ],
+          }),
+        }),
+        expect.objectContaining({
+          label: "Nationwide",
+          role: "radio",
+          form: expect.objectContaining({ checked: true, hasValue: true }),
+        }),
+        expect.objectContaining({
+          label: "ZIP",
+          role: "textbox",
+          form: expect.objectContaining({ hasValue: true }),
+        }),
+        expect.objectContaining({
+          label: "Private choice",
+          role: "combobox",
+          form: expect.not.objectContaining({ selectedOption: expect.anything() }),
+        }),
+      ]),
+    );
+    expect(JSON.stringify(result)).not.toMatch(
+      /any-secret-value|new-secret-value|kia-secret-value|disabled-secret-value|nationwide-secret-value|30301-secret-value|private-option-value|\[redacted-secret\]/,
+    );
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "content_redacted" })]),
+    );
+  });
+
   it("classifies payment and upload controls only in the runtime snapshot", async () => {
     await openHtml(`
       <label>Card number <input autocomplete="cc-number"></label>
@@ -263,7 +344,7 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
       <label for="notes">Notes label</label>
       <textarea id="notes">textarea-value-secret</textarea>
       <label for="choice">Choice label</label>
-      <select id="choice"><option selected>select-value-secret</option></select>
+      <select id="choice"><option value="select-value-secret" selected>Visible choice</option></select>
       <div contenteditable aria-label="Editable label">editable-value-secret</div>
       <textarea>unlabelled-textarea-secret</textarea>
       <select><option>unlabelled-select-secret</option></select>

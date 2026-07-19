@@ -8,6 +8,7 @@ import {
   type DiscoveryContractError,
   type DiscoveryContractResult,
   type DiscoveryExpectation,
+  type DiscoveryFormState,
   type DiscoveryObservedEffect,
   type DiscoveryObservation,
   type DiscoverySelectedPath,
@@ -143,6 +144,85 @@ function sanitizeRequiredPublicText(
     return undefined;
   }
   return sanitized;
+}
+
+function sanitizeFormState(
+  value: unknown,
+  path: string,
+  errors: DiscoveryContractError[],
+): DiscoveryFormState | undefined {
+  if (!isRecord(value)) {
+    errors.push(discoveryError("invalid_discovery_input", "Form state is invalid.", { path }));
+    return undefined;
+  }
+  const initialErrorCount = errors.length;
+  errors.push(
+    ...invalidUnknownFields(
+      value,
+      ["required", "hasValue", "validity", "checked", "selectedOption", "options"],
+      path,
+    ),
+  );
+  const selectedOption =
+    value.selectedOption === undefined
+      ? undefined
+      : sanitizeRequiredPublicText(value.selectedOption, `${path}.selectedOption`, errors);
+  let options: DiscoveryFormState["options"];
+  if (value.options !== undefined) {
+    if (
+      !Array.isArray(value.options) ||
+      value.options.length > DISCOVERY_LIMITS.formOptionsPerTarget
+    ) {
+      errors.push(discoveryError("invalid_discovery_input", "Form options are invalid.", { path }));
+    } else {
+      options = value.options.flatMap((option, index) => {
+        const optionPath = `${path}.options.${index}`;
+        if (!isRecord(option)) {
+          errors.push(
+            discoveryError("invalid_discovery_input", "Form option is invalid.", {
+              path: optionPath,
+            }),
+          );
+          return [];
+        }
+        errors.push(...invalidUnknownFields(option, ["label", "disabled", "selected"], optionPath));
+        const label = sanitizeRequiredPublicText(option.label, `${optionPath}.label`, errors);
+        if (
+          label === undefined ||
+          typeof option.disabled !== "boolean" ||
+          typeof option.selected !== "boolean"
+        ) {
+          errors.push(
+            discoveryError("invalid_discovery_input", "Form option is invalid.", {
+              path: optionPath,
+            }),
+          );
+          return [];
+        }
+        return [{ label, disabled: option.disabled, selected: option.selected }];
+      });
+    }
+  }
+  if (
+    typeof value.required !== "boolean" ||
+    typeof value.hasValue !== "boolean" ||
+    (value.validity !== "valid" && value.validity !== "invalid" && value.validity !== "unknown") ||
+    (value.checked !== undefined && typeof value.checked !== "boolean") ||
+    errors.length !== initialErrorCount
+  ) {
+    if (errors.length === initialErrorCount) {
+      errors.push(discoveryError("invalid_discovery_input", "Form state is invalid.", { path }));
+    }
+    return undefined;
+  }
+  return {
+    required: value.required,
+    hasValue: value.hasValue,
+    validity: value.validity,
+    ...(value.checked === undefined ? {} : { checked: value.checked }),
+    ...(selectedOption === undefined ? {} : { selectedOption }),
+    ...(options === undefined ? {} : { options }),
+  };
 }
 
 export function isSafeArtifactPath(value: unknown): value is string {
@@ -289,7 +369,7 @@ export function sanitizeObservationInput(
     errors.push(
       ...invalidUnknownFields(
         value,
-        ["id", "label", "role", "occurrence", "disabled", "actionRisk"],
+        ["id", "label", "role", "occurrence", "disabled", "actionRisk", "form"],
         path,
       ),
     );
@@ -298,6 +378,8 @@ export function sanitizeObservationInput(
       value.role === undefined
         ? undefined
         : sanitizeRequiredPublicText(value.role, `${path}.role`, errors);
+    const form =
+      value.form === undefined ? undefined : sanitizeFormState(value.form, `${path}.form`, errors);
     if (
       !isSafeDiscoveryId(value.id) ||
       nestedIds.has(value.id) ||
@@ -321,6 +403,7 @@ export function sanitizeObservationInput(
         ...(value.occurrence === undefined ? {} : { occurrence: Number(value.occurrence) }),
         disabled: value.disabled,
         ...(value.actionRisk === undefined ? {} : { actionRisk: value.actionRisk }),
+        ...(form === undefined ? {} : { form }),
       },
     ];
   });
@@ -459,6 +542,25 @@ function sanitizeAction(
     }
     return { kind: "click", targetId: value.targetId as string };
   }
+  if (value.kind === "select") {
+    errors.push(...invalidUnknownFields(value, ["kind", "targetId", "optionLabel"], "action"));
+    const optionLabel = sanitizeRequiredPublicText(value.optionLabel, "action.optionLabel", errors);
+    const target = before.interactiveTargets.find((candidate) => candidate.id === value.targetId);
+    const matchingOptions = target?.form?.options?.filter(
+      (option) => option.label === optionLabel && !option.disabled,
+    );
+    if (
+      !targetExists(value.targetId) ||
+      optionLabel === undefined ||
+      matchingOptions?.length !== 1
+    ) {
+      errors.push(
+        discoveryError("invalid_discovery_input", "Select action is invalid.", { path: "action" }),
+      );
+      return undefined;
+    }
+    return { kind: "select", targetId: value.targetId as string, optionLabel };
+  }
   if (value.kind === "type") {
     errors.push(
       ...invalidUnknownFields(value, ["kind", "targetId", "inputBinding", "valueClass"], "action"),
@@ -585,6 +687,66 @@ function sanitizeExpectation(
       origin: expectedOrigin,
       ...(hasTarget ? { targetId: value.targetId as string } : { publicCondition }),
       ...(role === undefined ? {} : { role }),
+    };
+  }
+  if (value.kind === "control-state") {
+    errors.push(
+      ...invalidUnknownFields(value, ["id", "kind", "origin", "targetId", "state"], path),
+    );
+    if (!isSafeDiscoveryId(value.targetId) || !isRecord(value.state)) {
+      errors.push(
+        discoveryError("invalid_discovery_input", "Control-state expectation is invalid.", {
+          path,
+        }),
+      );
+      return undefined;
+    }
+    errors.push(
+      ...invalidUnknownFields(
+        value.state,
+        ["hasValue", "validity", "checked", "selectedOption"],
+        `${path}.state`,
+      ),
+    );
+    const selectedOption =
+      value.state.selectedOption === undefined
+        ? undefined
+        : sanitizeRequiredPublicText(
+            value.state.selectedOption,
+            `${path}.state.selectedOption`,
+            errors,
+          );
+    const validity = value.state.validity;
+    const validState =
+      (value.state.hasValue === undefined || typeof value.state.hasValue === "boolean") &&
+      (validity === undefined ||
+        validity === "valid" ||
+        validity === "invalid" ||
+        validity === "unknown") &&
+      (value.state.checked === undefined || typeof value.state.checked === "boolean") &&
+      (value.state.selectedOption === undefined || selectedOption !== undefined) &&
+      Object.keys(value.state).length > 0;
+    if (!validState) {
+      errors.push(
+        discoveryError("invalid_discovery_input", "Control-state expectation is invalid.", {
+          path,
+        }),
+      );
+      return undefined;
+    }
+    return {
+      id: value.id,
+      kind: "control-state",
+      origin: expectedOrigin,
+      targetId: value.targetId,
+      state: {
+        ...(value.state.hasValue === undefined
+          ? {}
+          : { hasValue: value.state.hasValue as boolean }),
+        ...(validity === undefined ? {} : { validity }),
+        ...(value.state.checked === undefined ? {} : { checked: value.state.checked as boolean }),
+        ...(selectedOption === undefined ? {} : { selectedOption }),
+      },
     };
   }
   errors.push(
@@ -1038,7 +1200,11 @@ export function validateSelectedPath(
     ) {
       errors.push(pathError("Selected attempt observations are not chronological.", attemptId));
     }
-    if (attempt.action.kind === "click" || attempt.action.kind === "type") {
+    if (
+      attempt.action.kind === "click" ||
+      attempt.action.kind === "type" ||
+      attempt.action.kind === "select"
+    ) {
       const targetId = attempt.action.targetId;
       if (!before.interactiveTargets.some((target) => target.id === targetId)) {
         errors.push(pathError("Selected action target is missing.", attemptId));
@@ -1069,6 +1235,22 @@ export function validateSelectedPath(
           after.interactiveTargets.some((target) => target.id === expectation.targetId);
         if (!targetExists) {
           errors.push(pathError("Visible-state target is missing.", attemptId));
+        }
+      } else if (expectation.kind === "control-state") {
+        hasVisibleEvidence = true;
+        const form = after.interactiveTargets.find(
+          (target) => target.id === expectation.targetId,
+        )?.form;
+        if (form === undefined) {
+          errors.push(pathError("Control-state target is missing.", attemptId));
+        } else if (
+          !Object.entries(expectation.state).every(
+            ([key, value]) => form[key as keyof typeof form] === value,
+          )
+        ) {
+          errors.push(
+            pathError("Control-state expectation contradicts the observation.", attemptId),
+          );
         }
       } else if (!matchesNavigationExpectation(expectation, after.page.url)) {
         errors.push(pathError("Navigation expectation contradicts the observation.", attemptId));

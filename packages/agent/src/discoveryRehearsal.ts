@@ -137,18 +137,20 @@ function evaluateExpectations(
     const matched =
       expectation.kind === "navigation"
         ? matchesNavigationExpectation(expectation, observation.page.url)
-        : expectation.targetId !== undefined
-          ? observation.visibleStates.some((state) => state.id === expectation.targetId) ||
-            observation.interactiveTargets.some((target) => target.id === expectation.targetId)
-          : expectation.publicCondition !== undefined &&
-            [
-              ...observation.visibleStates.map((state) => state.summary),
-              ...observation.interactiveTargets.map((target) => target.label),
-            ].some(
-              (value) =>
-                normalizePublicCondition(value) ===
-                normalizePublicCondition(expectation.publicCondition!),
-            );
+        : expectation.kind === "control-state"
+          ? matchesControlState(expectation, observation)
+          : expectation.targetId !== undefined
+            ? observation.visibleStates.some((state) => state.id === expectation.targetId) ||
+              observation.interactiveTargets.some((target) => target.id === expectation.targetId)
+            : expectation.publicCondition !== undefined &&
+              [
+                ...observation.visibleStates.map((state) => state.summary),
+                ...observation.interactiveTargets.map((target) => target.label),
+              ].some(
+                (value) =>
+                  normalizePublicCondition(value) ===
+                  normalizePublicCondition(expectation.publicCondition!),
+              );
     return {
       expectationId: expectation.id,
       status: matched ? "matched" : "not-matched",
@@ -158,6 +160,80 @@ function evaluateExpectations(
         : "Expected page evidence did not match.",
     };
   });
+}
+
+function matchesControlState(
+  expectation: Extract<DiscoveryExpectation, { kind: "control-state" }>,
+  observation: DiscoveryObservation,
+) {
+  const form = observation.interactiveTargets.find(
+    (target) => target.id === expectation.targetId,
+  )?.form;
+  if (form === undefined) return false;
+  return Object.entries(expectation.state).every(
+    ([key, value]) => form[key as keyof typeof form] === value,
+  );
+}
+
+function deriveObservableExpectations(
+  before: DiscoveryObservation,
+  after: DiscoveryObservation,
+): DiscoveryExpectation[] {
+  const derived: DiscoveryExpectation[] = [];
+  const nextId = () => `derived-${randomUUID()}`;
+  if (before.page.url !== after.page.url) {
+    derived.push({
+      id: nextId(),
+      kind: "navigation",
+      origin: "derived-from-observation",
+      url: after.page.url,
+      match: "exact-url",
+    });
+  }
+  const beforeVisible = new Set(
+    before.visibleStates.map((state) => `${state.kind}\0${state.summary}`),
+  );
+  const addedVisible = after.visibleStates.find(
+    (state) => !beforeVisible.has(`${state.kind}\0${state.summary}`),
+  );
+  if (addedVisible !== undefined) {
+    derived.push({
+      id: nextId(),
+      kind: "visible-state",
+      origin: "derived-from-observation",
+      targetId: addedVisible.id,
+    });
+  }
+  const beforeTargetIds = new Set(before.interactiveTargets.map((target) => target.id));
+  const addedTarget = after.interactiveTargets.find((target) => !beforeTargetIds.has(target.id));
+  if (addedTarget !== undefined) {
+    derived.push({
+      id: nextId(),
+      kind: "visible-state",
+      origin: "derived-from-observation",
+      targetId: addedTarget.id,
+    });
+  }
+  for (const previous of before.interactiveTargets) {
+    const current = after.interactiveTargets.find((target) => target.id === previous.id);
+    if (previous.form === undefined || current?.form === undefined) continue;
+    const state: Extract<DiscoveryExpectation, { kind: "control-state" }>["state"] = {};
+    for (const key of ["hasValue", "validity", "checked", "selectedOption"] as const) {
+      if (previous.form[key] !== current.form[key] && current.form[key] !== undefined) {
+        Object.assign(state, { [key]: current.form[key] });
+      }
+    }
+    if (Object.keys(state).length > 0) {
+      derived.push({
+        id: nextId(),
+        kind: "control-state",
+        origin: "derived-from-observation",
+        targetId: current.id,
+        state,
+      });
+    }
+  }
+  return derived;
 }
 
 export function createDiscoveryRehearsalController<TPermit>(
@@ -293,7 +369,11 @@ export function createDiscoveryRehearsalController<TPermit>(
         "Discovery back navigation is unavailable.",
       );
     }
-    if (input.action.kind === "click" || input.action.kind === "type") {
+    if (
+      input.action.kind === "click" ||
+      input.action.kind === "type" ||
+      input.action.kind === "select"
+    ) {
       let targetIsLive = false;
       try {
         targetIsLive = await dependencies.driver.hasLiveTarget(input.action.targetId);
@@ -385,8 +465,18 @@ export function createDiscoveryRehearsalController<TPermit>(
     }
     current = recorded.session;
     const after = latestObservation(current)!;
-    const effects = evaluateExpectations(input.expectations, after);
+    const stateChanging =
+      input.action.kind === "click" ||
+      input.action.kind === "type" ||
+      input.action.kind === "select";
+    const derivedExpectations =
+      stateChanging && input.expectations.length === 0
+        ? deriveObservableExpectations(before!, after)
+        : [];
+    const allExpectations = [...input.expectations, ...derivedExpectations];
+    const effects = evaluateExpectations(allExpectations, after);
     const matched = effects.every((effect) => effect.status === "matched");
+    const hasObservableEffect = input.expectations.length > 0 || derivedExpectations.length > 0;
     const networkDiagnostics: DiscoveryNetworkDiagnostic[] =
       executed.blockedNetworkEvidence === undefined
         ? []
@@ -408,23 +498,29 @@ export function createDiscoveryRehearsalController<TPermit>(
       }
     }
     const finished = finishDiscoveryAttempt(current, attemptId, {
-      status: executed.ok && matched ? "succeeded" : "failed",
+      status:
+        executed.ok && matched && (!stateChanging || hasObservableEffect) ? "succeeded" : "failed",
       finishedAt: clock(),
-      derivedExpectations: [],
+      derivedExpectations,
       observedEffects: effects,
       afterObservationId: after.id,
       outcome:
-        executed.ok && matched
+        executed.ok && matched && (!stateChanging || hasObservableEffect)
           ? { code: "action_completed", summary: "Discovery action completed." }
           : !executed.ok
             ? (driverFailureOutcome ?? {
                 code: "action_failed",
                 summary: "Discovery action failed.",
               })
-            : {
-                code: "expectation_unmatched",
-                summary: "Discovery expectation did not match.",
-              },
+            : stateChanging && !hasObservableEffect
+              ? {
+                  code: "action_no_observable_effect",
+                  summary: "Discovery action produced no observable effect.",
+                }
+              : {
+                  code: "expectation_unmatched",
+                  summary: "Discovery expectation did not match.",
+                },
     });
     if (!finished.ok) return { ok: false, session: getSession(), errors: finished.errors };
     current = finished.session;
@@ -515,7 +611,9 @@ export function createDiscoveryRehearsalController<TPermit>(
           : { retryOfAttemptId: preparedAttempt.retryOfAttemptId }),
       };
       const targetId =
-        preparedInput.action.kind === "click" || preparedInput.action.kind === "type"
+        preparedInput.action.kind === "click" ||
+        preparedInput.action.kind === "type" ||
+        preparedInput.action.kind === "select"
           ? preparedInput.action.targetId
           : undefined;
       const target =

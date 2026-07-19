@@ -83,7 +83,8 @@ export class PlaywrightDiscoveryObservationPage implements DiscoveryObservationP
         await this.page.reload();
         return;
       case "click":
-      case "type": {
+      case "type":
+      case "select": {
         if (input.identityKey === undefined) throw new Error("target unavailable");
         const handle = await this.page.evaluateHandle(
           ({ registryKey, identityKey }) => {
@@ -100,7 +101,22 @@ export class PlaywrightDiscoveryObservationPage implements DiscoveryObservationP
         }
         try {
           if (input.action.kind === "click") await element.click();
-          else await element.fill(input.resolvedValue ?? "");
+          else if (input.action.kind === "type") await element.fill(input.resolvedValue ?? "");
+          else {
+            const matches = await element.evaluate(
+              (node, label) =>
+                node instanceof HTMLSelectElement
+                  ? Array.from(node.options).filter(
+                      (option) =>
+                        option.textContent?.replace(/\s+/g, " ").trim() === label &&
+                        !option.disabled,
+                    ).length
+                  : 0,
+              input.action.optionLabel,
+            );
+            if (matches !== 1) throw new Error("option unavailable");
+            await element.selectOption({ label: input.action.optionLabel });
+          }
         } finally {
           await element.dispose();
         }
@@ -488,6 +504,42 @@ function collectBrowserSnapshot(input: {
         (explicitType === undefined || explicitType === "submit")) ||
         (formControl?.tagName === "INPUT" &&
           (explicitType === "submit" || explicitType === "image")));
+    const nativeFormControl =
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement
+        ? element
+        : undefined;
+    const checkable =
+      element instanceof HTMLInputElement &&
+      (element.type.toLowerCase() === "checkbox" || element.type.toLowerCase() === "radio");
+    const form =
+      nativeFormControl === undefined
+        ? undefined
+        : {
+            required: nativeFormControl.required,
+            hasValue: checkable ? element.checked : nativeFormControl.value.length > 0,
+            validity: nativeFormControl.willValidate
+              ? nativeFormControl.validity.valid
+                ? ("valid" as const)
+                : ("invalid" as const)
+              : ("unknown" as const),
+            ...(checkable ? { checked: element.checked } : {}),
+            ...(element instanceof HTMLSelectElement
+              ? {
+                  ...(element.selectedOptions[0] === undefined
+                    ? {}
+                    : { selectedOption: safeText(element.selectedOptions[0]) }),
+                  options: Array.from(element.options)
+                    .slice(0, 50)
+                    .map((option) => ({
+                      label: safeText(option),
+                      disabled: option.disabled,
+                      selected: option.selected,
+                    })),
+                }
+              : {}),
+          };
     const target: DiscoveryObservationRawTarget = {
       identityKey: identity(element),
       tier: semantic ? "semantic" : "fallback",
@@ -499,6 +551,7 @@ function collectBrowserSnapshot(input: {
       sensitivePayment,
       upload,
       ...(submitsForm ? { actionRisk: "potentially-mutating" as const } : {}),
+      ...(form === undefined ? {} : { form }),
     };
     targetTier.push(target);
   });

@@ -73,6 +73,41 @@ function legacyFingerprint(plan: WalkthroughPlan): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(canonical)).digest("hex")}`;
 }
 
+function preOptionLabelFingerprint(plan: WalkthroughPlan): string {
+  const canonicalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonicalize);
+    if (typeof value !== "object" || value === null) return value;
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalize(nested)]),
+    );
+  };
+  const canonical = canonicalize({
+    target: plan.target,
+    launchProfile: plan.launchProfile ?? null,
+    mode: plan.mode,
+    steps: plan.steps.map((step) => ({
+      id: step.id,
+      order: step.order,
+      action: step.action,
+      resolution: step.resolution,
+      sourceText: step.sourceText,
+      public: step.public,
+      targetHint: step.targetHint ?? null,
+      questionId: step.questionId ?? null,
+      navigationUrl: step.navigationUrl ?? null,
+      inputBinding: step.inputBinding ?? null,
+      waitDurationMs: step.waitDurationMs ?? null,
+      assertion: step.assertion ?? null,
+      provenance: step.provenance ?? null,
+    })),
+    questions: plan.questions,
+    validation: plan.validation ?? null,
+  });
+  return `sha256:${createHash("sha256").update(JSON.stringify(canonical)).digest("hex")}`;
+}
+
 describe("walkthrough approval", () => {
   it("rejects discovery plans without matching replay validation", () => {
     const dryRun = validatedPlan();
@@ -301,15 +336,21 @@ describe("walkthrough approval", () => {
     const typePlan = createPlan("best-guess", "Type launch demo into Search.");
     const waitPlan = createPlan("best-guess", "Wait 2 seconds.");
     const navigationPlan = createPlan("best-guess", "Go to https://example.com/dashboard.");
-    const approvedPlans = [typePlan, waitPlan, navigationPlan].map((plan) =>
+    const selectPlan = createPlan("best-guess");
+    selectPlan.steps[0] = {
+      ...selectPlan.steps[0],
+      action: "select",
+      optionLabel: "New",
+    };
+    const approvedPlans = [typePlan, waitPlan, navigationPlan, selectPlan].map((plan) =>
       approveWalkthroughPlan(plan, { allowBestGuessBypass: true }),
     );
     for (const approved of approvedPlans) {
       if (!approved.ok) throw new Error("test plan should approve");
     }
 
-    const [approvedType, approvedWait, approvedNavigation] = approvedPlans;
-    if (!approvedType.ok || !approvedWait.ok || !approvedNavigation.ok) {
+    const [approvedType, approvedWait, approvedNavigation, approvedSelect] = approvedPlans;
+    if (!approvedType.ok || !approvedWait.ok || !approvedNavigation.ok || !approvedSelect.ok) {
       throw new Error("test plans should approve");
     }
     expect(approvedType.plan.steps[0]).toMatchObject({ inputBinding: "step-1" });
@@ -317,12 +358,14 @@ describe("walkthrough approval", () => {
     expect(approvedNavigation.plan.steps[0]).toMatchObject({
       navigationUrl: "https://example.com/dashboard",
     });
+    expect(approvedSelect.plan.steps[0]).toMatchObject({ optionLabel: "New" });
 
     approvedType.plan.steps[0].inputBinding = "replacement";
     approvedWait.plan.steps[0].waitDurationMs = 3_000;
     approvedNavigation.plan.steps[0].navigationUrl = "https://example.com/other";
+    approvedSelect.plan.steps[0].optionLabel = "Used";
 
-    for (const approved of [approvedType, approvedWait, approvedNavigation]) {
+    for (const approved of [approvedType, approvedWait, approvedNavigation, approvedSelect]) {
       expect(verifyWalkthroughPlanApproval(approved.plan)).toMatchObject({
         ok: false,
         errors: [{ code: "stale_approval" }],
@@ -342,6 +385,27 @@ describe("walkthrough approval", () => {
       ok: false,
       errors: [{ code: "invalid_plan" }],
     });
+  });
+
+  it("preserves pre-select fingerprints for modern non-select plans", () => {
+    const input = validatedPlan();
+    input.launchProfile = {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "bundled",
+      headless: true,
+      viewport: { width: 1280, height: 720 },
+    };
+    input.steps[0].provenance = {
+      kind: "discovery",
+      sessionId: "session-1",
+      attemptId: "attempt-1",
+    };
+    const approved = approveWalkthroughPlan(input);
+    if (!approved.ok) throw new Error("test plan should approve");
+    approved.plan.approvals.planFingerprint = preOptionLabelFingerprint(approved.plan);
+
+    expect(verifyWalkthroughPlanApproval(approved.plan)).toEqual({ ok: true });
   });
 
   it("does not invalidate approval for non-execution source text changes", () => {

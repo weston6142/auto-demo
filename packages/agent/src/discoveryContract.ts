@@ -7,6 +7,8 @@ export const DISCOVERY_LIMITS = {
   attempts: 256,
   selectedPathAttempts: 128,
   interactiveTargetsPerObservation: 100,
+  formOptionsPerTarget: 50,
+  formOptionLabelCharacters: 256,
   visibleStatesPerObservation: 50,
   artifactReferencesPerObservation: 8,
   identifierCharacters: 128,
@@ -53,6 +55,22 @@ export type DiscoveryInteractiveTarget = {
   occurrence?: number;
   disabled: boolean;
   actionRisk?: "potentially-mutating";
+  form?: DiscoveryFormState;
+};
+
+export type DiscoveryFormOption = {
+  label: string;
+  disabled: boolean;
+  selected: boolean;
+};
+
+export type DiscoveryFormState = {
+  required: boolean;
+  hasValue: boolean;
+  validity: "valid" | "invalid" | "unknown";
+  checked?: boolean;
+  selectedOption?: string;
+  options?: DiscoveryFormOption[];
 };
 
 export type DiscoveryObservation = {
@@ -73,6 +91,7 @@ export type DiscoveryObservation = {
 export type DiscoveryAction =
   | { kind: "navigate"; url: string }
   | { kind: "click"; targetId: string }
+  | { kind: "select"; targetId: string; optionLabel: string }
   | {
       kind: "type";
       targetId: string;
@@ -101,6 +120,18 @@ export type DiscoveryExpectation =
       targetId?: string;
       publicCondition?: string;
       role?: string;
+    }
+  | {
+      id: string;
+      kind: "control-state";
+      origin: DiscoveryExpectationOrigin;
+      targetId: string;
+      state: {
+        hasValue?: boolean;
+        validity?: "valid" | "invalid" | "unknown";
+        checked?: boolean;
+        selectedOption?: string;
+      };
     };
 
 export type DiscoveryObservedEffect = {

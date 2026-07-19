@@ -126,6 +126,45 @@ describe("discovery session validation", () => {
     });
   });
 
+  it("rejects control-state evidence that contradicts the after observation", async () => {
+    const completed = await readFixture("discovery-session-completed.json");
+    completed.observations[1].interactiveTargets = [
+      {
+        id: "target-condition",
+        label: "Condition",
+        role: "combobox",
+        disabled: false,
+        form: {
+          required: true,
+          hasValue: true,
+          validity: "valid",
+          selectedOption: "New",
+          options: [{ label: "New", disabled: false, selected: true }],
+        },
+      },
+    ];
+    completed.attempts[0].derivedExpectations.push({
+      id: "expectation-condition-state",
+      kind: "control-state",
+      origin: "derived-from-observation",
+      targetId: "target-condition",
+      state: { selectedOption: "New" },
+    });
+    completed.attempts[0].observedEffects.push({
+      expectationId: "expectation-condition-state",
+      status: "matched",
+      observationId: "observation-payment-attempt-checkout",
+      summary: "Condition is New",
+    });
+    expect(validateDiscoverySession(completed)).toMatchObject({ ok: true });
+
+    completed.attempts[0].derivedExpectations.at(-1).state.selectedOption = "Used";
+    expect(validateDiscoverySession(completed)).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining([expect.objectContaining({ code: "invalid_selected_path" })]),
+    });
+  });
+
   it("never echoes attacker-controlled unknown property names", () => {
     if (!valid.ok) throw new Error("fixture session must be valid");
     const result = validateDiscoverySession({

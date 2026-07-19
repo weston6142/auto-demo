@@ -139,6 +139,7 @@ export function walkthroughPlanFingerprint(plan: WalkthroughPlan): string {
       questionId: step.questionId ?? null,
       navigationUrl: step.navigationUrl ?? null,
       inputBinding: step.inputBinding ?? null,
+      ...(step.optionLabel === undefined ? {} : { optionLabel: step.optionLabel }),
       waitDurationMs: step.waitDurationMs ?? null,
       assertion: step.assertion ?? null,
       provenance: step.provenance ?? null,
@@ -171,6 +172,7 @@ function hasStructuredExecutionData(step: WalkthroughPlan["steps"][number]): boo
   return (
     step.navigationUrl !== undefined ||
     step.inputBinding !== undefined ||
+    step.optionLabel !== undefined ||
     step.waitDurationMs !== undefined ||
     step.assertion !== undefined ||
     step.provenance !== undefined

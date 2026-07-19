@@ -338,7 +338,7 @@ export type WalkthroughPlanMode = "validate-first" | "best-guess";
 export type WalkthroughPlanState =
   "draft" | "needs-clarification" | "validated" | "approved" | "executed";
 export type WalkthroughPlanStepAction =
-  "navigate" | "click" | "type" | "wait" | "assert" | "question";
+  "navigate" | "click" | "type" | "select" | "wait" | "assert" | "question";
 export type WalkthroughPlanStepResolution = "resolved" | "unresolved";
 
 export type WalkthroughPlanTargetHint = {
@@ -367,6 +367,16 @@ export type WalkthroughPlanAssertion =
       condition: string;
       role?: string;
       occurrence?: number;
+    }
+  | {
+      kind: "control-state";
+      target: WalkthroughPlanTargetHint;
+      state: {
+        hasValue?: boolean;
+        validity?: "valid" | "invalid" | "unknown";
+        checked?: boolean;
+        selectedOption?: string;
+      };
     };
 
 export type WalkthroughPlanStepProvenance = {
@@ -406,6 +416,7 @@ export type WalkthroughPlanStep = {
   targetHint?: WalkthroughPlanTargetHint;
   navigationUrl?: string;
   inputBinding?: string;
+  optionLabel?: string;
   waitDurationMs?: number;
   assertion?: WalkthroughPlanAssertion;
   provenance?: WalkthroughPlanStepProvenance;

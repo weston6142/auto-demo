@@ -143,12 +143,24 @@ export type BrowserNavigationExpectation = {
   match: "exact-url" | "same-origin-path";
 };
 
+export type BrowserControlStateAssertion = {
+  target: BrowserExecutionTarget;
+  state: {
+    hasValue?: boolean;
+    validity?: "valid" | "invalid" | "unknown";
+    checked?: boolean;
+    selectedOption?: string;
+  };
+};
+
 export type BrowserCaptureController = {
   navigate(url: string): Promise<void>;
   click(target: BrowserExecutionTarget): Promise<void>;
   type(target: BrowserExecutionTarget, value: string, options: { delayMs: number }): Promise<void>;
+  select(target: BrowserExecutionTarget, optionLabel: string): Promise<void>;
   assertVisible(target: BrowserExecutionTarget): Promise<void>;
   assertNavigation(expectation: BrowserNavigationExpectation): Promise<void>;
+  assertControlState(assertion: BrowserControlStateAssertion): Promise<void>;
   waitForSettled(): Promise<void>;
 };
 

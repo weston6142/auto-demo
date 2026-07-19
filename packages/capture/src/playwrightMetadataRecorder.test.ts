@@ -1,6 +1,8 @@
+import { chromium, type Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { createCaptureEventFactory, type CaptureEvent } from "./captureEvents.js";
 import { createPlaywrightMetadataRecorder } from "./playwrightMetadataRecorder.js";
+import { createPlaywrightExecutionController } from "./playwrightExecutionController.js";
 import type { BrowserCaptureController } from "./index.js";
 import type {
   BrowserBindingCallback,
@@ -105,8 +107,10 @@ class FakePage implements PlaywrightPage {
       async navigate() {},
       async click() {},
       async type() {},
+      async select() {},
       async assertVisible() {},
       async assertNavigation() {},
+      async assertControlState() {},
       async waitForSettled() {},
     };
   }
@@ -147,6 +151,45 @@ function trustedBrowserPayload(
 
   return {
     ...payload,
+  };
+}
+
+function realRecorderPage(page: Page): PlaywrightPage {
+  return {
+    async goto(url) {
+      await page.goto(url);
+    },
+    video() {
+      return null;
+    },
+    async exposeBinding(name, callback) {
+      await page.exposeBinding(name, async (_source, payload) => callback(payload));
+    },
+    async addInitScript(script) {
+      await page.addInitScript(script);
+    },
+    onConsole(callback) {
+      page.on("console", (message) =>
+        callback({ type: message.type(), text: message.text(), location: message.location() }),
+      );
+    },
+    onNavigation(callback) {
+      page.on("domcontentloaded", () => callback("domcontentloaded"));
+      page.on("load", () => callback("load"));
+    },
+    onPageError(callback) {
+      page.on("pageerror", (error) => callback(error));
+    },
+    async snapshotMetadata() {
+      return {
+        pageUrl: page.url(),
+        pageTitle: await page.title(),
+        viewport: page.viewportSize() ?? undefined,
+      };
+    },
+    executionController() {
+      return createPlaywrightExecutionController(page);
+    },
   };
 }
 
@@ -322,6 +365,122 @@ describe("createPlaywrightMetadataRecorder", () => {
       }),
     ]);
     expect(writer.closed).toBe(true);
+  });
+
+  it("records native selection as semantic public-label metadata without native values", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+
+    await page.binding?.(
+      trustedBrowserPayload(page, {
+        type: "select",
+        pageUrl: "https://example.com/vehicles",
+        pageTitle: "Vehicles",
+        viewport: { width: 1280, height: 720 },
+        data: {
+          target: { tagName: "SELECT", label: "Condition" },
+          optionLabel: "New",
+          value: "private-native-option-value",
+          unrelatedValue: "private-form-value",
+        },
+      }),
+    );
+    await recorder.close();
+
+    expect(writer.events).toEqual([
+      expect.objectContaining({
+        type: "select",
+        data: {
+          target: { tagName: "SELECT", labelRedacted: true, labelLength: 9 },
+          optionLabel: "New",
+        },
+      }),
+    ]);
+    expect(JSON.stringify(writer.events)).not.toMatch(
+      /private-native-option-value|private-form-value/,
+    );
+  });
+
+  it("rejects every established secret-like or unstable semantic option label", async () => {
+    const page = new FakePage();
+    const writer = new MemoryWriter();
+    const recorder = await createPlaywrightMetadataRecorder({
+      page,
+      writer,
+      eventFactory: createCaptureEventFactory({
+        captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+        now: () => new Date("2026-06-29T12:00:01.000Z"),
+      }),
+    });
+    for (const optionLabel of [
+      "abcdefghijklmnopqrstuvwx1",
+      "Bearer abcdefghijklmnop",
+      "abcdefgh.abcdefgh.abcdefgh",
+      "password hunter2",
+      "token=private-value",
+      "x".repeat(257),
+      "  New  ",
+    ]) {
+      await page.binding?.(
+        trustedBrowserPayload(page, {
+          type: "select",
+          data: { target: { tagName: "SELECT", label: "Condition" }, optionLabel },
+        }),
+      );
+    }
+    await recorder.close();
+
+    expect(writer.events).toEqual([]);
+  });
+
+  it("records a real controller selection as semantic metadata", async () => {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      const wrapped = realRecorderPage(page);
+      const writer = new MemoryWriter();
+      const recorder = await createPlaywrightMetadataRecorder({
+        page: wrapped,
+        writer,
+        eventFactory: createCaptureEventFactory({
+          captureStartedAt: new Date("2026-06-29T12:00:00.000Z"),
+          now: () => new Date("2026-06-29T12:00:01.000Z"),
+        }),
+      });
+      const html = encodeURIComponent(`
+        <title>Vehicle search</title>
+        <label>Condition
+          <select><option value="any-native-secret">Any</option><option value="new-native-secret">New</option></select>
+        </label>
+        <input aria-label="Unrelated" value="unrelated-private-value">
+      `);
+      await wrapped.goto(`data:text/html,${html}`);
+      await wrapped.executionController().select({ label: "Condition", role: "combobox" }, "New");
+      await page.waitForTimeout(50);
+      await recorder.close();
+
+      expect(writer.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "select",
+            data: expect.objectContaining({ optionLabel: "New" }),
+          }),
+        ]),
+      );
+      expect(JSON.stringify(writer.events)).not.toMatch(
+        /any-native-secret|new-native-secret|unrelated-private-value/,
+      );
+    } finally {
+      await browser.close();
+    }
   });
 
   it("waits for in-flight browser-side events before closing", async () => {

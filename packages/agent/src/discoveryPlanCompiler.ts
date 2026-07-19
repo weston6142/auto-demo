@@ -229,6 +229,11 @@ function compileAction(
         ...targetStep("type", actionTarget(before, attempt.action, attempt.id), provenance),
         inputBinding: attempt.action.inputBinding,
       };
+    case "select":
+      return {
+        ...targetStep("select", actionTarget(before, attempt.action, attempt.id), provenance),
+        optionLabel: sanitizeWalkthroughText(attempt.action.optionLabel),
+      };
     case "wait":
       return {
         action: "wait",
@@ -257,6 +262,25 @@ function compileAssertion(
   expectation: DiscoveryExpectation,
   after: DiscoveryObservation,
 ): UnnumberedStep {
+  if (expectation.kind === "control-state") {
+    const target = after.interactiveTargets.find(
+      (candidate) => candidate.id === expectation.targetId,
+    );
+    if (target === undefined) throw referenceFailure(attempt.id, expectation.id);
+    const targetHint = accessibleTarget(target);
+    return {
+      ...assertionStep(
+        { kind: "control-state", target: targetHint, state: structuredClone(expectation.state) },
+        `Verify ${targetHint.label} form state.`,
+        {
+          ...baseProvenance(session, attempt),
+          expectationId: expectation.id,
+          expectationOrigin: expectation.origin,
+        },
+      ),
+      targetHint,
+    };
+  }
   const provenance: WalkthroughPlanStepProvenance = {
     ...baseProvenance(session, attempt),
     expectationId: expectation.id,
@@ -298,12 +322,16 @@ function navigationStep(value: string, provenance: WalkthroughPlanStepProvenance
 }
 
 function targetStep(
-  action: "click" | "type",
+  action: "click" | "type" | "select",
   targetHint: WalkthroughPlanTargetHint,
   provenance: WalkthroughPlanStepProvenance,
 ): UnnumberedStep {
   const summary =
-    action === "click" ? `Click ${targetHint.label}.` : `Type [redacted] into ${targetHint.label}.`;
+    action === "click"
+      ? `Click ${targetHint.label}.`
+      : action === "type"
+        ? `Type [redacted] into ${targetHint.label}.`
+        : `Select an option in ${targetHint.label}.`;
   return {
     action,
     resolution: "resolved",
@@ -331,7 +359,7 @@ function assertionStep(
 
 function actionTarget(
   observation: DiscoveryObservation,
-  action: Extract<DiscoveryAction, { kind: "click" | "type" }>,
+  action: Extract<DiscoveryAction, { kind: "click" | "type" | "select" }>,
   attemptId: string,
 ): WalkthroughPlanTargetHint {
   const target = observation.interactiveTargets.find(
