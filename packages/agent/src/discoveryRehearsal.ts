@@ -13,6 +13,10 @@ import type {
   DiscoveryObservationDiagnostic,
   DiscoveryObservationExtractionResult,
 } from "./discoveryObservation.js";
+import type {
+  DiscoveryBlockedNetworkEvidence,
+  DiscoveryNetworkDiagnostic,
+} from "./discoveryNetworkClassification.js";
 import {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
@@ -50,8 +54,23 @@ export interface DiscoveryInputResolver {
 }
 
 export type DiscoveryRehearsalDriverResult =
-  | { ok: true; code: string; summary: string }
-  | { ok: false; code: string; summary: string; recoverable: boolean };
+  | {
+      ok: true;
+      code: string;
+      summary: string;
+      blockedNetworkEvidence?: DiscoveryBlockedNetworkEvidence;
+    }
+  | {
+      ok: false;
+      code: string;
+      summary: string;
+      recoverable: boolean;
+      blockedNetworkEvidence?: DiscoveryBlockedNetworkEvidence;
+    };
+
+export type DiscoveryRehearsalDiagnostic =
+  | DiscoveryObservationDiagnostic
+  | DiscoveryNetworkDiagnostic;
 
 export interface DiscoveryRehearsalDriver<TPermit> {
   observe(): Promise<DiscoveryObservationExtractionResult>;
@@ -92,7 +111,7 @@ export type DiscoveryRehearsalResult =
       session: DiscoverySessionV1;
       observation?: DiscoveryObservation;
       attempt?: DiscoveryAttempt;
-      diagnostics: DiscoveryObservationDiagnostic[];
+      diagnostics: DiscoveryRehearsalDiagnostic[];
     }
   | { ok: false; session?: DiscoverySessionV1; errors: DiscoveryRehearsalError[] };
 
@@ -369,6 +388,18 @@ export function createDiscoveryRehearsalController<TPermit>(
     const after = latestObservation(current)!;
     const effects = evaluateExpectations(input.expectations, after);
     const matched = effects.every((effect) => effect.status === "matched");
+    const networkDiagnostics: DiscoveryNetworkDiagnostic[] =
+      executed.blockedNetworkEvidence === undefined
+        ? []
+        : [
+            {
+              code: "network_requests_blocked",
+              ...structuredClone(executed.blockedNetworkEvidence),
+              expectedVisibleEffectPrevented:
+                input.expectations.length > 0 &&
+                effects.some((effect) => effect.status !== "matched"),
+            },
+          ];
     let driverFailureOutcome: { code: string; summary: string } | undefined;
     if (!executed.ok) {
       try {
@@ -403,7 +434,7 @@ export function createDiscoveryRehearsalController<TPermit>(
       session: structuredClone(current),
       observation: structuredClone(after),
       attempt: structuredClone(current.attempts.at(-1)!),
-      diagnostics: observed.diagnostics,
+      diagnostics: [...observed.diagnostics, ...networkDiagnostics],
     };
   };
 

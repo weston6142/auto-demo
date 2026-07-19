@@ -204,7 +204,7 @@ Expected: PASS with all request-class, method, origin, scope, and sanitation cas
 
 Keep the module free of Playwright/CDP imports and arbitrary output strings. Re-run the focused test after any cleanup.
 
-- [ ] **Step 6: Commit the classifier slice**
+- [x] **Step 6: Commit the classifier slice**
 
 ```bash
 git add packages/agent/src/discoveryNetworkClassification.ts packages/agent/src/discoveryNetworkClassification.test.ts packages/agent/src/index.ts packages/agent/package.json docs/superpowers/specs/2026-07-18-wes-269-classify-network-side-effects-design.md docs/superpowers/plans/2026-07-18-wes-269-classify-network-side-effects.md docs/linear/auto-demo-project-structure.md
@@ -220,7 +220,7 @@ git commit -m "WES-269: define sanitized network classification"
 - Modify: `packages/agent/src/discoveryRehearsal.ts`
 - Modify: `packages/agent/src/index.ts`
 
-- [ ] **Step 1: Write failing controller-result tests**
+- [x] **Step 1: Write failing controller-result tests**
 
 Add two tests to `discoveryRehearsal.test.ts`. Configure `driver.execute()` to return a recoverable `network_request_blocked` failure with one sanitized blocked-network evidence object. Configure the post-action observation once without the declared visible state and once with it.
 
@@ -251,7 +251,7 @@ expect(result).toMatchObject({
 
 Assert the matched case returns the same sanitized evidence with `expectedVisibleEffectPrevented: false`. Assert serialized results do not contain a fixture secret.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run:
 
@@ -261,7 +261,7 @@ npm exec vitest run packages/agent/src/discoveryRehearsal.test.ts
 
 Expected: FAIL because driver results cannot carry blocked-network evidence and result diagnostics accept only observation diagnostics.
 
-- [ ] **Step 3: Add exact evidence and diagnostic types**
+- [x] **Step 3: Add exact evidence and diagnostic types**
 
 Extend `discoveryNetworkClassification.ts`:
 
@@ -284,7 +284,7 @@ export type DiscoveryNetworkDiagnostic = DiscoveryBlockedNetworkEvidence & {
 
 Extend `DiscoveryRehearsalDriverResult` with optional `blockedNetworkEvidence` on both success and failure branches. Define the public result diagnostic union as `DiscoveryObservationDiagnostic | DiscoveryNetworkDiagnostic`.
 
-- [ ] **Step 4: Convert evidence after expectation evaluation**
+- [x] **Step 4: Convert evidence after expectation evaluation**
 
 In `performAllowed()`, after `evaluateExpectations()` computes `effects`, convert any driver evidence without mutating it:
 
@@ -304,7 +304,7 @@ const networkDiagnostics: DiscoveryNetworkDiagnostic[] =
 
 Return `diagnostics: [...observed.diagnostics, ...networkDiagnostics]`. Export the result diagnostic and network types from `index.ts`.
 
-- [ ] **Step 5: Run the focused tests and verify GREEN**
+- [x] **Step 5: Run the focused tests and verify GREEN**
 
 Run:
 

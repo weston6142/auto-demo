@@ -28,6 +28,21 @@ export type DiscoveryNetworkRequestMetadata = {
   requestOrigin?: string;
 };
 
+export type DiscoveryBlockedNetworkClassification = DiscoveryNetworkClassification & {
+  blockedRequestCount: number;
+};
+
+export type DiscoveryBlockedNetworkEvidence = {
+  classifications: DiscoveryBlockedNetworkClassification[];
+  totalBlockedRequestCount: number;
+  omittedClassificationCount?: number;
+};
+
+export type DiscoveryNetworkDiagnostic = DiscoveryBlockedNetworkEvidence & {
+  code: "network_requests_blocked";
+  expectedVisibleEffectPrevented: boolean;
+};
+
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const SIDE_EFFECT_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
