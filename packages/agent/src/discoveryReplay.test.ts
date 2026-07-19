@@ -328,11 +328,9 @@ describe("replayAndRepairDiscoveryPlan single attempt", () => {
       {
         browserFactory: {
           async create() {
-            throw new DiscoveryReplayBrowserError(
-              "anti_bot_challenge",
-              undefined,
-              { provider: "cloudflare" },
-            );
+            throw new DiscoveryReplayBrowserError("anti_bot_challenge", undefined, {
+              provider: "cloudflare",
+            });
           },
         },
         repair: {

@@ -39,7 +39,9 @@ const INVALID_PROFILE: BrowserLaunchProfileError = {
   message: "Browser launch profile is invalid.",
 };
 
-export function validateBrowserLaunchProfile(value: unknown):
+export function validateBrowserLaunchProfile(
+  value: unknown,
+):
   | { ok: true; profile: BrowserLaunchProfileV1; profileId: string }
   | { ok: false; errors: BrowserLaunchProfileError[] } {
   if (
@@ -168,9 +170,6 @@ function hasExactKeys(
 
 function boundedInteger(value: unknown, minimum: number, maximum: number): value is number {
   return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= minimum &&
-    value <= maximum
+    typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum
   );
 }

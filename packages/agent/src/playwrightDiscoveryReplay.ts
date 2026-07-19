@@ -56,11 +56,10 @@ export function createPlaywrightDiscoveryReplayBrowserFactory(
   const resolvedOptions = validateOptions(options);
   return {
     async create({ policy, launchProfile }) {
-      const profile =
-        launchProfile ?? {
-          ...DEFAULT_BROWSER_LAUNCH_PROFILE,
-          viewport: resolvedOptions.viewport,
-        };
+      const profile = launchProfile ?? {
+        ...DEFAULT_BROWSER_LAUNCH_PROFILE,
+        viewport: resolvedOptions.viewport,
+      };
       return new PlaywrightDiscoveryReplayBrowser(policy, resolvedOptions, profile);
     },
   };

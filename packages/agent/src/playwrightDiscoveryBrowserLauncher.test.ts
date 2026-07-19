@@ -147,7 +147,9 @@ describe("Playwright discovery browser launcher", () => {
         },
       ],
     });
-    expect(JSON.stringify(result)).not.toMatch(/launch-secret|navigation-secret|page-secret|url-secret/);
+    expect(JSON.stringify(result)).not.toMatch(
+      /launch-secret|navigation-secret|page-secret|url-secret/,
+    );
     expect(driver.resources).toEqual([
       { contextClosed: true, browserClosed: true },
       { contextClosed: true, browserClosed: true },

@@ -31,8 +31,7 @@ export type DiscoveryBrowserLaunchFailure = {
 };
 
 export type DiscoveryBrowserLaunchResult =
-  | DiscoveryBrowserLaunchHandle
-  | DiscoveryBrowserLaunchFailure;
+  DiscoveryBrowserLaunchHandle | DiscoveryBrowserLaunchFailure;
 
 export type DiscoveryBrowserLauncherPage = {
   raw: Page;
@@ -46,7 +45,9 @@ export type DiscoveryBrowserLauncherContext = {
 };
 
 export type DiscoveryBrowserLauncherBrowser = {
-  newContext(options: { viewport: { width: number; height: number } }): Promise<DiscoveryBrowserLauncherContext>;
+  newContext(options: {
+    viewport: { width: number; height: number };
+  }): Promise<DiscoveryBrowserLauncherContext>;
   close(): Promise<void>;
 };
 

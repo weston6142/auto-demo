@@ -303,6 +303,20 @@ describe("agent wrapper documentation", () => {
     );
   });
 
+  it("documents resolved browser launch profile parity across fresh workflow phases", async () => {
+    const skill = normalizeWhitespace(await readAgentDoc("skills/codex-auto-demo/SKILL.md"));
+
+    for (const required of [
+      "browser launch profile",
+      "same resolved profile",
+      "fresh isolated browser",
+      "anti_bot_challenge",
+      "Do not reuse cookies, storage state, or authenticated browser state",
+    ]) {
+      expect(skill).toContain(required);
+    }
+  });
+
   it("preserves the bounded historical discovery transcript through explicit approval", async () => {
     const skill = await readAgentDoc("skills/codex-auto-demo/SKILL.md");
     const discovery = section(skill, "## Goal-Driven Risk-Tiered Discovery");

@@ -133,6 +133,13 @@ deterministic `natural-v1` pacing, and stops on the first failed step. Expected
 failures exit `1` with a preserved failed capture bundle when recording began;
 interruption exits `130`. WES-180 owns capture-to-project handoff.
 
+For discovery-derived plans, `agent execute` uses the approved browser launch profile unchanged,
+including channel, headless mode, and viewport. Omitting `--viewport` derives it from that profile;
+an explicit viewport must match or execution fails before capture. The recording still launches a
+fresh isolated browser and context and never reuses cookies, storage state, or authenticated state.
+Plans without a profile retain bundled headless Chromium at 1280x720. Capture reports a recognized
+human-verification page as `anti_bot_challenge`, separately from policy failures.
+
 ## Deferrals
 
 Registry publication, Homebrew formulas, native app packaging, bundled

@@ -738,8 +738,7 @@ function setupFailureAttempt(
       schemaVersion: 1,
       code,
       repairability: "hard-boundary",
-      observed:
-        code === "anti_bot_challenge" && challenge !== undefined ? { challenge } : {},
+      observed: code === "anti_bot_challenge" && challenge !== undefined ? { challenge } : {},
       recommendation:
         code === "policy_blocked"
           ? "request-policy-boundary"
