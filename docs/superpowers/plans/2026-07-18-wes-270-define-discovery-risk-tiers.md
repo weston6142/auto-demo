@@ -381,6 +381,6 @@ rtk git commit -m "docs: record WES-270 verification evidence"
 
 Do not stage `.gitignore` or `workflow/`.
 
-- [ ] **Step 5: Continue through PR, checks, squash merge, and completion sync**
+- [x] **Step 5: Continue through PR, checks, squash merge, and completion sync**
 
 Use `create-pr-and-merge` with base `develop`. Include WES-270, design/plan links, pressure-test evidence, and exact verification commands. Monitor required checks and review feedback; fix only verified in-scope findings. After passing gates, squash merge, fast-forward local `develop` from the verified base remote, and run `linear-sync-gate` in completion mode. Add Linear completion evidence, move WES-270 to Done, reconcile WES-269 readiness, and preserve `.gitignore` plus `workflow/` unchanged.
