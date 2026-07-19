@@ -131,10 +131,11 @@ export async function installPlaywrightDiscoveryPolicyGuard(
   const pendingInterceptions = new Set<Promise<void>>();
   const pendingSideEffects = new Set<Promise<void>>();
   let lastActivityAt = Date.now();
-  let lastSafePageOrigin = safeRequestOrigin(page.url());
-  if (lastSafePageOrigin === undefined) {
+  const initialSafePageOrigin = safeRequestOrigin(page.url());
+  if (initialSafePageOrigin === undefined) {
     throw new DiscoveryPolicyGuardError("policy_guard_unavailable");
   }
+  let lastSafePageOrigin = initialSafePageOrigin;
   let unsafePageState = false;
 
   const markActivity = () => {
