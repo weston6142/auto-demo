@@ -650,15 +650,15 @@ git status --short
 
 Expected: only WES-269 paths are committed; `.gitignore` and `workflow/` remain preserved and unstaged.
 
-- [ ] **Step 4: Request independent read-only review**
+- [x] **Step 4: Request independent read-only review**
 
 Give the reviewer WES-269, the design, the plan, `origin/develop`, `HEAD`, and the complete diff. Fix every verified Critical or Important issue and low-risk valid Minor issue through a fresh RED-GREEN cycle, then rerun affected and full verification.
 
-- [ ] **Step 5: Record pre-PR evidence**
+- [x] **Step 5: Record pre-PR evidence**
 
 Update the project map with exact commands, counts, review result, commit SHAs, preserved unrelated changes, and the fact that WES-269 remains In Progress until merge. Keep WES-266 blocked until completion evidence is merged.
 
-- [ ] **Step 6: Commit final local evidence**
+- [x] **Step 6: Commit final local evidence**
 
 ```bash
 git add docs/linear/auto-demo-project-structure.md
