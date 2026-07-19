@@ -34,7 +34,7 @@ export type PlaywrightBrowserContext = {
 };
 
 export type BrowserBindingPayload = {
-  type: "click" | "fill" | "press" | "viewport" | "navigation";
+  type: "click" | "fill" | "select" | "press" | "viewport" | "navigation";
   pageUrl?: string;
   pageTitle?: string;
   viewport?: CaptureViewport;

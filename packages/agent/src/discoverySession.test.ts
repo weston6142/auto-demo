@@ -149,6 +149,7 @@ describe("discovery session contract", () => {
       selectedPathAttempts: 128,
       interactiveTargetsPerObservation: 100,
       formOptionsPerTarget: 50,
+      formOptionLabelCharacters: 256,
       visibleStatesPerObservation: 50,
       artifactReferencesPerObservation: 8,
       identifierCharacters: 128,

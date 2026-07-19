@@ -1238,8 +1238,19 @@ export function validateSelectedPath(
         }
       } else if (expectation.kind === "control-state") {
         hasVisibleEvidence = true;
-        if (!after.interactiveTargets.some((target) => target.id === expectation.targetId)) {
+        const form = after.interactiveTargets.find(
+          (target) => target.id === expectation.targetId,
+        )?.form;
+        if (form === undefined) {
           errors.push(pathError("Control-state target is missing.", attemptId));
+        } else if (
+          !Object.entries(expectation.state).every(
+            ([key, value]) => form[key as keyof typeof form] === value,
+          )
+        ) {
+          errors.push(
+            pathError("Control-state expectation contradicts the observation.", attemptId),
+          );
         }
       } else if (!matchesNavigationExpectation(expectation, after.page.url)) {
         errors.push(pathError("Navigation expectation contradicts the observation.", attemptId));

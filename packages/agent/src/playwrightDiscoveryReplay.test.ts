@@ -168,6 +168,34 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("rejects missing, disabled, and ambiguous public option labels", async () => {
+    const origin = await fixture(`<!doctype html>
+      <label>Condition
+        <select>
+          <option disabled>Used</option>
+          <option>New</option>
+          <option>New</option>
+        </select>
+      </label>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Condition",
+      role: "combobox",
+    });
+
+    for (const label of ["Missing", "Used", "New"]) {
+      await expect(browser.select(matches[0]!, label)).rejects.toMatchObject({
+        code: "action_failed",
+      });
+    }
+  });
+
   it("blocks replay from typing credential fields", async () => {
     const origin = await fixture(`<!doctype html><input type="password" aria-label="Password">`);
     const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({

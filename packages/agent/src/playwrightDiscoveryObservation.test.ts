@@ -251,6 +251,11 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
             <option value="disabled-secret-value" disabled>Other</option>
           </select>
         </label>
+        <label>Private choice
+          <select>
+            <option value="private-native-value" selected>token=private-option-value</option>
+          </select>
+        </label>
         <label><input type="radio" name="distance" checked value="nationwide-secret-value"> Nationwide</label>
         <label>ZIP <input value="30301-secret-value"></label>
       </form>
@@ -296,10 +301,18 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
           role: "textbox",
           form: expect.objectContaining({ hasValue: true }),
         }),
+        expect.objectContaining({
+          label: "Private choice",
+          role: "combobox",
+          form: expect.not.objectContaining({ selectedOption: expect.anything() }),
+        }),
       ]),
     );
     expect(JSON.stringify(result)).not.toMatch(
-      /any-secret-value|new-secret-value|kia-secret-value|disabled-secret-value|nationwide-secret-value|30301-secret-value/,
+      /any-secret-value|new-secret-value|kia-secret-value|disabled-secret-value|nationwide-secret-value|30301-secret-value|private-option-value|\[redacted-secret\]/,
+    );
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "content_redacted" })]),
     );
   });
 

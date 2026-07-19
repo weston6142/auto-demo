@@ -10,6 +10,7 @@ import type {
 } from "./playwrightDriver.js";
 
 const BINDING_NAME = "__autoDemoCaptureEvent";
+const OPTION_LABEL_LIMIT = 256;
 const NON_PRINTABLE_KEYS = new Set([
   "Alt",
   "AltGraph",
@@ -330,6 +331,7 @@ function parseBrowserBindingPayload(payload: unknown): BrowserBindingPayload | u
   if (
     payload.type !== "click" &&
     payload.type !== "fill" &&
+    payload.type !== "select" &&
     payload.type !== "press" &&
     payload.type !== "viewport" &&
     payload.type !== "navigation"
@@ -379,6 +381,15 @@ function parseBrowserPayloadData(
       value: stringValue(data.value),
       inputType: setValue(data.inputType, TARGET_INPUT_TYPES),
       inputMethod: setValue(data.inputMethod, INPUT_METHODS),
+    });
+  }
+
+  if (type === "select") {
+    const optionLabel = publicOptionLabel(data.optionLabel);
+    if (optionLabel === undefined) return undefined;
+    return omitUndefined({
+      target: parseTargetHint(data.target),
+      optionLabel,
     });
   }
 
@@ -447,6 +458,21 @@ function omitUndefined<T extends Record<string, unknown>>(record: T): Record<str
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function publicOptionLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length === 0 || normalized.length > OPTION_LABEL_LIMIT) return undefined;
+  if (
+    /\[redacted-secret\]/i.test(normalized) ||
+    /\bsk-[a-z0-9_-]{8,}\b/i.test(normalized) ||
+    /\b[a-z0-9_-]{8,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\b/i.test(normalized) ||
+    /\b(token|api[ _-]?key|password|passcode|secret|credential)\s*[:=]\s*\S+/i.test(normalized)
+  ) {
+    return undefined;
+  }
+  return normalized;
 }
 
 function setValue(value: unknown, allowed: Set<string>): string | undefined {
@@ -732,6 +758,18 @@ function browserInstrumentationScript(bindingName: string): string {
   }, true);
   document.addEventListener("input", (event) => {
     const target = event.target;
+    if (target instanceof HTMLSelectElement) {
+      const optionLabel = target.selectedOptions[0]?.textContent?.replace(/\\s+/g, " ").trim();
+      send({
+        type: "select",
+        ...pageFields(),
+        data: {
+          target: targetHint(target),
+          optionLabel
+        }
+      });
+      return;
+    }
     const value = target && "value" in target ? String(target.value) : undefined;
     const inputType = target instanceof HTMLInputElement ? target.type : undefined;
     send({

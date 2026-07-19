@@ -5,8 +5,8 @@ capture bundle lifecycle used by Auto Demo.
 
 The controllable browser used by approved agent execution supports accessible click, type, native
 select-by-public-label, navigation, visible-state assertions, and bounded control-state assertions.
-Native option values and other form values are never returned; interaction metadata retains the
-existing redacted fill representation for selection changes.
+Native option values and other form values are never returned; interaction metadata distinguishes a
+native selection and retains only its bounded public option label plus redacted target metadata.
 
 ## Browser launch profiles
 

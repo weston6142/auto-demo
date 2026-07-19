@@ -11,7 +11,7 @@ import type { RecordDiscoveryObservationInput } from "./discoverySession.js";
 import { sanitizeDiscoveryText, sanitizeDiscoveryUrl } from "./discoveryValidation.js";
 
 const TITLE_LIMIT = 512;
-const LABEL_LIMIT = 256;
+const LABEL_LIMIT = DISCOVERY_LIMITS.formOptionLabelCharacters;
 const SUMMARY_LIMIT = 500;
 
 const MESSAGES = {
@@ -145,12 +145,22 @@ export function buildDiscoveryObservation(
         candidateRole !== undefined && TARGET_ROLES.has(candidateRole) ? candidateRole : undefined;
       const options = candidate.form?.options
         ?.map((option) => ({ ...option, sanitized: publicText(option.label, LABEL_LIMIT) }))
-        .filter(({ sanitized: optionLabel }) => optionLabel.value.length > 0)
+        .filter(({ sanitized: optionLabel }) => {
+          if (optionLabel.changed) redactedCount += 1;
+          return !optionLabel.changed && optionLabel.value.length > 0;
+        })
         .slice(0, DISCOVERY_LIMITS.formOptionsPerTarget);
-      const selectedOption =
+      const sanitizedSelectedOption =
         candidate.form?.selectedOption === undefined
           ? undefined
-          : publicText(candidate.form.selectedOption, LABEL_LIMIT).value;
+          : publicText(candidate.form.selectedOption, LABEL_LIMIT);
+      if (sanitizedSelectedOption?.changed) redactedCount += 1;
+      const selectedOption =
+        sanitizedSelectedOption === undefined ||
+        sanitizedSelectedOption.changed ||
+        sanitizedSelectedOption.value.length === 0
+          ? undefined
+          : sanitizedSelectedOption.value;
       return { candidate, sanitized, role, options, selectedOption };
     })
     .filter(({ sanitized }) => {

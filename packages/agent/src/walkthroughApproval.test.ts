@@ -301,15 +301,21 @@ describe("walkthrough approval", () => {
     const typePlan = createPlan("best-guess", "Type launch demo into Search.");
     const waitPlan = createPlan("best-guess", "Wait 2 seconds.");
     const navigationPlan = createPlan("best-guess", "Go to https://example.com/dashboard.");
-    const approvedPlans = [typePlan, waitPlan, navigationPlan].map((plan) =>
+    const selectPlan = createPlan("best-guess");
+    selectPlan.steps[0] = {
+      ...selectPlan.steps[0],
+      action: "select",
+      optionLabel: "New",
+    };
+    const approvedPlans = [typePlan, waitPlan, navigationPlan, selectPlan].map((plan) =>
       approveWalkthroughPlan(plan, { allowBestGuessBypass: true }),
     );
     for (const approved of approvedPlans) {
       if (!approved.ok) throw new Error("test plan should approve");
     }
 
-    const [approvedType, approvedWait, approvedNavigation] = approvedPlans;
-    if (!approvedType.ok || !approvedWait.ok || !approvedNavigation.ok) {
+    const [approvedType, approvedWait, approvedNavigation, approvedSelect] = approvedPlans;
+    if (!approvedType.ok || !approvedWait.ok || !approvedNavigation.ok || !approvedSelect.ok) {
       throw new Error("test plans should approve");
     }
     expect(approvedType.plan.steps[0]).toMatchObject({ inputBinding: "step-1" });
@@ -317,12 +323,14 @@ describe("walkthrough approval", () => {
     expect(approvedNavigation.plan.steps[0]).toMatchObject({
       navigationUrl: "https://example.com/dashboard",
     });
+    expect(approvedSelect.plan.steps[0]).toMatchObject({ optionLabel: "New" });
 
     approvedType.plan.steps[0].inputBinding = "replacement";
     approvedWait.plan.steps[0].waitDurationMs = 3_000;
     approvedNavigation.plan.steps[0].navigationUrl = "https://example.com/other";
+    approvedSelect.plan.steps[0].optionLabel = "Used";
 
-    for (const approved of [approvedType, approvedWait, approvedNavigation]) {
+    for (const approved of [approvedType, approvedWait, approvedNavigation, approvedSelect]) {
       expect(verifyWalkthroughPlanApproval(approved.plan)).toMatchObject({
         ok: false,
         errors: [{ code: "stale_approval" }],

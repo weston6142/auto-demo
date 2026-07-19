@@ -82,6 +82,25 @@ describe("createPlaywrightExecutionController", () => {
     expect(await page.getByLabel("Condition").inputValue()).toBe("new-private");
   });
 
+  it("rejects missing, disabled, and ambiguous public option labels", async () => {
+    await page.setContent(`
+      <label>Condition
+        <select>
+          <option disabled>Used</option>
+          <option>New</option>
+          <option>New</option>
+        </select>
+      </label>
+    `);
+    const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
+
+    for (const label of ["Missing", "Used", "New"]) {
+      await expect(
+        controller.select({ label: "Condition", role: "combobox" }, label),
+      ).rejects.toMatchObject({ code: "action_failed" });
+    }
+  });
+
   it("fails rather than guessing when targets are missing or ambiguous", async () => {
     await page.setContent(`<button>Choose</button><button>Choose</button>`);
     const controller = createPlaywrightExecutionController(page, { timeoutMs: 100 });

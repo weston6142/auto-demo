@@ -13,6 +13,7 @@ import {
   hasDestructiveActionLanguage,
   isSecretLikeValue,
 } from "./actionSafety.js";
+import { DISCOVERY_LIMITS } from "./discoveryContract.js";
 
 export type WalkthroughPlanValidationStatus = "ready" | "blocked";
 export type WalkthroughPlanValidationCheckStatus = "passed" | "blocked" | "skipped";
@@ -485,8 +486,9 @@ function isWalkthroughPlanStep(value: unknown): value is WalkthroughPlanStep {
       (step.action === "navigate" && isSafeHttpUrl(step.navigationUrl))) &&
     (step.inputBinding === undefined ||
       (step.action === "type" && isSafeIdentifier(step.inputBinding))) &&
-    (step.optionLabel === undefined ||
-      (step.action === "select" && isNonEmptyString(step.optionLabel))) &&
+    (step.action === "select"
+      ? isSafeOptionLabel(step.optionLabel)
+      : step.optionLabel === undefined) &&
     (step.waitDurationMs === undefined ||
       (step.action === "wait" &&
         typeof step.waitDurationMs === "number" &&
@@ -567,7 +569,7 @@ function isWalkthroughPlanAssertion(
         state.validity === "invalid" ||
         state.validity === "unknown") &&
       (state.checked === undefined || typeof state.checked === "boolean") &&
-      (state.selectedOption === undefined || isNonEmptyString(state.selectedOption))
+      (state.selectedOption === undefined || isSafeOptionLabel(state.selectedOption))
     );
   }
   if (!hasExactKeys(value, ["kind", "condition", "role", "occurrence"])) return false;
@@ -824,6 +826,15 @@ function isWalkthroughPlanValidationReason(value: unknown): boolean {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isSafeOptionLabel(value: unknown): value is string {
+  return (
+    isNonEmptyString(value) &&
+    value.length <= DISCOVERY_LIMITS.formOptionLabelCharacters &&
+    !value.includes("[redacted-secret]") &&
+    sanitizeText(value) === value
+  );
 }
 
 function isSafeIdentifier(value: unknown): value is string {

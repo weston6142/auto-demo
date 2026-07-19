@@ -4,6 +4,7 @@ export type CaptureEventType =
   | "navigation"
   | "click"
   | "fill"
+  | "select"
   | "press"
   | "viewport"
   | "console"
