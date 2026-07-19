@@ -236,6 +236,30 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await guard.dispose();
   });
 
+  it("allows classified public-browse background traffic without a disposable permit", async () => {
+    const policy = validatedPolicy({
+      mode: "public-browse",
+      allowedOrigins: ["https://example.test"],
+    });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    await page.evaluate(async () => {
+      await fetch("/search", { method: "POST" }).catch(() => undefined);
+      navigator.sendBeacon("https://other.test/analytics", "bounded-public-event");
+    });
+
+    expect(await guard.finishAction()).toBeUndefined();
+    expect(mutationCount).toBe(1);
+    expect(otherOriginRequestCount).toBe(1);
+
+    await page.evaluate(() => fetch("/background", { method: "POST" }));
+    await page.waitForTimeout(50);
+    expect(guard.checkForViolation()).toBeUndefined();
+    expect(mutationCount).toBe(2);
+    await guard.dispose();
+  });
+
   it("fails closed for unknown methods in disposable mode", async () => {
     const policy = validatedPolicy({
       mode: "disposable",

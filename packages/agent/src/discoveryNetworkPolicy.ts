@@ -26,7 +26,9 @@ export function decideDiscoveryNetworkRequest(input: {
   if (input.classification.methodCategory === "other") return BLOCK;
 
   if (input.policy.mode === "safe") return BLOCK;
-  if (input.policy.mode === "disposable") return exactOrigin ? ALLOW : BLOCK;
+  if (input.policy.mode === "disposable") {
+    return exactOrigin && input.actionActive ? ALLOW : BLOCK;
+  }
 
   if (input.classification.requestClass === "document-navigation") {
     return input.classification.scope === "top-level" && exactOrigin && input.actionActive

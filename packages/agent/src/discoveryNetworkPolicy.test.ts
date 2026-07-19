@@ -67,6 +67,14 @@ describe("decideDiscoveryNetworkRequest", () => {
     expect(
       decideDiscoveryNetworkRequest({
         policy: disposable(),
+        classification: classification(),
+        requestOrigin: ORIGIN,
+        actionActive: false,
+      }),
+    ).toEqual({ decision: "block", code: "network_request_blocked" });
+    expect(
+      decideDiscoveryNetworkRequest({
+        policy: disposable(),
         classification: classification({ originRelation: "cross-origin" }),
         requestOrigin: OTHER_ORIGIN,
         actionActive: true,
