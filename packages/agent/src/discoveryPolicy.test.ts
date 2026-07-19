@@ -21,6 +21,9 @@ function policy(input: DiscoveryPolicy): ValidatedDiscoveryPolicy {
 }
 
 const safePolicy = () => policy({ mode: "safe", allowedOrigins: ["https://example.test"] });
+const publicBrowsePolicy = () =>
+  policy({ mode: "public-browse", allowedOrigins: ["https://example.test"] });
+const yoloPolicy = () => policy({ mode: "yolo" });
 const disposablePolicy = () =>
   policy({
     mode: "disposable",
@@ -29,6 +32,22 @@ const disposablePolicy = () =>
   });
 
 describe("validateDiscoveryPolicy", () => {
+  it("accepts public-browse and unrestricted yolo policies", () => {
+    expect(
+      validateDiscoveryPolicy(
+        { mode: "public-browse", allowedOrigins: ["https://example.test"] },
+        CURRENT_URL,
+      ),
+    ).toEqual({
+      ok: true,
+      policy: { mode: "public-browse", allowedOrigins: new Set(["https://example.test"]) },
+    });
+    expect(validateDiscoveryPolicy({ mode: "yolo" }, CURRENT_URL)).toEqual({
+      ok: true,
+      policy: { mode: "yolo", allowedOrigins: new Set() },
+    });
+  });
+
   it("normalizes and deduplicates exact origins", () => {
     expect(
       validateDiscoveryPolicy(
@@ -114,6 +133,71 @@ describe("authorizeDiscoveryPolicyAction", () => {
         risk: NO_RISK,
       }),
     ).toMatchObject({ decision: "allow", permit: { mode: "disposable" } });
+  });
+
+  it("permits public search submits but blocks destructive public actions", () => {
+    const searchTarget = {
+      id: "target-search",
+      label: "Search inventory",
+      role: "button",
+      disabled: false,
+      actionRisk: "potentially-mutating" as const,
+    };
+    expect(
+      authorizeDiscoveryPolicyAction({
+        policy: publicBrowsePolicy(),
+        observationUrl: CURRENT_URL,
+        action: { kind: "click", targetId: searchTarget.id },
+        target: searchTarget,
+        risk: NO_RISK,
+      }),
+    ).toMatchObject({ decision: "allow", permit: { mode: "public-browse" } });
+
+    const deleteTarget = { ...searchTarget, id: "target-delete", label: "Delete saved search" };
+    expect(
+      authorizeDiscoveryPolicyAction({
+        policy: publicBrowsePolicy(),
+        observationUrl: CURRENT_URL,
+        action: { kind: "click", targetId: deleteTarget.id },
+        target: deleteTarget,
+        risk: NO_RISK,
+      }),
+    ).toMatchObject({
+      decision: "block",
+      reason: { code: "destructive_action_blocked" },
+    });
+  });
+
+  it("bypasses Auto Demo action and origin safeguards in yolo mode", () => {
+    let navigation: ReturnType<typeof authorizeDiscoveryPolicyAction> | undefined;
+    expect(() => {
+      navigation = authorizeDiscoveryPolicyAction({
+        policy: yoloPolicy(),
+        observationUrl: CURRENT_URL,
+        action: { kind: "navigate", url: "https://other.test/account" },
+      });
+    }).not.toThrow();
+    expect(navigation).toMatchObject({ decision: "allow", permit: { mode: "yolo" } });
+
+    expect(
+      authorizeDiscoveryPolicyAction({
+        policy: yoloPolicy(),
+        observationUrl: CURRENT_URL,
+        action: {
+          kind: "type",
+          targetId: "target-password",
+          inputBinding: "password",
+          valueClass: "demo-data",
+        },
+        target: {
+          id: "target-password",
+          label: "Password",
+          role: "textbox",
+          disabled: false,
+        },
+        risk: { ...NO_RISK, credential: true },
+      }),
+    ).toMatchObject({ decision: "allow", permit: { mode: "yolo" } });
   });
 
   it.each([

@@ -215,7 +215,9 @@ export {
   type DiscoveryPolicyValidationErrorCode,
   type DiscoveryPolicyValidationResult,
   type DisposableDiscoveryPolicy,
+  type PublicBrowseDiscoveryPolicy,
   type SafeDiscoveryPolicy,
+  type YoloDiscoveryPolicy,
 } from "./discoveryPolicy.js";
 
 export {
