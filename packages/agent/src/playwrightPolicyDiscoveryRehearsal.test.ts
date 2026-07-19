@@ -331,6 +331,27 @@ describe("createPolicyEnforcedPlaywrightDiscoveryRehearsalController", () => {
     await controller.dispose();
   });
 
+  it("does not install Auto Demo WebSocket enforcement for yolo rehearsal", async () => {
+    const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+      ...EXCLUSIVE_NETWORK,
+      policy: { mode: "yolo" },
+      inputResolver: {
+        async resolve() {
+          return { ok: true as const, value: "Demo" };
+        },
+      },
+    });
+    const started = await controller.start(SESSION_INPUT);
+    expect(started).toMatchObject({ ok: true });
+
+    const socket = await controller.perform(click(targetId(started, "Open socket")));
+
+    expect(socket).toMatchObject({ ok: true, attempt: { status: "succeeded" } });
+    await controller.dispose();
+    await controller.dispose();
+    expect(page.isClosed()).toBe(false);
+  });
+
   it("fails and restores a click-triggered non-network navigation", async () => {
     const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
       ...EXCLUSIVE_NETWORK,

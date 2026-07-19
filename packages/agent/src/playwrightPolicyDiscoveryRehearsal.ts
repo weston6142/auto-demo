@@ -79,19 +79,22 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
     throw new DiscoveryPolicyControllerError(validated.errors[0]!.code);
   }
 
-  let guard: PlaywrightDiscoveryPolicyGuard;
-  try {
-    guard = await installPlaywrightDiscoveryPolicyGuard(page, validated.policy);
-  } catch (error) {
-    if (error instanceof DiscoveryPolicyGuardError) {
-      throw new DiscoveryPolicyControllerError(error.code, () => error.cleanup());
+  let guard: PlaywrightDiscoveryPolicyGuard | undefined;
+  if (validated.policy.mode !== "yolo") {
+    try {
+      guard = await installPlaywrightDiscoveryPolicyGuard(page, validated.policy);
+    } catch (error) {
+      if (error instanceof DiscoveryPolicyGuardError) {
+        throw new DiscoveryPolicyControllerError(error.code, () => error.cleanup());
+      }
+      throw new DiscoveryPolicyControllerError("policy_guard_unavailable");
     }
-    throw new DiscoveryPolicyControllerError("policy_guard_unavailable");
   }
 
   const hooks: PlaywrightDiscoveryDriverHooks<DiscoveryPolicyPermit> = {
     beforeExecute({ action, permit, resolvedValue }) {
       if (
+        validated.policy.mode !== "yolo" &&
         action.kind === "type" &&
         (resolvedValue === undefined ||
           resolvedValue.length > DISCOVERY_LIMITS.publicStringCharacters ||
@@ -99,6 +102,7 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
       ) {
         return policyDriverFailure(fixedPolicyViolation("sensitive_input_blocked"));
       }
+      if (guard === undefined) return undefined;
       try {
         guard.arm(permit);
         return undefined;
@@ -107,6 +111,7 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
       }
     },
     async afterExecute() {
+      if (guard === undefined) return undefined;
       const violation = await guard.finishAction();
       return violation === undefined ? undefined : policyDriverFailure(violation);
     },
@@ -206,6 +211,7 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
   };
 
   const currentPageIsInScope = () => {
+    if (validated.policy.mode === "yolo") return true;
     const url = page.url();
     if (hasCredentialLikeUrlData(url)) return false;
     const origin = normalizeHttpOrigin(url);
@@ -224,6 +230,10 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
       return runOperation(async () => {
         const result = await controller.stop(input);
         if (!result.ok) return result;
+        if (guard === undefined) {
+          disposed = true;
+          return result;
+        }
         try {
           await guard.dispose();
           disposed = true;
@@ -238,9 +248,9 @@ export async function createPolicyEnforcedPlaywrightDiscoveryRehearsalController
       if (disposalPromise !== undefined) return disposalPromise;
       disposing = true;
       disposalPromise = (async () => {
-        await waitForIdle();
         try {
-          await guard.dispose();
+          await waitForIdle();
+          await guard?.dispose();
           disposed = true;
         } catch {
           throw new DiscoveryPolicyControllerError("policy_guard_unavailable");
