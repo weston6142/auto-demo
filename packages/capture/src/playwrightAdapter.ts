@@ -1,4 +1,10 @@
 import { rename, stat } from "node:fs/promises";
+import {
+  DEFAULT_BROWSER_LAUNCH_PROFILE,
+  browserLaunchProfileId,
+  classifyBrowserChallenge,
+  validateBrowserLaunchProfile,
+} from "@auto-demo/browser-profile";
 import type {
   ControllableBrowserCaptureAdapter,
   ControllableCaptureStartResult,
@@ -59,9 +65,30 @@ async function startPlaywrightCapture(
   let metadataWriter: JsonlEventWriter | undefined;
   const createEventWriter = dependencies.createEventWriter ?? createJsonlEventWriter;
 
+  const launchProfileValidation = validateBrowserLaunchProfile(
+    options.launchProfile ?? {
+      ...DEFAULT_BROWSER_LAUNCH_PROFILE,
+      viewport: { ...options.viewport },
+    },
+  );
+  if (
+    !launchProfileValidation.ok ||
+    launchProfileValidation.profile.viewport.width !== options.viewport.width ||
+    launchProfileValidation.profile.viewport.height !== options.viewport.height
+  ) {
+    return {
+      ok: false,
+      code: "invalid_browser_launch_profile",
+      message: "Browser launch profile is invalid.",
+      outputDir: paths.outputDir,
+      manifestPath: paths.manifestPath,
+    };
+  }
+  const launchProfile = launchProfileValidation.profile;
+
   try {
     await ensureCaptureDirectories(paths);
-    browser = await driver.launchChromium();
+    browser = await driver.launchChromium(launchProfile);
     context = await browser.newContext({
       viewport: options.viewport,
       recordVideo: {
@@ -88,6 +115,30 @@ async function startPlaywrightCapture(
       childCommand: options.childCommand,
     });
     await page.goto(options.source.url);
+    const challenge = classifyBrowserChallenge(
+      page.challengeSummary === undefined
+        ? { title: "", visibleText: "" }
+        : await page.challengeSummary(),
+    );
+    if (challenge !== undefined) {
+      await closeMetadataQuietly(metadataRecorder);
+      metadataRecorder = undefined;
+      await closeQuietly(context);
+      context = undefined;
+      await closeQuietly(browser);
+      browser = undefined;
+      return {
+        ok: false,
+        code: "anti_bot_challenge",
+        message: "Browser capture encountered an anti-bot challenge.",
+        outputDir: paths.outputDir,
+        manifestPath: paths.manifestPath,
+        diagnostic: {
+          ...challenge,
+          profileId: browserLaunchProfileId(launchProfile),
+        },
+      };
+    }
 
     return {
       ok: true,
