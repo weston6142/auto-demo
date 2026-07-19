@@ -331,6 +331,6 @@ Add design/plan links, mark WES-266 In Progress until durable merge, summarize i
 
 Stage only the spec, plan, and project map; commit `docs: record WES-266 policy delivery evidence`.
 
-- [ ] **Step 6: Complete the authorized PR and merge lifecycle**
+- [x] **Step 6: Complete the authorized PR and merge lifecycle**
 
 Create a PR to `develop` with the Linear issue, design/plan links, and exact verification. Monitor structured checks and review threads, repair valid issue-scoped failures through TDD, update the map with stable final evidence before squash merge, synchronize local `develop`, run the completion gate, and stop without starting the next issue.
