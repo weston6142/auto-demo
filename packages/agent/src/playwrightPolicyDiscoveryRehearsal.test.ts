@@ -85,7 +85,7 @@ async function hostRoute(route: Route) {
         <button type="submit">Save</button>
       </form>
       <button onclick="fetch('https://other.test/mutate', { method: 'POST' })">External action</button>
-      <button onclick="setTimeout(() => { const link = document.createElement('a'); link.href = '/download'; link.download = ''; link.click(); }, 125)">Download report</button>
+      <button onclick="const link = document.createElement('a'); link.href = '/download'; link.download = ''; link.click()">Download report</button>
       <button onclick="new WebSocket('wss://socket.example.test/private'); document.querySelector('output').textContent='Socket opened'">Open socket</button>
       <button onclick="location.href='about:blank'">Leave browser scope</button>
       <output>Idle</output>
