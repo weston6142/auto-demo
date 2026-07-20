@@ -6,8 +6,106 @@ on:
     branches:
       - develop
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  validate:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      route: ${{ steps.classify.outputs.route }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify changes
+        id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: node scripts/ci-policy.mjs classify "$BASE_SHA" "$HEAD_SHA"
+
+  static:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        if: needs.changes.outputs.route == 'full'
+        run: npm run build
+
+      - name: Typecheck
+        if: needs.changes.outputs.route == 'full'
+        run: npm run typecheck:ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+  docs:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test documentation contracts
+        run: npm run test:docs:ci
+
+  unit:
+    needs: changes
+    if: needs.changes.outputs.route == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test unit contracts
+        run: npm run test:unit:ci
+
+  browser:
+    needs: changes
+    if: needs.changes.outputs.route == 'full'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,5 +123,43 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Validate
-        run: npm run validate
+      - name: Build
+        run: npm run build
+
+      - name: Run browser tests
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          {
+            npm --workspace @auto-demo/capture --ignore-scripts run test:browser -- --reporter=default --reporter=junit --outputFile.junit=../../artifacts/capture.xml
+            npm --workspace @auto-demo/agent --ignore-scripts run test:browser -- --reporter=default --reporter=junit --outputFile.junit=../../artifacts/agent.xml
+            npm --workspace @auto-demo/cli --ignore-scripts run test:browser -- --reporter=default --reporter=junit --outputFile.junit=../../artifacts/cli.xml
+          } 2>&1 | tee artifacts/browser-tests.log
+
+      - name: Upload browser test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-diagnostics-${{ github.run_attempt }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
+
+  validate:
+    name: validate
+    if: always()
+    needs: [changes, static, docs, unit, browser]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required results
+        run: >-
+          node scripts/ci-policy.mjs gate
+          "${{ needs.changes.outputs.route }}"
+          "${{ needs.static.result }}"
+          "${{ needs.docs.result }}"
+          "${{ needs.unit.result }}"
+          "${{ needs.browser.result }}"
