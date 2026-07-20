@@ -127,6 +127,7 @@ const browserFiles = new Set([
   "src/playwrightValidationRunner.test.ts",
   "src/playwrightMetadataRecorder.test.ts",
   "src/playwrightExecutionController.test.ts",
+  "src/agentExecuteCommand.smoke.test.ts",
   "src/agenticDiscoveryAcceptance.test.ts",
 ]);
 ```

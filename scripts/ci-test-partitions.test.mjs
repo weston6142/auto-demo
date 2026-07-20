@@ -25,6 +25,7 @@ const expectedBrowserTests = new Set([
   "agent/src/playwrightValidationRunner.test.ts",
   "capture/src/playwrightExecutionController.test.ts",
   "capture/src/playwrightMetadataRecorder.test.ts",
+  "cli/src/agentExecuteCommand.smoke.test.ts",
   "cli/src/agenticDiscoveryAcceptance.test.ts",
 ]);
 
