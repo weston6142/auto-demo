@@ -374,7 +374,7 @@ git add packages/agent/README.md packages/agent/skills/codex-auto-demo/SKILL.md 
 git commit -m "WES-267: document structural target behavior"
 ```
 
-- [ ] **Step 8: Publish and verify the implementation PR**
+- [x] **Step 8: Publish and verify the implementation PR**
 
 Push `wes-267-improve-target-ranking-positional-intent`; open a PR to `develop` referencing WES-267, the spec and plan, preserved unrelated files, and exact verification. Monitor structured check state and review threads. Diagnose any failed check with `gh-pr-failing-tests`, triage feedback with `gh-pr-review-triage`, apply issue-scoped fixes through TDD, and push until required checks pass with no unresolved actionable findings.
 
