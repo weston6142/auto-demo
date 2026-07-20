@@ -457,6 +457,44 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
     expect(JSON.stringify(result)).not.toContain("State 150");
   });
 
+  it("keeps viewport form controls and reserves capacity for custom targets", async () => {
+    const offscreenLinks = Array.from(
+      { length: 120 },
+      (_, index) => `<a href="/vehicle-${index}">Vehicle ${index}</a>`,
+    ).join("");
+    const customTargets = Array.from(
+      { length: 25 },
+      (_, index) => `<div tabindex="0">Custom filter ${index}</div>`,
+    ).join("");
+    await openHtml(`
+      <title>Ranked controls</title>
+      <div style="position:absolute;top:2000px">${offscreenLinks}</div>
+      <form aria-label="Vehicle filters" style="position:fixed;top:0;left:0">
+        <label>Condition <select><option>New</option></select></label>
+        <label>Distance <select><option>Nationwide</option></select></label>
+        ${customTargets}
+      </form>
+    `);
+    const extractor = createPlaywrightDiscoveryObservationExtractor(page);
+    const first = await extractor.observe();
+    const second = await extractor.observe();
+    if (!first.ok || !second.ok) throw new Error("ranked observations must succeed");
+
+    const labels = first.observation.interactiveTargets.map((target) => target.label);
+    expect(first.observation.interactiveTargets).toHaveLength(100);
+    expect(labels).toEqual(expect.arrayContaining(["Condition", "Distance"]));
+    expect(
+      labels.filter((label) => label.startsWith("Custom filter ")).length,
+    ).toBeGreaterThanOrEqual(20);
+    expect(first.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "interactive_targets_truncated", count: 47 }),
+        expect.objectContaining({ code: "fallback_targets_included", count: 25 }),
+      ]),
+    );
+    expect(second.observation.interactiveTargets.map((target) => target.label)).toEqual(labels);
+  });
+
   it("computes visible omissions after priority ancestors suppress descendants", async () => {
     const descendants = Array.from(
       { length: 101 },

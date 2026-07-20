@@ -55,6 +55,17 @@ const TARGET_ROLES = new Set([
   "spinbutton",
 ]);
 
+function targetPriority(candidate: DiscoveryObservationRawTarget): number {
+  const ranking = candidate.ranking ?? { inViewport: false, formLocal: false };
+  return ranking.inViewport && ranking.formLocal
+    ? 0
+    : ranking.inViewport
+      ? 1
+      : ranking.formLocal
+        ? 2
+        : 3;
+}
+
 export type BuildDiscoveryObservationInput = {
   snapshot: DiscoveryObservationPageSnapshot;
   observedAt: string;
@@ -168,9 +179,12 @@ export function buildDiscoveryObservation(
       return sanitized.value.length > 0;
     })
     .sort((left, right) => {
-      const leftTier = left.candidate.tier === "semantic" ? 0 : 1;
-      const rightTier = right.candidate.tier === "semantic" ? 0 : 1;
-      return leftTier - rightTier || left.candidate.order - right.candidate.order;
+      return (
+        targetPriority(left.candidate) - targetPriority(right.candidate) ||
+        (left.candidate.tier === "semantic" ? 0 : 1) -
+          (right.candidate.tier === "semantic" ? 0 : 1) ||
+        left.candidate.order - right.candidate.order
+      );
     });
 
   const duplicateCounts = new Map<string, number>();
@@ -179,10 +193,19 @@ export function buildDiscoveryObservation(
     duplicateCounts.set(key, (duplicateCounts.get(key) ?? 0) + 1);
   }
   const occurrences = new Map<string, number>();
-  const selectedTargets = targetCandidates.slice(
-    0,
-    DISCOVERY_LIMITS.interactiveTargetsPerObservation,
-  );
+  const reservedFallbacks = targetCandidates
+    .filter(({ candidate }) => candidate.tier === "fallback")
+    .slice(0, 20);
+  const reservedCandidates = new Set(reservedFallbacks);
+  const selectedTargets = [
+    ...reservedFallbacks,
+    ...targetCandidates
+      .filter((candidate) => !reservedCandidates.has(candidate))
+      .slice(
+        0,
+        Math.max(0, DISCOVERY_LIMITS.interactiveTargetsPerObservation - reservedFallbacks.length),
+      ),
+  ].sort((left, right) => targetCandidates.indexOf(left) - targetCandidates.indexOf(right));
   const interactiveTargets: DiscoveryInteractiveTarget[] = selectedTargets.map(
     ({ candidate, sanitized, role, options, selectedOption }) => {
       const key = `${sanitized.value}\u0000${role ?? ""}`;

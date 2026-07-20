@@ -459,6 +459,56 @@ function collectBrowserSnapshot(input: {
   const fallbackTargets: DiscoveryObservationRawTarget[] = [];
   let omittedInteractiveTargets = 0;
   const interactiveElements = new WeakSet<Element>();
+  const targetPriority = (target: DiscoveryObservationRawTarget) => {
+    const ranking = target.ranking ?? { inViewport: false, formLocal: false };
+    return ranking.inViewport && ranking.formLocal
+      ? 0
+      : ranking.inViewport
+        ? 1
+        : ranking.formLocal
+          ? 2
+          : 3;
+  };
+  const compareTargets = (
+    left: DiscoveryObservationRawTarget,
+    right: DiscoveryObservationRawTarget,
+  ) =>
+    targetPriority(left) - targetPriority(right) ||
+    (left.tier === "semantic" ? 0 : 1) - (right.tier === "semantic" ? 0 : 1) ||
+    left.order - right.order;
+  const retainRanked = (
+    targets: DiscoveryObservationRawTarget[],
+    target: DiscoveryObservationRawTarget,
+  ) => {
+    targets.push(target);
+    targets.sort(compareTargets);
+    if (targets.length > retainedPerTier) {
+      targets.pop();
+      omittedInteractiveTargets += 1;
+    }
+  };
+  const isFormLocal = (element: Element) => {
+    let depth = 0;
+    for (
+      let current: Element | null = element;
+      current !== null && depth < 32;
+      current = composedParent(current), depth += 1
+    ) {
+      if (current.tagName === "FORM") return true;
+      const currentRole = current.getAttribute("role")?.toLowerCase();
+      if (
+        (currentRole === "form" ||
+          currentRole === "region" ||
+          currentRole === "main" ||
+          currentRole === "list" ||
+          currentRole === "feed") &&
+        label(current).trim().length > 0
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
   elements.forEach((element, order) => {
     if (!visible(element)) return;
     const inferredRole = role(element);
@@ -479,10 +529,6 @@ function collectBrowserSnapshot(input: {
     }
     interactiveElements.add(element);
     const targetTier = semantic ? semanticTargets : fallbackTargets;
-    if (targetTier.length >= retainedPerTier) {
-      omittedInteractiveTargets += 1;
-      return;
-    }
     const inputElement = element instanceof HTMLInputElement ? element : undefined;
     const autocomplete = inputElement?.autocomplete.toLowerCase() ?? "";
     const credential =
@@ -551,9 +597,18 @@ function collectBrowserSnapshot(input: {
       sensitivePayment,
       upload,
       ...(submitsForm ? { actionRisk: "potentially-mutating" as const } : {}),
+      ranking: {
+        inViewport: (() => {
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth
+          );
+        })(),
+        formLocal: isFormLocal(element),
+      },
       ...(form === undefined ? {} : { form }),
     };
-    targetTier.push(target);
+    retainRanked(targetTier, target);
   });
 
   const interactiveTargets = [...semanticTargets, ...fallbackTargets];

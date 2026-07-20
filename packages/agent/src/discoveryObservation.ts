@@ -63,6 +63,10 @@ export type DiscoveryObservationRawTarget = {
   upload?: boolean;
   actionRisk?: "potentially-mutating";
   structure?: DiscoveryTargetStructure;
+  ranking?: {
+    inViewport: boolean;
+    formLocal: boolean;
+  };
   form?: {
     required: boolean;
     hasValue: boolean;

@@ -246,6 +246,50 @@ describe("createDiscoveryObservationExtractor", () => {
     expect(JSON.stringify(result)).not.toContain("Visible 50");
   });
 
+  it("reserves twenty bounded observation slots for ranked fallback targets", async () => {
+    const page = safePage();
+    page.collectSnapshot = async () => ({
+      ...(await safePage().collectSnapshot()),
+      interactiveTargets: [
+        ...Array.from({ length: 100 }, (_, index) => ({
+          identityKey: `semantic-${index}`,
+          tier: "semantic" as const,
+          label: `Semantic ${index}`,
+          role: "button",
+          order: index,
+          disabled: false,
+          credential: false,
+          ranking: { inViewport: index < 2, formLocal: index < 2 },
+        })),
+        ...Array.from({ length: 25 }, (_, index) => ({
+          identityKey: `fallback-${index}`,
+          tier: "fallback" as const,
+          label: `Fallback ${index}`,
+          order: 100 + index,
+          disabled: false,
+          credential: false,
+          ranking: { inViewport: true, formLocal: false },
+        })),
+      ],
+    });
+
+    const result = await createDiscoveryObservationExtractor({ page }).observe();
+    if (!result.ok) throw new Error("ranked observation must succeed");
+    const labels = result.observation.interactiveTargets.map((target) => target.label);
+
+    expect(labels).toHaveLength(100);
+    expect(labels.slice(0, 2)).toEqual(["Semantic 0", "Semantic 1"]);
+    expect(labels.filter((label) => label.startsWith("Fallback ")).length).toBeGreaterThanOrEqual(
+      20,
+    );
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "interactive_targets_truncated", count: 25 }),
+        expect.objectContaining({ code: "fallback_targets_included", count: 25 }),
+      ]),
+    );
+  });
+
   it("prioritizes statuses and headings before text and keeps the highest-priority duplicate", async () => {
     const page = safePage();
     page.collectSnapshot = async () => ({
