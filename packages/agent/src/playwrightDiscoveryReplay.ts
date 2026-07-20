@@ -575,13 +575,17 @@ async function visibleStructuralItems(
   container: Locator,
   itemRole: "listitem" | "article",
 ): Promise<Locator[]> {
-  const items = await visibleLocatorArray(
-    container.getByRole(itemRole as Parameters<Locator["getByRole"]>[0]),
-  );
+  const locator = container.getByRole(itemRole as Parameters<Locator["getByRole"]>[0]);
   const containerElement = await container.elementHandle();
   if (containerElement === null) return [];
   const direct: Locator[] = [];
-  for (const item of items) {
+  for (
+    let index = 0;
+    index < (await locator.count()) && direct.length < MAX_RUNTIME_MATCHES;
+    index += 1
+  ) {
+    const item = locator.nth(index);
+    if (!(await item.isVisible().catch(() => false))) continue;
     const belongs = await item.evaluate((element, expectedContainer) => {
       const structuralRole = (candidate: Element) => {
         const explicit = candidate.getAttribute("role")?.toLowerCase();
@@ -592,10 +596,15 @@ async function visibleStructuralItems(
         return undefined;
       };
       let depth = 0;
+      const composedParent = (candidate: Element) => {
+        if (candidate.parentElement !== null) return candidate.parentElement;
+        const root = candidate.getRootNode();
+        return root instanceof ShadowRoot ? root.host : null;
+      };
       for (
-        let current = element.parentElement;
+        let current = composedParent(element);
         current !== null && depth < 32;
-        current = current.parentElement, depth += 1
+        current = composedParent(current), depth += 1
       ) {
         if (structuralRole(current) !== undefined) return current === expectedContainer;
       }

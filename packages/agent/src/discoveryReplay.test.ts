@@ -628,6 +628,35 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
     expect(browser.calls).toContain("click:structural-match");
   });
 
+  it.each([
+    ["target_not_found", [] as DiscoveryReplayMatch[]],
+    [
+      "ambiguous_target",
+      [
+        { id: "structural-1", label: "Renamed", role: "button" },
+        { id: "structural-2", label: "Renamed", role: "button" },
+      ],
+    ],
+  ] satisfies Array<[string, DiscoveryReplayMatch[]]>)(
+    "reports bounded %s evidence for structural targets",
+    async (code, matches) => {
+      const root = await structuralCompiledFixture();
+      const browser = new FakeReplayBrowser();
+      browser.matches = structuredClone(matches);
+
+      const result = await replayAndRepairDiscoveryPlan(
+        root,
+        { maxRepairs: 0 },
+        { browserFactory: browserFactory(browser) },
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        attempts: [{ failure: { code, repairability: "repairable" } }],
+      });
+    },
+  );
+
   it("accepts changed descriptive labels when repair preserves structural intent", async () => {
     const root = await structuralCompiledFixture();
     const child = completedChild(root.sourceSession, "session-repair-1", "Renamed vehicle");
