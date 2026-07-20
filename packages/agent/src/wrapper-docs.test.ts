@@ -151,6 +151,26 @@ describe("agent wrapper documentation", () => {
     }
   });
 
+  it("documents bounded ranking and authoritative structural positional intent", async () => {
+    const readme = normalizeWhitespace(await readAgentDoc("README.md"));
+    const skill = normalizeWhitespace(await readAgentDoc("skills/codex-auto-demo/SKILL.md"));
+    const combined = `${readme} ${skill}`;
+
+    for (const expected of [
+      "100-target bound",
+      "viewport and form context",
+      "20 fallback targets",
+      "results-order structural intent",
+      "explicit Sponsored, Promoted, Ad, or Advertisement marker",
+      "authoritative during fresh replay and final recording",
+      "repair must preserve",
+      "never stores raw DOM, selectors, or form values",
+      "does not fall back to the descriptive label",
+    ]) {
+      expect(combined).toContain(expected);
+    }
+  });
+
   it("documents host-owned discovery rehearsal actions and downstream policy", async () => {
     const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
     const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));

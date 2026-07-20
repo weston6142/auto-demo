@@ -101,7 +101,14 @@ policy denial and report only its bounded provider and profile identifier.
    returned public label. Choose one structured action with declared expectations or
    require the returned attempt to contain a meaningful derived navigation, visible,
    or control-state effect. Treat `action_no_observable_effect` as a failed path
-   candidate. Do not use selectors, raw DOM, arbitrary
+   candidate. Observations enforce a 100-target bound, rank viewport and form context,
+   and reserve capacity for up to 20 fallback targets. For repeated results, prefer the
+   returned results-order structural intent. It may exclude only an item with an
+   explicit Sponsored, Promoted, Ad, or Advertisement marker. Structural intent is
+   authoritative during fresh replay and final recording: the accessible label is
+   descriptive, resolution does not fall back to the descriptive label, and repair must
+   preserve the same ordered constraints. The artifact never stores raw DOM, selectors,
+   or form values. Do not use selectors, raw DOM, arbitrary
    page evaluation, or a parallel browser-action path.
 3. Preserve failed exploration as evidence. Use explicit back, refresh, retry,
    or alternative-target actions when the evidence supports them, and complete
