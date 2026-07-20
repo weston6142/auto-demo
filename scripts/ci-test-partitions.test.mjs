@@ -20,6 +20,7 @@ const expectedBrowserTests = new Set([
   "agent/src/playwrightDiscoveryObservation.test.ts",
   "agent/src/playwrightDiscoveryPolicyGuard.test.ts",
   "agent/src/playwrightDiscoveryRehearsal.test.ts",
+  "agent/src/playwrightDiscoveryReplay.test.ts",
   "agent/src/playwrightPolicyDiscoveryRehearsal.test.ts",
   "capture/src/playwrightExecutionController.test.ts",
   "capture/src/playwrightMetadataRecorder.test.ts",
