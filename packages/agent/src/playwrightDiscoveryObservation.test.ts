@@ -495,6 +495,50 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
     expect(second.observation.interactiveTargets.map((target) => target.label)).toEqual(labels);
   });
 
+  it("exposes sanitized repeated-item position without pinning promotion text", async () => {
+    await openHtml(`
+      <title>Vehicle inventory</title>
+      <ul aria-label="Vehicle results">
+        <li><span>Sponsored</span><a href="/sponsored">Promoted Sorento</a></li>
+        <li><a href="/first">2026 Kia Sorento A</a></li>
+        <li><a href="/second">2026 Kia Sorento B</a></li>
+      </ul>
+      <ul aria-label="Vehicle results">
+        <li><a href="/other">Other inventory</a></li>
+      </ul>
+      <div hidden>token=private-value</div>
+    `);
+
+    const result = await createPlaywrightDiscoveryObservationExtractor(page).observe();
+    if (!result.ok) throw new Error("structural observation must succeed");
+    const byLabel = new Map(
+      result.observation.interactiveTargets.map((target) => [target.label, target]),
+    );
+
+    expect(byLabel.get("2026 Kia Sorento A")?.structure).toEqual({
+      container: { role: "list", label: "Vehicle results", occurrence: 1 },
+      item: {
+        role: "listitem",
+        position: 1,
+        promotion: "exclude-marked-promoted",
+      },
+    });
+    expect(byLabel.get("2026 Kia Sorento B")?.structure?.item).toMatchObject({
+      position: 2,
+      promotion: "exclude-marked-promoted",
+    });
+    expect(byLabel.get("Promoted Sorento")?.structure).toEqual({
+      container: { role: "list", label: "Vehicle results", occurrence: 1 },
+      item: { role: "listitem", position: 1 },
+    });
+    expect(byLabel.get("Other inventory")?.structure?.container).toEqual({
+      role: "list",
+      label: "Vehicle results",
+      occurrence: 2,
+    });
+    expect(JSON.stringify(result)).not.toMatch(/private-value|selector|outerHTML/);
+  });
+
   it("computes visible omissions after priority ancestors suppress descendants", async () => {
     const descendants = Array.from(
       { length: 101 },

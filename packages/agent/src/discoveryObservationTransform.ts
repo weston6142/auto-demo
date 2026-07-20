@@ -172,7 +172,31 @@ export function buildDiscoveryObservation(
         sanitizedSelectedOption.value.length === 0
           ? undefined
           : sanitizedSelectedOption.value;
-      return { candidate, sanitized, role, options, selectedOption };
+      const structuralLabel =
+        candidate.structure?.container.label === undefined
+          ? undefined
+          : publicText(candidate.structure.container.label, LABEL_LIMIT);
+      if (structuralLabel?.changed) redactedCount += 1;
+      const structure =
+        candidate.structure === undefined
+          ? undefined
+          : {
+              container: {
+                role: candidate.structure.container.role,
+                ...(structuralLabel === undefined ||
+                structuralLabel.changed ||
+                structuralLabel.value.length === 0
+                  ? {}
+                  : { label: structuralLabel.value }),
+                ...(candidate.structure.container.occurrence === undefined
+                  ? {}
+                  : { occurrence: candidate.structure.container.occurrence }),
+              },
+              ...(candidate.structure.item === undefined
+                ? {}
+                : { item: { ...candidate.structure.item } }),
+            };
+      return { candidate, sanitized, role, options, selectedOption, structure };
     })
     .filter(({ sanitized }) => {
       if (sanitized.changed) redactedCount += 1;
@@ -207,7 +231,7 @@ export function buildDiscoveryObservation(
       ),
   ].sort((left, right) => targetCandidates.indexOf(left) - targetCandidates.indexOf(right));
   const interactiveTargets: DiscoveryInteractiveTarget[] = selectedTargets.map(
-    ({ candidate, sanitized, role, options, selectedOption }) => {
+    ({ candidate, sanitized, role, options, selectedOption, structure }) => {
       const key = `${sanitized.value}\u0000${role ?? ""}`;
       const occurrence = (occurrences.get(key) ?? 0) + 1;
       occurrences.set(key, occurrence);
@@ -218,6 +242,7 @@ export function buildDiscoveryObservation(
         ...((duplicateCounts.get(key) ?? 0) > 1 ? { occurrence } : {}),
         disabled: candidate.disabled,
         ...(candidate.actionRisk === undefined ? {} : { actionRisk: candidate.actionRisk }),
+        ...(structure === undefined ? {} : { structure }),
         ...(candidate.form === undefined
           ? {}
           : {

@@ -214,6 +214,33 @@ describe("walkthrough approval", () => {
     });
   });
 
+  it("invalidates approval when structural positional intent changes", () => {
+    const input = createPlan("best-guess");
+    input.steps[0]!.targetHint = {
+      kind: "accessible",
+      label: "2026 Kia Sorento A",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: {
+          role: "listitem",
+          position: 1,
+          promotion: "exclude-marked-promoted",
+        },
+      },
+    };
+    const approved = approveWalkthroughPlan(input, { allowBestGuessBypass: true });
+    if (!approved.ok) throw new Error("structural plan should approve");
+
+    const changed = structuredClone(approved.plan);
+    changed.steps[0]!.targetHint!.structure!.item!.position = 2;
+
+    expect(verifyWalkthroughPlanApproval(changed)).toMatchObject({
+      ok: false,
+      errors: [{ code: "stale_approval" }],
+    });
+  });
+
   it("approves a validated plan with portable fingerprint evidence", () => {
     const input = validatedPlan();
     const result = approveWalkthroughPlan(input, {

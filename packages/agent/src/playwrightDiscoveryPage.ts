@@ -455,6 +455,120 @@ function collectBrowserSnapshot(input: {
     element instanceof HTMLSelectElement ||
     element.tagName === "SUMMARY";
 
+  const structuralContainerRole = (
+    element: Element,
+  ): "form" | "region" | "main" | "list" | "feed" | undefined => {
+    const explicit = element.getAttribute("role")?.toLowerCase();
+    if (
+      explicit === "form" ||
+      explicit === "region" ||
+      explicit === "main" ||
+      explicit === "list" ||
+      explicit === "feed"
+    ) {
+      return explicit;
+    }
+    if (element.tagName === "FORM") return "form";
+    if (element.tagName === "MAIN") return "main";
+    if (element.tagName === "UL" || element.tagName === "OL") return "list";
+    return undefined;
+  };
+  const structuralItemRole = (element: Element): "listitem" | "article" | undefined => {
+    const explicit = element.getAttribute("role")?.toLowerCase();
+    if (explicit === "listitem" || explicit === "article") return explicit;
+    if (element.tagName === "LI") return "listitem";
+    if (element.tagName === "ARTICLE") return "article";
+    return undefined;
+  };
+  const nearestStructuralContainer = (element: Element) => {
+    let depth = 0;
+    for (
+      let current: Element | null = element;
+      current !== null && depth < 32;
+      current = composedParent(current), depth += 1
+    ) {
+      const containerRole = structuralContainerRole(current);
+      if (containerRole !== undefined) return { element: current, role: containerRole };
+    }
+    return undefined;
+  };
+  const explicitlyMarkedPromoted = (element: Element) =>
+    /(^|\s)(sponsored|promoted|ad|advertisement)(\s|$)/i.test(
+      safeText(element).replace(/\s+/g, " ").trim(),
+    );
+  const containerItems = new WeakMap<Element, Map<"listitem" | "article", Element[]>>();
+  const itemsFor = (container: Element, itemRole: "listitem" | "article") => {
+    const cached = containerItems.get(container)?.get(itemRole);
+    if (cached !== undefined) return cached;
+    const items = elements
+      .filter(
+        (candidate) =>
+          visible(candidate) &&
+          structuralItemRole(candidate) === itemRole &&
+          nearestStructuralContainer(candidate)?.element === container,
+      )
+      .slice(0, retainedPerTier);
+    const byRole = containerItems.get(container) ?? new Map();
+    byRole.set(itemRole, items);
+    containerItems.set(container, byRole);
+    return items;
+  };
+  const targetStructure = (element: Element): DiscoveryObservationRawTarget["structure"] => {
+    let itemElement: Element | undefined;
+    let itemRole: "listitem" | "article" | undefined;
+    let depth = 0;
+    for (
+      let current: Element | null = element;
+      current !== null && depth < 32;
+      current = composedParent(current), depth += 1
+    ) {
+      const currentRole = structuralItemRole(current);
+      if (currentRole !== undefined) {
+        itemElement = current;
+        itemRole = currentRole;
+        break;
+      }
+    }
+    const container = nearestStructuralContainer(itemElement ?? element);
+    if (container === undefined) return undefined;
+    const containerLabel = boundedText(label(container.element).trim());
+    const equivalentContainers = elements.filter(
+      (candidate) =>
+        visible(candidate) &&
+        structuralContainerRole(candidate) === container.role &&
+        boundedText(label(candidate).trim()) === containerLabel,
+    );
+    const containerOccurrence = equivalentContainers.indexOf(container.element) + 1;
+    const base = {
+      container: {
+        role: container.role,
+        ...(containerLabel.length === 0 ? {} : { label: containerLabel }),
+        ...(containerOccurrence < 1 ? {} : { occurrence: containerOccurrence }),
+      },
+    };
+    if (
+      itemElement === undefined ||
+      itemRole === undefined ||
+      (container.role !== "list" && container.role !== "feed")
+    ) {
+      return base;
+    }
+    const marked = explicitlyMarkedPromoted(itemElement);
+    const eligibleItems = itemsFor(container.element, itemRole).filter(
+      (candidate) => marked || !explicitlyMarkedPromoted(candidate),
+    );
+    const position = eligibleItems.indexOf(itemElement) + 1;
+    if (position < 1 || position > retainedPerTier) return base;
+    return {
+      ...base,
+      item: {
+        role: itemRole,
+        position,
+        ...(marked ? {} : { promotion: "exclude-marked-promoted" as const }),
+      },
+    };
+  };
+
   const semanticTargets: DiscoveryObservationRawTarget[] = [];
   const fallbackTargets: DiscoveryObservationRawTarget[] = [];
   let omittedInteractiveTargets = 0;
@@ -610,6 +724,12 @@ function collectBrowserSnapshot(input: {
     };
     retainRanked(targetTier, target);
   });
+
+  for (const target of [...semanticTargets, ...fallbackTargets]) {
+    const element = state.elements.get(target.identityKey);
+    const structure = element === undefined ? undefined : targetStructure(element);
+    if (structure !== undefined) target.structure = structure;
+  }
 
   const interactiveTargets = [...semanticTargets, ...fallbackTargets];
   const interactiveLabels = new Set(
