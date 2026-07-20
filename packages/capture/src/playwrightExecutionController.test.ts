@@ -18,6 +18,15 @@ afterAll(async () => {
 });
 
 describe("createPlaywrightExecutionController", () => {
+  const firstEligibleResult = {
+    container: { role: "list" as const, label: "Vehicle results", occurrence: 1 },
+    item: {
+      role: "listitem" as const,
+      position: 1,
+      promotion: "exclude-marked-promoted" as const,
+    },
+  };
+
   it("asserts the current sanitized navigation destination", async () => {
     await page.route("https://example.com/**", async (route) => {
       await route.fulfill({ status: 200, contentType: "text/html", body: "<h1>Results</h1>" });
@@ -80,6 +89,65 @@ describe("createPlaywrightExecutionController", () => {
     });
 
     expect(await page.getByLabel("Condition").inputValue()).toBe("new-private");
+  });
+
+  it("uses structural position authoritatively for recording actions and assertions", async () => {
+    await page.setContent(`
+      <button onclick="this.dataset.clicked='outside'">2026 Kia Sorento A</button>
+      <ul aria-label="Vehicle results">
+        <li><span>Sponsored</span><button onclick="this.dataset.clicked='sponsored'">Paid result</button></li>
+        <li>
+          <button onclick="this.dataset.clicked='eligible'">Renamed first result</button>
+          <label>Condition <select><option>Used</option><option>New</option></select></label>
+        </li>
+        <li><button>Renamed second result</button></li>
+      </ul>
+    `);
+    const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
+
+    await controller.click({
+      label: "2026 Kia Sorento A",
+      role: "button",
+      structure: firstEligibleResult,
+    });
+    await controller.select(
+      { label: "Old condition label", role: "combobox", structure: firstEligibleResult },
+      "New",
+    );
+    await controller.assertControlState({
+      target: { label: "Old condition label", role: "combobox", structure: firstEligibleResult },
+      state: { selectedOption: "New" },
+    });
+
+    expect(
+      await page.getByRole("button", { name: "Renamed first result" }).getAttribute("data-clicked"),
+    ).toBe("eligible");
+    expect(
+      await page.getByRole("button", { name: "2026 Kia Sorento A" }).getAttribute("data-clicked"),
+    ).toBeNull();
+  });
+
+  it("fails safely when authoritative structural targets cannot select one descendant", async () => {
+    const controller = createPlaywrightExecutionController(page, { timeoutMs: 100 });
+
+    await page.setContent(`<button>Stale label</button><main aria-label="Other"></main>`);
+    await expect(
+      controller.click({ label: "Stale label", role: "button", structure: firstEligibleResult }),
+    ).rejects.toMatchObject({ code: "target_not_found" });
+
+    await page.setContent(`
+      <ul aria-label="Vehicle results"><li><button>One</button><button>Two</button></li></ul>
+    `);
+    await expect(
+      controller.click({ label: "Stale label", role: "button", structure: firstEligibleResult }),
+    ).rejects.toMatchObject({ code: "ambiguous_target" });
+
+    await page.setContent(`
+      <ul aria-label="Vehicle results"><li><span>Sponsored</span><button>Paid only</button></li></ul>
+    `);
+    await expect(
+      controller.click({ label: "Stale label", role: "button", structure: firstEligibleResult }),
+    ).rejects.toMatchObject({ code: "target_not_found" });
   });
 
   it("rejects missing, disabled, and ambiguous public option labels", async () => {

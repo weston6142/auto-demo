@@ -308,13 +308,21 @@ describe("executeWalkthroughPlan", () => {
   });
 
   it("executes an approved semantic selection and control-state assertion", async () => {
+    const structure = {
+      container: { role: "list" as const, label: "Vehicle results", occurrence: 1 },
+      item: {
+        role: "listitem" as const,
+        position: 1,
+        promotion: "exclude-marked-promoted" as const,
+      },
+    };
     const raw = plan();
     raw.steps[0] = {
       ...raw.steps[0]!,
       action: "select",
       sourceText: "Select New in Condition.",
       public: { summary: "Select New in Condition." },
-      targetHint: { kind: "accessible", label: "Condition", role: "combobox" },
+      targetHint: { kind: "accessible", label: "Condition", role: "combobox", structure },
       optionLabel: "New",
     };
     raw.steps[1] = {
@@ -322,26 +330,40 @@ describe("executeWalkthroughPlan", () => {
       action: "assert",
       sourceText: "Verify Condition form state.",
       public: { summary: "Verify Condition form state." },
-      targetHint: { kind: "accessible", label: "Condition", role: "combobox" },
+      targetHint: { kind: "accessible", label: "Condition", role: "combobox", structure },
       assertion: {
         kind: "control-state",
-        target: { kind: "accessible", label: "Condition", role: "combobox" },
+        target: { kind: "accessible", label: "Condition", role: "combobox", structure },
         state: { selectedOption: "New" },
       },
     };
     const approved = approveWalkthroughPlan(raw, { allowBestGuessBypass: true });
     if (!approved.ok) throw new Error("semantic form plan should approve");
     const actions: string[] = [];
+    const receivedTargets: unknown[] = [];
+    const executionBrowser = browser(actions);
+    executionBrowser.select = async (target, optionLabel) => {
+      receivedTargets.push(target);
+      actions.push(`select:${target.label}:${optionLabel}`);
+    };
+    executionBrowser.assertControlState = async (assertion) => {
+      receivedTargets.push(assertion.target);
+      actions.push(`assert-control:${assertion.target.label}`);
+    };
 
     const result = await executeWalkthroughPlan(
       { plan: approved.plan, outputDir: "/captures/demo" },
-      dependencies(session(browser(actions), []), []),
+      dependencies(session(executionBrowser, []), []),
     );
 
     expect(result.ok).toBe(true);
     expect(actions).toEqual(
       expect.arrayContaining(["select:Condition:New", "assert-control:Condition"]),
     );
+    expect(receivedTargets).toEqual([
+      { label: "Condition", role: "combobox", structure },
+      { kind: "accessible", label: "Condition", role: "combobox", structure },
+    ]);
   });
 
   it("executes an approved plan with runtime bindings and natural pacing", async () => {

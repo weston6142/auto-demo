@@ -191,7 +191,13 @@ async function requireOneVisibleTarget(
   let candidateSince = 0;
   do {
     let foundCandidate = false;
-    const locators = matchingLocators(page, target);
+    const locators =
+      target.structure === undefined
+        ? matchingLocators(page, target)
+        : await structuralTargetLocators(page, target);
+    if (target.structure !== undefined && locators.length > 1) {
+      throw new PlaywrightExecutionControllerError("ambiguous_target");
+    }
     for (let locatorIndex = 0; locatorIndex < locators.length; locatorIndex += 1) {
       const locator = locators[locatorIndex];
       const visible = await visibleLocators(locator);
@@ -259,6 +265,64 @@ function matchingLocators(page: Page, target: BrowserExecutionTarget): Locator[]
     page.getByRole("button", { name: target.label, exact: true }),
     page.getByText(target.label, { exact: true }),
   ];
+}
+
+async function structuralTargetLocators(
+  page: Page,
+  target: BrowserExecutionTarget,
+): Promise<Locator[]> {
+  const structure = target.structure;
+  if (structure === undefined) return [];
+  const containerLocator = page.getByRole(
+    structure.container.role as Parameters<Page["getByRole"]>[0],
+    structure.container.label === undefined
+      ? undefined
+      : { name: structure.container.label, exact: true },
+  );
+  let containers = await visibleLocators(containerLocator);
+  if (structure.container.occurrence !== undefined) {
+    const selected = containers[structure.container.occurrence - 1];
+    containers = selected === undefined ? [] : [selected];
+  }
+  const matches: Locator[] = [];
+  for (const container of containers) {
+    if (structure.item === undefined) {
+      const locator =
+        target.role === undefined
+          ? container.getByText(target.label, { exact: true })
+          : container.getByRole(target.role as Parameters<Locator["getByRole"]>[0], {
+              name: target.label,
+              exact: true,
+            });
+      matches.push(...(await visibleLocators(locator)));
+      continue;
+    }
+    if (target.role === undefined) continue;
+    let items = await visibleLocators(
+      container.getByRole(structure.item.role as Parameters<Locator["getByRole"]>[0]),
+    );
+    if (structure.item.promotion === "exclude-marked-promoted") {
+      const promotionFlags = await Promise.all(
+        items.map((item) =>
+          item.evaluate((element) => {
+            const marker = /^(sponsored|promoted|ad|advertisement)$/i;
+            return Array.from(element.children).some((child) =>
+              marker.test((child.textContent ?? "").replace(/\s+/g, " ").trim()),
+            );
+          }),
+        ),
+      );
+      items = items.filter((_item, index) => !promotionFlags[index]);
+    }
+    const item = items[structure.item.position - 1];
+    if (item === undefined) continue;
+    matches.push(
+      ...(await visibleLocators(
+        item.getByRole(target.role as Parameters<Locator["getByRole"]>[0]),
+      )),
+    );
+  }
+  return matches;
 }
 
 async function visibleLocators(locator: Locator): Promise<Locator[]> {

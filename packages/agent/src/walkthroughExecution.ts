@@ -1,4 +1,5 @@
 import type {
+  DiscoveryTargetStructure,
   WalkthroughPlan,
   WalkthroughPlanExecutionStepOutcome,
   WalkthroughPlanStep,
@@ -60,6 +61,7 @@ export type WalkthroughExecutionTarget = {
   label: string;
   role?: string;
   occurrence?: number;
+  structure?: DiscoveryTargetStructure;
 };
 
 export type WalkthroughExecutionBrowser = {
@@ -555,6 +557,16 @@ function executionTargetForStep(step: WalkthroughPlanStep): WalkthroughExecution
       ...(step.targetHint.occurrence === undefined
         ? {}
         : { occurrence: step.targetHint.occurrence }),
+      ...(step.targetHint.structure === undefined
+        ? {}
+        : {
+            structure: {
+              container: { ...step.targetHint.structure.container },
+              ...(step.targetHint.structure.item === undefined
+                ? {}
+                : { item: { ...step.targetHint.structure.item } }),
+            },
+          }),
     };
   }
   const label = step.public.summary
