@@ -72,6 +72,62 @@ describe("createPlaywrightValidationRunner", () => {
     }
   });
 
+  it("resolves a renamed target from preserved structural position", async () => {
+    const browser = createPlaywrightValidationRunner();
+    await browser.open(
+      "data:text/html,<ul%20aria-label='Vehicle%20results'><li>Sponsored%20<a%20href='%23sponsored'>Sponsored%20vehicle</a></li><li><a%20href='%23first'>Renamed%20first%20vehicle</a></li></ul>",
+    );
+    const selectedStep = step("Click Get started.");
+    selectedStep.targetHint = {
+      kind: "accessible",
+      label: "2026 Kia Sorento A",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: {
+          role: "listitem",
+          position: 1,
+          promotion: "exclude-marked-promoted",
+        },
+      },
+    };
+
+    try {
+      await expect(browser.findMatches(selectedStep)).resolves.toEqual([
+        expect.objectContaining({
+          label: "2026 Kia Sorento A",
+          role: "link",
+          targetHint: selectedStep.targetHint,
+        }),
+      ]);
+    } finally {
+      await browser.close();
+    }
+  });
+
+  it("keeps structural positions local to the selected repeated container", async () => {
+    const browser = createPlaywrightValidationRunner();
+    await browser.open(
+      "data:text/html,<ul%20aria-label='Vehicle%20results'><li><a%20href='%23one'>One</a></li><li><ul%20aria-label='Nested'><li><a%20href='%23nested'>Nested</a></li></ul></li><li><a%20href='%23target'>Target</a></li></ul>",
+    );
+    const selectedStep = step("Click Get started.");
+    selectedStep.targetHint = {
+      kind: "accessible",
+      label: "Old target",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: { role: "listitem", position: 3 },
+      },
+    };
+
+    try {
+      await expect(browser.findMatches(selectedStep)).resolves.toHaveLength(1);
+    } finally {
+      await browser.close();
+    }
+  });
+
   it("matches a labeled field and fills only a synthetic redacted value", async () => {
     const browser = createPlaywrightValidationRunner();
     await browser.open(

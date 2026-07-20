@@ -155,6 +155,87 @@ describe("validateWalkthroughPlan", () => {
     expect(isWalkthroughPlan(mismatched)).toBe(false);
   });
 
+  it("accepts bounded structural target hints and rejects malformed variants", () => {
+    const structural = plan("Verify Results.");
+    structural.steps[0] = {
+      ...structural.steps[0],
+      action: "click",
+      assertion: undefined,
+      targetHint: {
+        kind: "accessible",
+        label: "2026 Kia Sorento A",
+        role: "link",
+        structure: {
+          container: { role: "list", label: "Vehicle results", occurrence: 1 },
+          item: {
+            role: "listitem",
+            position: 1,
+            promotion: "exclude-marked-promoted",
+          },
+        },
+      },
+    };
+
+    expect(isWalkthroughPlan(structural)).toBe(true);
+
+    type MutableStructure = Record<string, unknown> & {
+      container: Record<string, unknown>;
+      item: Record<string, unknown>;
+    };
+    const mutate = [
+      (structure: MutableStructure) => (structure.extra = true),
+      (structure: MutableStructure) => (structure.container.role = "dialog"),
+      (structure: MutableStructure) => (structure.item.position = 0),
+      (structure: MutableStructure) => (structure.item.occurrence = 1),
+      (structure: MutableStructure) => (structure.container.role = "form"),
+    ];
+    for (const change of mutate) {
+      const malformed = structuredClone(structural);
+      const structure = malformed.steps[0].targetHint?.structure as unknown as MutableStructure;
+      change(structure);
+      expect(isWalkthroughPlan(malformed)).toBe(false);
+    }
+  });
+
+  it("preserves structural target hints in sanitized validated plans", async () => {
+    const structural = plan("Click Get started.");
+    structural.steps[0].targetHint = {
+      kind: "accessible",
+      label: "2026 Kia Sorento A",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: {
+          role: "listitem",
+          position: 1,
+          promotion: "exclude-marked-promoted",
+        },
+      },
+    };
+
+    const result = await validateWalkthroughPlan(structural, {}, { browser: runner({}) });
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        steps: [
+          {
+            targetHint: {
+              structure: {
+                container: { role: "list", label: "Vehicle results", occurrence: 1 },
+                item: {
+                  role: "listitem",
+                  position: 1,
+                  promotion: "exclude-marked-promoted",
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+  });
+
   it("requires replay metadata only for discovery replay validation", () => {
     const discovered = plan("Verify Results.");
     discovered.source = {
@@ -596,6 +677,19 @@ describe("validateWalkthroughPlan", () => {
               id: "token=sk-live-secret",
               label: "password is hunter2",
               role: "credential abcdefghijklmnop eyJhbGciOiJIUzI1NiJ9.payload.signature",
+              targetHint: {
+                kind: "accessible",
+                label: "Vehicle",
+                role: "link",
+                structure: {
+                  container: { role: "list", label: "Vehicle results", occurrence: 1 },
+                  item: {
+                    role: "listitem",
+                    position: 1,
+                    promotion: "exclude-marked-promoted",
+                  },
+                },
+              },
             },
             { id: "safe-id", label: "Get started", role: "button" },
           ],
@@ -608,6 +702,32 @@ describe("validateWalkthroughPlan", () => {
     expect(serialized).not.toContain("hunter2");
     expect(serialized).not.toContain("abcdefghijklmnop");
     expect(serialized).not.toContain("eyJhbGciOiJIUzI1NiJ9");
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        validation: {
+          blockers: [
+            {
+              candidates: [
+                {
+                  targetHint: {
+                    structure: {
+                      container: { role: "list", label: "Vehicle results", occurrence: 1 },
+                      item: {
+                        role: "listitem",
+                        position: 1,
+                        promotion: "exclude-marked-promoted",
+                      },
+                    },
+                  },
+                },
+                expect.anything(),
+              ],
+            },
+          ],
+        },
+      },
+    });
   });
 
   it("marks a straightforward resolved plan as ready", async () => {

@@ -638,7 +638,14 @@ function isWalkthroughPlanTargetHint(value: unknown): boolean {
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const hint = value as { kind?: unknown; label?: unknown; role?: unknown; occurrence?: unknown };
+  if (!hasExactKeys(value, ["kind", "label", "role", "occurrence", "structure"])) return false;
+  const hint = value as {
+    kind?: unknown;
+    label?: unknown;
+    role?: unknown;
+    occurrence?: unknown;
+    structure?: unknown;
+  };
   return (
     hint.kind === "accessible" &&
     isNonEmptyString(hint.label) &&
@@ -646,7 +653,52 @@ function isWalkthroughPlanTargetHint(value: unknown): boolean {
     (hint.occurrence === undefined ||
       (typeof hint.occurrence === "number" &&
         Number.isInteger(hint.occurrence) &&
-        hint.occurrence > 0))
+        hint.occurrence > 0)) &&
+    (hint.structure === undefined || isWalkthroughTargetStructure(hint.structure))
+  );
+}
+
+function isWalkthroughTargetStructure(value: unknown): boolean {
+  if (!hasExactKeys(value, ["container", "item"])) return false;
+  const structure = value as { container?: unknown; item?: unknown };
+  if (!hasExactKeys(structure.container, ["role", "label", "occurrence"])) return false;
+  const container = structure.container as {
+    role?: unknown;
+    label?: unknown;
+    occurrence?: unknown;
+  };
+  if (
+    container.role !== "form" &&
+    container.role !== "region" &&
+    container.role !== "main" &&
+    container.role !== "list" &&
+    container.role !== "feed"
+  ) {
+    return false;
+  }
+  if (
+    (container.label !== undefined && !isSafeOptionLabel(container.label)) ||
+    (container.occurrence !== undefined &&
+      (!Number.isInteger(container.occurrence) ||
+        Number(container.occurrence) < 1 ||
+        Number(container.occurrence) > DISCOVERY_LIMITS.interactiveTargetsPerObservation))
+  ) {
+    return false;
+  }
+  if (structure.item === undefined) return true;
+  if (
+    (container.role !== "list" && container.role !== "feed") ||
+    !hasExactKeys(structure.item, ["role", "position", "promotion"])
+  ) {
+    return false;
+  }
+  const item = structure.item as { role?: unknown; position?: unknown; promotion?: unknown };
+  return (
+    (item.role === "listitem" || item.role === "article") &&
+    Number.isInteger(item.position) &&
+    Number(item.position) >= 1 &&
+    Number(item.position) <= DISCOVERY_LIMITS.interactiveTargetsPerObservation &&
+    (item.promotion === undefined || item.promotion === "exclude-marked-promoted")
   );
 }
 
@@ -1088,15 +1140,31 @@ function sanitizeMatch(match: WalkthroughValidationMatch): WalkthroughValidation
     ...(match.targetHint === undefined
       ? {}
       : {
-          targetHint: {
-            kind: "accessible" as const,
-            label: sanitizeText(match.targetHint.label),
-            ...(match.targetHint.role === undefined
-              ? {}
-              : { role: sanitizeText(match.targetHint.role) }),
-            ...(match.targetHint.occurrence === undefined
-              ? {}
-              : { occurrence: match.targetHint.occurrence }),
+          targetHint: sanitizeTargetHint(match.targetHint),
+        }),
+  };
+}
+
+function sanitizeTargetHint(target: WalkthroughPlanTargetHint): WalkthroughPlanTargetHint {
+  return {
+    kind: "accessible",
+    label: sanitizeText(target.label),
+    ...(target.role === undefined ? {} : { role: sanitizeText(target.role) }),
+    ...(target.occurrence === undefined ? {} : { occurrence: target.occurrence }),
+    ...(target.structure === undefined
+      ? {}
+      : {
+          structure: {
+            container: {
+              role: target.structure.container.role,
+              ...(target.structure.container.label === undefined
+                ? {}
+                : { label: sanitizeText(target.structure.container.label) }),
+              ...(target.structure.container.occurrence === undefined
+                ? {}
+                : { occurrence: target.structure.container.occurrence }),
+            },
+            ...(target.structure.item === undefined ? {} : { item: { ...target.structure.item } }),
           },
         }),
   };
@@ -1114,16 +1182,7 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
     ...(step.targetHint === undefined
       ? {}
       : {
-          targetHint: {
-            kind: "accessible" as const,
-            label: sanitizeText(step.targetHint.label),
-            ...(step.targetHint.role === undefined
-              ? {}
-              : { role: sanitizeText(step.targetHint.role) }),
-            ...(step.targetHint.occurrence === undefined
-              ? {}
-              : { occurrence: step.targetHint.occurrence }),
-          },
+          targetHint: sanitizeTargetHint(step.targetHint),
         }),
     ...(step.navigationUrl === undefined ? {} : { navigationUrl: sanitizeUrl(step.navigationUrl) }),
     ...(step.inputBinding === undefined
@@ -1154,16 +1213,7 @@ function sanitizePlan(plan: WalkthroughPlan): WalkthroughPlan {
                   }
                 : {
                     kind: "control-state" as const,
-                    target: {
-                      kind: "accessible" as const,
-                      label: sanitizeText(step.assertion.target.label),
-                      ...(step.assertion.target.role === undefined
-                        ? {}
-                        : { role: sanitizeText(step.assertion.target.role) }),
-                      ...(step.assertion.target.occurrence === undefined
-                        ? {}
-                        : { occurrence: step.assertion.target.occurrence }),
-                    },
+                    target: sanitizeTargetHint(step.assertion.target),
                     state: {
                       ...(step.assertion.state.hasValue === undefined
                         ? {}

@@ -222,7 +222,19 @@ const created = createDiscoverySession({
 Actions that type demo data retain runtime-only input bindings, never input values. Native select
 targets expose bounded public option labels plus required, value-present, validity, selected-option,
 and checked state without option values or other form values. Select actions persist only the public
-option label. A click, type, or select attempt without declared expectations must produce a bounded
+option label. Browser observations keep a 100-target bound while ranking viewport and form context
+ahead of weaker candidates and reserving capacity for up to 20 fallback targets. This ranking never
+stores raw DOM, selectors, or form values.
+
+Targets inside repeated results may expose bounded results-order structural intent: a public
+container role and label, an optional repeated-container occurrence, and a one-based item position.
+The position may exclude only items carrying an explicit Sponsored, Promoted, Ad, or Advertisement
+marker. The accessible label remains descriptive, but the structure is authoritative during fresh
+replay and final recording. Resolution does not fall back to the descriptive label when the
+container, eligible position, or descendant is missing or ambiguous, and repair must preserve the
+same ordered structural constraints.
+
+A click, type, or select attempt without declared expectations must produce a bounded
 navigation, newly visible target/state, or changed public control state; otherwise it finishes as
 `action_no_observable_effect` and cannot enter the selected path. The
 artifact keeps failed or abandoned exploration for diagnostics while the selected path

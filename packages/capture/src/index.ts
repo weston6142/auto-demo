@@ -136,6 +136,18 @@ export type BrowserExecutionTarget = {
   label: string;
   role?: string;
   occurrence?: number;
+  structure?: {
+    container: {
+      role: "form" | "region" | "main" | "list" | "feed";
+      label?: string;
+      occurrence?: number;
+    };
+    item?: {
+      role: "listitem" | "article";
+      position: number;
+      promotion?: "exclude-marked-promoted";
+    };
+  };
 };
 
 export type BrowserNavigationExpectation = {

@@ -178,6 +178,7 @@ export type DiscoveryReplayErrorCode =
   | "invalid_repair_session"
   | "repair_lineage_mismatch"
   | "repair_launch_profile_mismatch"
+  | "repair_structural_intent_mismatch"
   | "repair_goal_mismatch"
   | "repair_target_out_of_scope"
   | "unchanged_repair_path"
@@ -524,6 +525,13 @@ function prepareRepair(
       message: "Discovery replay repair did not change the selected path.",
     };
   }
+  if (!preservesStructuralIntent(current.plan, compiled.plan)) {
+    return {
+      ok: false,
+      code: "repair_structural_intent_mismatch",
+      message: "Discovery replay repair changed structural positional intent.",
+    };
+  }
   if (!planNavigationIsAllowed(compiled.plan, current.validatedPolicy)) {
     return {
       ok: false,
@@ -553,6 +561,27 @@ function prepareRepair(
       ]),
     },
   };
+}
+
+function preservesStructuralIntent(current: WalkthroughPlan, repaired: WalkthroughPlan): boolean {
+  const structuralIntents = (plan: WalkthroughPlan) =>
+    plan.steps.flatMap((step) =>
+      step.targetHint?.structure === undefined
+        ? []
+        : [
+            {
+              order: step.order,
+              action: step.action,
+              role: step.targetHint.role,
+              structure: structuredClone(step.targetHint.structure),
+            },
+          ],
+    );
+  const expected = structuralIntents(current);
+  return (
+    expected.length === 0 ||
+    JSON.stringify(expected) === JSON.stringify(structuralIntents(repaired))
+  );
 }
 
 function sameBrowserLaunchProfile(
@@ -650,7 +679,7 @@ async function requireReplayMatch(
 ): Promise<DiscoveryReplayMatch> {
   if (target === undefined) throw new DiscoveryReplayBrowserError("target_not_found");
   const matches = await browser.findMatches(target);
-  if (target.occurrence !== undefined) {
+  if (target.occurrence !== undefined && target.structure?.item === undefined) {
     const selected = matches[target.occurrence - 1];
     if (selected === undefined) throw new DiscoveryReplayBrowserError("target_not_found", matches);
     return selected;

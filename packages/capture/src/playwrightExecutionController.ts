@@ -191,12 +191,23 @@ async function requireOneVisibleTarget(
   let candidateSince = 0;
   do {
     let foundCandidate = false;
-    const locators = matchingLocators(page, target);
+    let locators =
+      target.structure === undefined
+        ? matchingLocators(page, target)
+        : await structuralTargetLocators(page, target);
+    if (target.structure !== undefined) {
+      if (target.structure.item === undefined && target.occurrence !== undefined) {
+        const selected = locators[target.occurrence - 1];
+        locators = selected === undefined ? [] : [selected];
+      } else if (locators.length > 1) {
+        throw new PlaywrightExecutionControllerError("ambiguous_target");
+      }
+    }
     for (let locatorIndex = 0; locatorIndex < locators.length; locatorIndex += 1) {
       const locator = locators[locatorIndex];
       const visible = await visibleLocators(locator);
       if (visible.length === 0) continue;
-      if (target.occurrence !== undefined) {
+      if (target.structure === undefined && target.occurrence !== undefined) {
         const selected = visible[target.occurrence - 1];
         if (selected === undefined) continue;
         const key = `${locatorIndex}:${visible.length}:${target.occurrence}`;
@@ -261,9 +272,101 @@ function matchingLocators(page: Page, target: BrowserExecutionTarget): Locator[]
   ];
 }
 
+async function structuralTargetLocators(
+  page: Page,
+  target: BrowserExecutionTarget,
+): Promise<Locator[]> {
+  const structure = target.structure;
+  if (structure === undefined) return [];
+  const containerLocator = page.getByRole(
+    structure.container.role as Parameters<Page["getByRole"]>[0],
+    structure.container.label === undefined
+      ? undefined
+      : { name: structure.container.label, exact: true },
+  );
+  let containers = await visibleLocators(containerLocator);
+  if (structure.container.occurrence !== undefined) {
+    const selected = containers[structure.container.occurrence - 1];
+    containers = selected === undefined ? [] : [selected];
+  }
+  const matches: Locator[] = [];
+  for (const container of containers) {
+    if (structure.item === undefined) {
+      const locator =
+        target.role === undefined
+          ? container.getByText(target.label, { exact: true })
+          : container.getByRole(target.role as Parameters<Locator["getByRole"]>[0], {
+              name: target.label,
+              exact: true,
+            });
+      matches.push(...(await visibleLocators(locator)));
+      continue;
+    }
+    if (target.role === undefined) continue;
+    let items = await visibleStructuralItems(container, structure.item.role);
+    if (structure.item.promotion === "exclude-marked-promoted") {
+      const promotionFlags = await Promise.all(
+        items.map((item) =>
+          item.evaluate((element) => {
+            const marker = /^(sponsored|promoted|ad|advertisement)$/i;
+            return Array.from(element.childNodes).some((child) =>
+              marker.test((child.textContent ?? "").replace(/\s+/g, " ").trim()),
+            );
+          }),
+        ),
+      );
+      items = items.filter((_item, index) => !promotionFlags[index]);
+    }
+    const item = items[structure.item.position - 1];
+    if (item === undefined) continue;
+    matches.push(
+      ...(await visibleLocators(
+        item.getByRole(target.role as Parameters<Locator["getByRole"]>[0]),
+      )),
+    );
+  }
+  return matches;
+}
+
+async function visibleStructuralItems(
+  container: Locator,
+  itemRole: "listitem" | "article",
+): Promise<Locator[]> {
+  const locator = container.getByRole(itemRole as Parameters<Locator["getByRole"]>[0]);
+  const containerElement = await container.elementHandle();
+  if (containerElement === null) return [];
+  const direct: Locator[] = [];
+  for (let index = 0; index < (await locator.count()) && direct.length < 100; index += 1) {
+    const item = locator.nth(index);
+    if (!(await item.isVisible().catch(() => false))) continue;
+    const belongs = await item.evaluate((element, expectedContainer) => {
+      let depth = 0;
+      const composedParent = (candidate: Element) => {
+        if (candidate.parentElement !== null) return candidate.parentElement;
+        const root = candidate.getRootNode();
+        return root instanceof ShadowRoot ? root.host : null;
+      };
+      for (
+        let current = composedParent(element);
+        current !== null && depth < 32;
+        current = composedParent(current), depth += 1
+      ) {
+        const role = current.getAttribute("role")?.toLowerCase();
+        const structural =
+          ["form", "region", "main", "list", "feed"].includes(role ?? "") ||
+          ["FORM", "MAIN", "UL", "OL"].includes(current.tagName);
+        if (structural) return current === expectedContainer;
+      }
+      return false;
+    }, containerElement);
+    if (belongs) direct.push(item);
+  }
+  return direct;
+}
+
 async function visibleLocators(locator: Locator): Promise<Locator[]> {
   const visible: Locator[] = [];
-  for (let index = 0; index < (await locator.count()); index += 1) {
+  for (let index = 0; index < Math.min(await locator.count(), 100); index += 1) {
     const candidate = locator.nth(index);
     if (await candidate.isVisible()) visible.push(candidate);
   }

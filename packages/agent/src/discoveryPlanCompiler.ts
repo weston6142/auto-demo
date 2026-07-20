@@ -402,6 +402,7 @@ function accessibleTarget(target: DiscoveryInteractiveTarget): WalkthroughPlanTa
     label: sanitizeWalkthroughText(target.label),
     ...(target.role === undefined ? {} : { role: sanitizeWalkthroughText(target.role) }),
     ...(target.occurrence === undefined ? {} : { occurrence: target.occurrence }),
+    ...(target.structure === undefined ? {} : { structure: structuredClone(target.structure) }),
   };
 }
 

@@ -165,6 +165,44 @@ describe("discovery session validation", () => {
     });
   });
 
+  it("accepts bounded structural target context and rejects unsafe variants", async () => {
+    const completed = await readFixture("discovery-session-completed.json");
+    const target = completed.observations[0].interactiveTargets[0];
+    target.structure = {
+      container: { role: "list", label: "Vehicle results", occurrence: 1 },
+      item: {
+        role: "listitem",
+        position: 1,
+        promotion: "exclude-marked-promoted",
+      },
+    };
+
+    expect(validateDiscoverySession(completed)).toMatchObject({ ok: true });
+
+    const invalidStructures: unknown[] = [
+      { ...target.structure, extra: true },
+      { ...target.structure, container: { ...target.structure.container, label: "" } },
+      { ...target.structure, container: { role: "dialog" } },
+      { ...target.structure, item: { ...target.structure.item, position: 0 } },
+      { ...target.structure, item: { ...target.structure.item, position: 1.5 } },
+      { ...target.structure, item: { ...target.structure.item, position: 101 } },
+      {
+        ...target.structure,
+        container: { role: "form", label: "Search" },
+        item: { ...target.structure.item },
+      },
+      { ...target.structure, container: { role: "list", label: "token=private-value" } },
+    ];
+
+    for (const structure of invalidStructures) {
+      const malformed = structuredClone(completed);
+      malformed.observations[0].interactiveTargets[0].structure = structure;
+      const result = validateDiscoverySession(malformed);
+      expect(result).toMatchObject({ ok: false });
+      expect(JSON.stringify(result)).not.toContain("private-value");
+    }
+  });
+
   it("never echoes attacker-controlled unknown property names", () => {
     if (!valid.ok) throw new Error("fixture session must be valid");
     const result = validateDiscoverySession({

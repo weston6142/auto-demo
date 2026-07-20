@@ -455,10 +455,200 @@ function collectBrowserSnapshot(input: {
     element instanceof HTMLSelectElement ||
     element.tagName === "SUMMARY";
 
+  const structuralContainerRole = (
+    element: Element,
+  ): "form" | "region" | "main" | "list" | "feed" | undefined => {
+    const explicit = element.getAttribute("role")?.toLowerCase();
+    if (
+      explicit === "form" ||
+      explicit === "region" ||
+      explicit === "main" ||
+      explicit === "list" ||
+      explicit === "feed"
+    ) {
+      return explicit;
+    }
+    if (element.tagName === "FORM") return "form";
+    if (element.tagName === "MAIN") return "main";
+    if (element.tagName === "UL" || element.tagName === "OL") return "list";
+    return undefined;
+  };
+  const structuralItemRole = (element: Element): "listitem" | "article" | undefined => {
+    const explicit = element.getAttribute("role")?.toLowerCase();
+    if (explicit === "listitem" || explicit === "article") return explicit;
+    if (element.tagName === "LI") return "listitem";
+    if (element.tagName === "ARTICLE") return "article";
+    return undefined;
+  };
+  const structuralContainerLabel = (element: Element) => {
+    const labelledBy = boundedText(element.getAttribute("aria-labelledby") ?? "");
+    const elementRoot = element.getRootNode();
+    const labelledIds = labelledBy.split(/\s+/).filter((id) => id.length > 0);
+    if (labelledIds.length > 32) truncatedContent += 1;
+    const labelledText = combineText(
+      labelledIds.slice(0, 32).map((id) => {
+        if (elementRoot instanceof Document || elementRoot instanceof ShadowRoot) {
+          const labelledElement = elementRoot.getElementById(id);
+          return labelledElement === null ? "" : safeText(labelledElement, false, true);
+        }
+        const labelledElement = document.getElementById(id);
+        return labelledElement === null ? "" : safeText(labelledElement, false, true);
+      }),
+    );
+    if (labelledText.length > 0) return labelledText;
+    for (const candidate of [element.getAttribute("aria-label"), element.getAttribute("title")]) {
+      if (candidate !== null && candidate.trim().length > 0) return boundedText(candidate);
+    }
+    return "";
+  };
+  const nearestStructuralContainer = (element: Element) => {
+    let depth = 0;
+    for (
+      let current: Element | null = element;
+      current !== null && depth < 32;
+      current = composedParent(current), depth += 1
+    ) {
+      const containerRole = structuralContainerRole(current);
+      if (containerRole !== undefined) return { element: current, role: containerRole };
+    }
+    return undefined;
+  };
+  const explicitlyMarkedPromoted = (element: Element) => {
+    const marker = /^(sponsored|promoted|ad|advertisement)$/i;
+    return (
+      marker.test(safeText(element, true).replace(/\s+/g, " ").trim()) ||
+      Array.from(element.children).some((child) =>
+        marker.test(safeText(child).replace(/\s+/g, " ").trim()),
+      )
+    );
+  };
+  const containerItems = new WeakMap<Element, Map<"listitem" | "article", Element[]>>();
+  const itemsFor = (container: Element, itemRole: "listitem" | "article") => {
+    const cached = containerItems.get(container)?.get(itemRole);
+    if (cached !== undefined) return cached;
+    const items = elements
+      .filter(
+        (candidate) =>
+          visible(candidate) &&
+          structuralItemRole(candidate) === itemRole &&
+          nearestStructuralContainer(candidate)?.element === container,
+      )
+      .slice(0, retainedPerTier);
+    const byRole = containerItems.get(container) ?? new Map();
+    byRole.set(itemRole, items);
+    containerItems.set(container, byRole);
+    return items;
+  };
+  const targetStructure = (element: Element): DiscoveryObservationRawTarget["structure"] => {
+    let itemElement: Element | undefined;
+    let itemRole: "listitem" | "article" | undefined;
+    let depth = 0;
+    for (
+      let current: Element | null = element;
+      current !== null && depth < 32;
+      current = composedParent(current), depth += 1
+    ) {
+      const currentRole = structuralItemRole(current);
+      if (currentRole !== undefined) {
+        itemElement = current;
+        itemRole = currentRole;
+        break;
+      }
+    }
+    const container = nearestStructuralContainer(itemElement ?? element);
+    if (container === undefined) return undefined;
+    const containerLabel = boundedText(structuralContainerLabel(container.element).trim());
+    const equivalentContainers = elements.filter(
+      (candidate) =>
+        visible(candidate) &&
+        structuralContainerRole(candidate) === container.role &&
+        boundedText(structuralContainerLabel(candidate).trim()) === containerLabel,
+    );
+    const containerOccurrence = equivalentContainers.indexOf(container.element) + 1;
+    const base = {
+      container: {
+        role: container.role,
+        ...(containerLabel.length === 0 ? {} : { label: containerLabel }),
+        ...(containerOccurrence < 1 ? {} : { occurrence: containerOccurrence }),
+      },
+    };
+    if (
+      itemElement === undefined ||
+      itemRole === undefined ||
+      (container.role !== "list" && container.role !== "feed")
+    ) {
+      return base;
+    }
+    const marked = explicitlyMarkedPromoted(itemElement);
+    const eligibleItems = itemsFor(container.element, itemRole).filter(
+      (candidate) => marked || !explicitlyMarkedPromoted(candidate),
+    );
+    const position = eligibleItems.indexOf(itemElement) + 1;
+    if (position < 1 || position > retainedPerTier) return base;
+    return {
+      ...base,
+      item: {
+        role: itemRole,
+        position,
+        ...(marked ? {} : { promotion: "exclude-marked-promoted" as const }),
+      },
+    };
+  };
+
   const semanticTargets: DiscoveryObservationRawTarget[] = [];
   const fallbackTargets: DiscoveryObservationRawTarget[] = [];
   let omittedInteractiveTargets = 0;
   const interactiveElements = new WeakSet<Element>();
+  const targetPriority = (target: DiscoveryObservationRawTarget) => {
+    const ranking = target.ranking ?? { inViewport: false, formLocal: false };
+    return ranking.inViewport && ranking.formLocal
+      ? 0
+      : ranking.inViewport
+        ? 1
+        : ranking.formLocal
+          ? 2
+          : 3;
+  };
+  const compareTargets = (
+    left: DiscoveryObservationRawTarget,
+    right: DiscoveryObservationRawTarget,
+  ) =>
+    targetPriority(left) - targetPriority(right) ||
+    (left.tier === "semantic" ? 0 : 1) - (right.tier === "semantic" ? 0 : 1) ||
+    left.order - right.order;
+  const retainRanked = (
+    targets: DiscoveryObservationRawTarget[],
+    target: DiscoveryObservationRawTarget,
+  ) => {
+    targets.push(target);
+    targets.sort(compareTargets);
+    if (targets.length > retainedPerTier) {
+      targets.pop();
+      omittedInteractiveTargets += 1;
+    }
+  };
+  const isFormLocal = (element: Element) => {
+    let depth = 0;
+    for (
+      let current: Element | null = element;
+      current !== null && depth < 32;
+      current = composedParent(current), depth += 1
+    ) {
+      if (current.tagName === "FORM") return true;
+      const currentRole = current.getAttribute("role")?.toLowerCase();
+      if (
+        (currentRole === "form" ||
+          currentRole === "region" ||
+          currentRole === "main" ||
+          currentRole === "list" ||
+          currentRole === "feed") &&
+        label(current).trim().length > 0
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
   elements.forEach((element, order) => {
     if (!visible(element)) return;
     const inferredRole = role(element);
@@ -479,10 +669,6 @@ function collectBrowserSnapshot(input: {
     }
     interactiveElements.add(element);
     const targetTier = semantic ? semanticTargets : fallbackTargets;
-    if (targetTier.length >= retainedPerTier) {
-      omittedInteractiveTargets += 1;
-      return;
-    }
     const inputElement = element instanceof HTMLInputElement ? element : undefined;
     const autocomplete = inputElement?.autocomplete.toLowerCase() ?? "";
     const credential =
@@ -551,10 +737,25 @@ function collectBrowserSnapshot(input: {
       sensitivePayment,
       upload,
       ...(submitsForm ? { actionRisk: "potentially-mutating" as const } : {}),
+      ranking: {
+        inViewport: (() => {
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth
+          );
+        })(),
+        formLocal: isFormLocal(element),
+      },
       ...(form === undefined ? {} : { form }),
     };
-    targetTier.push(target);
+    retainRanked(targetTier, target);
   });
+
+  for (const target of [...semanticTargets, ...fallbackTargets]) {
+    const element = state.elements.get(target.identityKey);
+    const structure = element === undefined ? undefined : targetStructure(element);
+    if (structure !== undefined) target.structure = structure;
+  }
 
   const interactiveTargets = [...semanticTargets, ...fallbackTargets];
   const interactiveLabels = new Set(

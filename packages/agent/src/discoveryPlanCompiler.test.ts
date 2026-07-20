@@ -98,6 +98,48 @@ describe("compileDiscoverySessionToWalkthroughPlan", () => {
     );
   });
 
+  it("compiles and fingerprints structural positional intent", async () => {
+    const original = (await fixture("discovery-session-completed.json")) as DiscoverySessionV1;
+    original.observations[0]!.interactiveTargets[0]!.structure = {
+      container: { role: "list", label: "Vehicle results", occurrence: 1 },
+      item: {
+        role: "listitem",
+        position: 1,
+        promotion: "exclude-marked-promoted",
+      },
+    };
+    const changed = structuredClone(original);
+    changed.observations[0]!.interactiveTargets[0]!.structure!.item!.position = 2;
+
+    const first = compileDiscoverySessionToWalkthroughPlan(original);
+    const second = compileDiscoverySessionToWalkthroughPlan(changed);
+    if (
+      !first.ok ||
+      !second.ok ||
+      first.plan.source.parser !== "discovery-v1" ||
+      second.plan.source.parser !== "discovery-v1"
+    ) {
+      throw new Error("structural sessions must compile");
+    }
+
+    expect(first.plan.steps[0]?.targetHint).toMatchObject({
+      kind: "accessible",
+      label: "Checkout",
+      role: "button",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: {
+          role: "listitem",
+          position: 1,
+          promotion: "exclude-marked-promoted",
+        },
+      },
+    });
+    expect(first.plan.source.discovery.selectedPathFingerprint).not.toBe(
+      second.plan.source.discovery.selectedPathFingerprint,
+    );
+  });
+
   it("normalizes inspect into assertions without a browser action", async () => {
     const session = (await fixture("discovery-session-completed.json")) as DiscoverySessionV1;
     session.attempts[0].action = { kind: "inspect" };

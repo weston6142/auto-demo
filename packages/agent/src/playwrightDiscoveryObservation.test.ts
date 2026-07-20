@@ -457,6 +457,100 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
     expect(JSON.stringify(result)).not.toContain("State 150");
   });
 
+  it("keeps viewport form controls and reserves capacity for custom targets", async () => {
+    const offscreenLinks = Array.from(
+      { length: 120 },
+      (_, index) => `<a href="/vehicle-${index}">Vehicle ${index}</a>`,
+    ).join("");
+    const customTargets = Array.from(
+      { length: 25 },
+      (_, index) => `<div tabindex="0">Custom filter ${index}</div>`,
+    ).join("");
+    await openHtml(`
+      <title>Ranked controls</title>
+      <div style="position:absolute;top:2000px">${offscreenLinks}</div>
+      <form aria-label="Vehicle filters" style="position:fixed;top:0;left:0">
+        <label>Condition <select><option>New</option></select></label>
+        <label>Distance <select><option>Nationwide</option></select></label>
+        ${customTargets}
+      </form>
+    `);
+    const extractor = createPlaywrightDiscoveryObservationExtractor(page);
+    const first = await extractor.observe();
+    const second = await extractor.observe();
+    if (!first.ok || !second.ok) throw new Error("ranked observations must succeed");
+
+    const labels = first.observation.interactiveTargets.map((target) => target.label);
+    expect(first.observation.interactiveTargets).toHaveLength(100);
+    expect(labels).toEqual(expect.arrayContaining(["Condition", "Distance"]));
+    expect(
+      labels.filter((label) => label.startsWith("Custom filter ")).length,
+    ).toBeGreaterThanOrEqual(20);
+    expect(first.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "interactive_targets_truncated", count: 47 }),
+        expect.objectContaining({ code: "fallback_targets_included", count: 25 }),
+      ]),
+    );
+    expect(second.observation.interactiveTargets.map((target) => target.label)).toEqual(labels);
+  });
+
+  it("exposes sanitized repeated-item position without pinning promotion text", async () => {
+    await openHtml(`
+      <title>Vehicle inventory</title>
+      <ul aria-label="Vehicle results">
+        <li><span>Sponsored</span><a href="/sponsored">Promoted Sorento</a></li>
+        <li><a href="/first">2026 Kia Sorento A</a></li>
+        <li><a href="/second">2026 Kia Sorento B</a></li>
+      </ul>
+      <ul aria-label="Vehicle results">
+        <li><a href="/other">Other inventory</a></li>
+      </ul>
+      <div hidden>token=private-value</div>
+    `);
+
+    const result = await createPlaywrightDiscoveryObservationExtractor(page).observe();
+    if (!result.ok) throw new Error("structural observation must succeed");
+    const byLabel = new Map(
+      result.observation.interactiveTargets.map((target) => [target.label, target]),
+    );
+
+    expect(byLabel.get("2026 Kia Sorento A")?.structure).toEqual({
+      container: { role: "list", label: "Vehicle results", occurrence: 1 },
+      item: {
+        role: "listitem",
+        position: 1,
+        promotion: "exclude-marked-promoted",
+      },
+    });
+    expect(byLabel.get("2026 Kia Sorento B")?.structure?.item).toMatchObject({
+      position: 2,
+      promotion: "exclude-marked-promoted",
+    });
+    expect(byLabel.get("Promoted Sorento")?.structure).toEqual({
+      container: { role: "list", label: "Vehicle results", occurrence: 1 },
+      item: { role: "listitem", position: 1 },
+    });
+    expect(byLabel.get("Other inventory")?.structure?.container).toEqual({
+      role: "list",
+      label: "Vehicle results",
+      occurrence: 2,
+    });
+    expect(JSON.stringify(result)).not.toMatch(/private-value|selector|outerHTML/);
+  });
+
+  it("does not turn changing content into an unlabeled container identity", async () => {
+    await openHtml(`<main><a href="/story">Read story</a></main>`);
+
+    const result = await createPlaywrightDiscoveryObservationExtractor(page).observe();
+    if (!result.ok) throw new Error("unlabeled main observation must succeed");
+
+    expect(
+      result.observation.interactiveTargets.find((target) => target.label === "Read story")
+        ?.structure?.container,
+    ).toEqual({ role: "main", occurrence: 1 });
+  });
+
   it("computes visible omissions after priority ancestors suppress descendants", async () => {
     const descendants = Array.from(
       { length: 101 },

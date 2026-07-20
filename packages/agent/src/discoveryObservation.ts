@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { DISCOVERY_LIMITS } from "./discoveryContract.js";
+import { DISCOVERY_LIMITS, type DiscoveryTargetStructure } from "./discoveryContract.js";
 import type { RecordDiscoveryObservationInput } from "./discoverySession.js";
 import {
   createDiscoveryTargetRegistry,
@@ -62,6 +62,11 @@ export type DiscoveryObservationRawTarget = {
   sensitivePayment?: boolean;
   upload?: boolean;
   actionRisk?: "potentially-mutating";
+  structure?: DiscoveryTargetStructure;
+  ranking?: {
+    inViewport: boolean;
+    formLocal: boolean;
+  };
   form?: {
     required: boolean;
     hasValue: boolean;

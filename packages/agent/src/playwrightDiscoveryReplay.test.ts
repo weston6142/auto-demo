@@ -546,6 +546,152 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     ).resolves.toHaveLength(100);
   });
 
+  it("resolves structural position after promoted insertion and label changes", async () => {
+    const origin = await fixture(`<!doctype html>
+      <ul aria-label="Vehicle results">
+        <li>Sponsored <a href="/sponsored">Sponsored vehicle</a></li>
+        <li><a href="/next">Renamed first vehicle</a></li>
+        <li><a href="/other">Renamed second vehicle</a></li>
+      </ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "2026 Kia Sorento A",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: {
+          role: "listitem",
+          position: 1,
+          promotion: "exclude-marked-promoted",
+        },
+      },
+    });
+
+    expect(matches).toHaveLength(1);
+    await browser.click(matches[0]!);
+    await browser.waitForSettled();
+    await expect(browser.inspectPage()).resolves.toEqual({ url: `${origin}/next` });
+  });
+
+  it("does not fall back to a stale label when structural context is unavailable", async () => {
+    const origin = await fixture(`<!doctype html>
+      <a href="/next">2026 Kia Sorento A</a>
+      <ul aria-label="Other results"><li><a href="/other">Other vehicle</a></li></ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    await expect(
+      browser.findMatches({
+        kind: "accessible",
+        label: "2026 Kia Sorento A",
+        role: "link",
+        structure: {
+          container: { role: "list", label: "Vehicle results", occurrence: 1 },
+          item: {
+            role: "listitem",
+            position: 1,
+            promotion: "exclude-marked-promoted",
+          },
+        },
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it("fails boundedly for missing structural positions and ambiguous descendants", async () => {
+    const origin = await fixture(`<!doctype html>
+      <ul aria-label="Vehicle results"><li><a href="/one">One</a><a href="/two">Two</a></li></ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+    const target = {
+      kind: "accessible" as const,
+      label: "Stale",
+      role: "link",
+      structure: {
+        container: { role: "list" as const, label: "Vehicle results", occurrence: 1 },
+        item: { role: "listitem" as const, position: 1 },
+      },
+    };
+
+    await expect(browser.findMatches(target)).resolves.toHaveLength(2);
+    target.structure.item.position = 2;
+    await expect(browser.findMatches(target)).resolves.toEqual([]);
+  });
+
+  it("ignores items owned by nested repeated containers", async () => {
+    const nestedItems = Array.from(
+      { length: 105 },
+      (_, index) => `<li><a href="/nested-${index}">Nested ${index}</a></li>`,
+    ).join("");
+    const origin = await fixture(`<!doctype html>
+      <ul aria-label="Vehicle results">
+        <li><a href="/first">First outer</a></li>
+        <li><ul aria-label="Nested">${nestedItems}</ul></li>
+        <li><a href="/target">Target outer</a></li>
+      </ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Old target",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: { role: "listitem", position: 3 },
+      },
+    });
+    expect(matches).toHaveLength(1);
+    await browser.click(matches[0]!);
+    await browser.waitForSettled();
+    await expect(browser.inspectPage()).resolves.toEqual({ url: `${origin}/target` });
+  });
+
+  it("resolves structural items across an open shadow boundary", async () => {
+    const origin = await fixture(`<!doctype html>
+      <div id="results" role="list" aria-label="Shadow results"></div>
+      <script>
+        const root = document.querySelector('#results').attachShadow({ mode: 'open' });
+        root.innerHTML = '<div role="listitem"><a href="/shadow-target">Shadow target</a></div>';
+      </script>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    await expect(
+      browser.findMatches({
+        kind: "accessible",
+        label: "Old shadow target",
+        role: "link",
+        structure: {
+          container: { role: "list", label: "Shadow results", occurrence: 1 },
+          item: { role: "listitem", position: 1 },
+        },
+      }),
+    ).resolves.toHaveLength(1);
+  });
+
   it("rejects unbounded factory options", () => {
     expect(() =>
       createPlaywrightDiscoveryReplayBrowserFactory({ actionTimeoutMs: 0 }),

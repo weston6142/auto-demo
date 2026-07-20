@@ -56,6 +56,24 @@ export type DiscoveryInteractiveTarget = {
   disabled: boolean;
   actionRisk?: "potentially-mutating";
   form?: DiscoveryFormState;
+  structure?: DiscoveryTargetStructure;
+};
+
+export type DiscoveryStructuralContainer = {
+  role: "form" | "region" | "main" | "list" | "feed";
+  label?: string;
+  occurrence?: number;
+};
+
+export type DiscoveryStructuralItem = {
+  role: "listitem" | "article";
+  position: number;
+  promotion?: "exclude-marked-promoted";
+};
+
+export type DiscoveryTargetStructure = {
+  container: DiscoveryStructuralContainer;
+  item?: DiscoveryStructuralItem;
 };
 
 export type DiscoveryFormOption = {

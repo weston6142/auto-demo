@@ -1,6 +1,6 @@
 import { generateHeadlessVariants, type HeadlessVariantGenerationResult } from "@auto-demo/polish";
 import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
-import type { DiscoveryExpectationOrigin } from "./discoveryContract.js";
+import type { DiscoveryExpectationOrigin, DiscoveryTargetStructure } from "./discoveryContract.js";
 import {
   loadProject,
   type LoadedProject,
@@ -96,6 +96,9 @@ export {
   type DiscoveryObservedEffect,
   type DiscoverySelectedPath,
   type DiscoverySessionStatus,
+  type DiscoveryStructuralContainer,
+  type DiscoveryStructuralItem,
+  type DiscoveryTargetStructure,
   type DiscoverySessionV1,
   type DiscoveryTerminal,
   type DiscoveryVisibleState,
@@ -346,6 +349,7 @@ export type WalkthroughPlanTargetHint = {
   label: string;
   role?: string;
   occurrence?: number;
+  structure?: DiscoveryTargetStructure;
 };
 
 export type WalkthroughPlanSource =
