@@ -124,6 +124,7 @@ const browserFiles = new Set([
   "src/playwrightDiscoveryPolicyGuard.test.ts",
   "src/playwrightPolicyDiscoveryRehearsal.test.ts",
   "src/playwrightDiscoveryReplay.test.ts",
+  "src/playwrightValidationRunner.test.ts",
   "src/playwrightMetadataRecorder.test.ts",
   "src/playwrightExecutionController.test.ts",
   "src/agenticDiscoveryAcceptance.test.ts",
