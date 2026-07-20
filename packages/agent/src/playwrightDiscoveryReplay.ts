@@ -170,6 +170,21 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
   async findMatches(target: WalkthroughPlanTargetHint): Promise<DiscoveryReplayMatch[]> {
     await this.assertNoBrowserChallenge();
     const page = this.requirePage();
+    if (target.structure !== undefined) {
+      const candidates = await structuralTargetLocators(page, target);
+      const matches: DiscoveryReplayMatch[] = [];
+      for (const candidate of candidates.slice(0, MAX_RUNTIME_MATCHES)) {
+        const id = `match-${this.nextMatchId++}`;
+        this.locators.set(id, candidate);
+        matches.push({
+          id,
+          label: target.label,
+          ...(target.role === undefined ? {} : { role: target.role }),
+          occurrence: matches.length + 1,
+        });
+      }
+      return matches;
+    }
     let locator: Locator;
     if (target.role !== undefined) {
       locator = page.getByRole(target.role as Parameters<Page["getByRole"]>[0], {
@@ -498,6 +513,74 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     this.routedWebSocketViolation = false;
     return violation;
   }
+}
+
+async function structuralTargetLocators(
+  page: Page,
+  target: WalkthroughPlanTargetHint,
+): Promise<Locator[]> {
+  const structure = target.structure;
+  if (structure === undefined) return [];
+  const containerLocator = page.getByRole(
+    structure.container.role as Parameters<Page["getByRole"]>[0],
+    structure.container.label === undefined
+      ? undefined
+      : { name: structure.container.label, exact: true },
+  );
+  let containers = await visibleLocatorArray(containerLocator);
+  if (structure.container.occurrence !== undefined) {
+    const selected = containers[structure.container.occurrence - 1];
+    containers = selected === undefined ? [] : [selected];
+  }
+  const matches: Locator[] = [];
+  for (const container of containers) {
+    if (structure.item === undefined) {
+      const locator =
+        target.role === undefined
+          ? container.getByText(target.label, { exact: true })
+          : container.getByRole(target.role as Parameters<Locator["getByRole"]>[0], {
+              name: target.label,
+              exact: true,
+            });
+      matches.push(...(await visibleLocatorArray(locator)));
+      continue;
+    }
+    if (target.role === undefined) continue;
+    let items = await visibleLocatorArray(
+      container.getByRole(structure.item.role as Parameters<Locator["getByRole"]>[0]),
+    );
+    if (structure.item.promotion === "exclude-marked-promoted") {
+      const promotionFlags = await Promise.all(
+        items.map((item) =>
+          item.evaluate((element) => {
+            const marker = /^(sponsored|promoted|ad|advertisement)$/i;
+            return Array.from(element.children).some((child) =>
+              marker.test((child.textContent ?? "").replace(/\s+/g, " ").trim()),
+            );
+          }),
+        ),
+      );
+      items = items.filter((_item, index) => !promotionFlags[index]);
+    }
+    const item = items[structure.item.position - 1];
+    if (item === undefined) continue;
+    matches.push(
+      ...(await visibleLocatorArray(
+        item.getByRole(target.role as Parameters<Locator["getByRole"]>[0]),
+      )),
+    );
+  }
+  return matches.slice(0, MAX_RUNTIME_MATCHES);
+}
+
+async function visibleLocatorArray(locator: Locator): Promise<Locator[]> {
+  const count = Math.min(await locator.count().catch(() => 0), MAX_RUNTIME_MATCHES);
+  const visible: Locator[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const candidate = locator.nth(index);
+    if (await candidate.isVisible().catch(() => false)) visible.push(candidate);
+  }
+  return visible;
 }
 
 function safePageOrigin(value: string): string | undefined {

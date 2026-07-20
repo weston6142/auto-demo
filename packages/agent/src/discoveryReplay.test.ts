@@ -140,6 +140,24 @@ function completedChild(
   return child;
 }
 
+async function structuralCompiledFixture(): Promise<{
+  sourceSession: DiscoverySessionV1;
+  plan: WalkthroughPlan;
+}> {
+  const input = await safeCompiledFixture();
+  input.sourceSession.observations[0].interactiveTargets[0].structure = {
+    container: { role: "list", label: "Vehicle results", occurrence: 1 },
+    item: {
+      role: "listitem",
+      position: 1,
+      promotion: "exclude-marked-promoted",
+    },
+  };
+  const compiled = compileDiscoverySessionToWalkthroughPlan(input.sourceSession);
+  if (!compiled.ok) throw new Error("structural replay fixture must compile");
+  return { sourceSession: input.sourceSession, plan: compiled.plan };
+}
+
 describe("replayAndRepairDiscoveryPlan preflight", () => {
   it("rejects a plan that does not canonically match its source session", async () => {
     const input = await compiledFixture();
@@ -591,6 +609,87 @@ describe("replayAndRepairDiscoveryPlan single attempt", () => {
 });
 
 describe("replayAndRepairDiscoveryPlan repairs", () => {
+  it("accepts changed descriptive labels when repair preserves structural intent", async () => {
+    const root = await structuralCompiledFixture();
+    const child = completedChild(root.sourceSession, "session-repair-1", "Renamed vehicle");
+    const first = new FakeReplayBrowser();
+    first.matches = [];
+    const second = new FakeReplayBrowser();
+    second.matches = [{ id: "candidate-1", label: "Renamed vehicle", role: "button" }];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: sequentialFactory([first, second]),
+        repair: {
+          async repair() {
+            return { decision: "repaired", session: child };
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, sourceSession: { id: "session-repair-1" } });
+  });
+
+  it.each([
+    [
+      "removed",
+      (child: DiscoverySessionV1) => delete child.observations[0].interactiveTargets[0].structure,
+    ],
+    [
+      "position",
+      (child: DiscoverySessionV1) => {
+        child.observations[0].interactiveTargets[0].structure!.item!.position = 2;
+      },
+    ],
+    [
+      "promotion exclusion",
+      (child: DiscoverySessionV1) => {
+        delete child.observations[0].interactiveTargets[0].structure!.item!.promotion;
+      },
+    ],
+    [
+      "container",
+      (child: DiscoverySessionV1) => {
+        child.observations[0].interactiveTargets[0].structure!.container.label = "Featured";
+      },
+    ],
+  ])("rejects repair with %s structural intent", async (_name, mutate) => {
+    const root = await structuralCompiledFixture();
+    const child = completedChild(root.sourceSession, "session-repair-1", "Renamed vehicle");
+    mutate(child);
+    const first = new FakeReplayBrowser();
+    first.matches = [];
+    const second = new FakeReplayBrowser();
+    second.matches = [{ id: "candidate-1", label: "Renamed vehicle", role: "button" }];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      root,
+      {},
+      {
+        browserFactory: sequentialFactory([first, second]),
+        repair: {
+          async repair() {
+            return { decision: "repaired", session: child };
+          },
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "repair",
+      errors: [
+        {
+          code: "repair_structural_intent_mismatch",
+          message: "Discovery replay repair changed structural positional intent.",
+        },
+      ],
+    });
+  });
+
   it("recompiles one completed child before a fresh second replay", async () => {
     const root = await safeCompiledFixture();
     const child = completedChild(root.sourceSession, "session-repair-1", "Next");

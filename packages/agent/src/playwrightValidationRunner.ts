@@ -100,6 +100,22 @@ class PlaywrightValidationRunner implements WalkthroughValidationBrowserRunner {
       return [];
     }
 
+    if (step.targetHint?.structure !== undefined) {
+      const locators = await structuralTargetLocators(page, step.targetHint);
+      const candidates: Candidate[] = [];
+      for (const locator of locators) {
+        candidates.push({
+          id: `candidate-${candidates.length + 1}`,
+          label: targetText,
+          ...(step.targetHint.role === undefined ? {} : { role: step.targetHint.role }),
+          targetHint: structuredClone(step.targetHint),
+          locator,
+        });
+      }
+      candidates.forEach((candidate) => this.candidates.set(candidate.id, candidate));
+      return candidates.map(({ locator: _locator, ...match }) => match);
+    }
+
     const strategies = matchingStrategies(page, step, targetText);
     for (const strategy of strategies) {
       let candidates = await visibleCandidates(strategy.locator, targetText, strategy.role);
@@ -175,6 +191,74 @@ class PlaywrightValidationRunner implements WalkthroughValidationBrowserRunner {
       throw new WalkthroughValidationRunnerError("unsafe_action");
     }
   }
+}
+
+async function structuralTargetLocators(
+  page: Page,
+  target: NonNullable<WalkthroughPlanStep["targetHint"]>,
+): Promise<Locator[]> {
+  const structure = target.structure;
+  if (structure === undefined) return [];
+  const containerLocator = page.getByRole(
+    structure.container.role as Parameters<Page["getByRole"]>[0],
+    structure.container.label === undefined
+      ? undefined
+      : { name: structure.container.label, exact: true },
+  );
+  let containers = await visibleLocatorArray(containerLocator);
+  if (structure.container.occurrence !== undefined) {
+    const selected = containers[structure.container.occurrence - 1];
+    containers = selected === undefined ? [] : [selected];
+  }
+  const matches: Locator[] = [];
+  for (const container of containers) {
+    if (structure.item === undefined) {
+      const locator =
+        target.role === undefined
+          ? container.getByText(target.label, { exact: true })
+          : container.getByRole(target.role as Parameters<Locator["getByRole"]>[0], {
+              name: target.label,
+              exact: true,
+            });
+      matches.push(...(await visibleLocatorArray(locator)));
+      continue;
+    }
+    if (target.role === undefined) continue;
+    let items = await visibleLocatorArray(
+      container.getByRole(structure.item.role as Parameters<Locator["getByRole"]>[0]),
+    );
+    if (structure.item.promotion === "exclude-marked-promoted") {
+      const promotionFlags = await Promise.all(
+        items.map((item) =>
+          item.evaluate((element) => {
+            const marker = /^(sponsored|promoted|ad|advertisement)$/i;
+            return Array.from(element.children).some((child) =>
+              marker.test((child.textContent ?? "").replace(/\s+/g, " ").trim()),
+            );
+          }),
+        ),
+      );
+      items = items.filter((_item, index) => !promotionFlags[index]);
+    }
+    const item = items[structure.item.position - 1];
+    if (item === undefined) continue;
+    matches.push(
+      ...(await visibleLocatorArray(
+        item.getByRole(target.role as Parameters<Locator["getByRole"]>[0]),
+      )),
+    );
+  }
+  return matches.slice(0, 100);
+}
+
+async function visibleLocatorArray(locator: Locator): Promise<Locator[]> {
+  const count = Math.min(await locator.count().catch(() => 0), 100);
+  const visible: Locator[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const candidate = locator.nth(index);
+    if (await candidate.isVisible().catch(() => false)) visible.push(candidate);
+  }
+  return visible;
 }
 
 function matchingStrategies(

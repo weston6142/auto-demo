@@ -492,10 +492,15 @@ function collectBrowserSnapshot(input: {
     }
     return undefined;
   };
-  const explicitlyMarkedPromoted = (element: Element) =>
-    /(^|\s)(sponsored|promoted|ad|advertisement)(\s|$)/i.test(
-      safeText(element).replace(/\s+/g, " ").trim(),
+  const explicitlyMarkedPromoted = (element: Element) => {
+    const marker = /^(sponsored|promoted|ad|advertisement)$/i;
+    return (
+      marker.test(safeText(element, true).replace(/\s+/g, " ").trim()) ||
+      Array.from(element.children).some((child) =>
+        marker.test(safeText(child).replace(/\s+/g, " ").trim()),
+      )
     );
+  };
   const containerItems = new WeakMap<Element, Map<"listitem" | "article", Element[]>>();
   const itemsFor = (container: Element, itemRole: "listitem" | "article") => {
     const cached = containerItems.get(container)?.get(itemRole);

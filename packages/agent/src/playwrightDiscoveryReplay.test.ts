@@ -546,6 +546,68 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     ).resolves.toHaveLength(100);
   });
 
+  it("resolves structural position after promoted insertion and label changes", async () => {
+    const origin = await fixture(`<!doctype html>
+      <ul aria-label="Vehicle results">
+        <li><span>Sponsored</span><a href="/sponsored">Sponsored vehicle</a></li>
+        <li><a href="/next">Renamed first vehicle</a></li>
+        <li><a href="/other">Renamed second vehicle</a></li>
+      </ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "2026 Kia Sorento A",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: {
+          role: "listitem",
+          position: 1,
+          promotion: "exclude-marked-promoted",
+        },
+      },
+    });
+
+    expect(matches).toHaveLength(1);
+    await browser.click(matches[0]!);
+    await browser.waitForSettled();
+    await expect(browser.inspectPage()).resolves.toEqual({ url: `${origin}/next` });
+  });
+
+  it("does not fall back to a stale label when structural context is unavailable", async () => {
+    const origin = await fixture(`<!doctype html>
+      <a href="/next">2026 Kia Sorento A</a>
+      <ul aria-label="Other results"><li><a href="/other">Other vehicle</a></li></ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    await expect(
+      browser.findMatches({
+        kind: "accessible",
+        label: "2026 Kia Sorento A",
+        role: "link",
+        structure: {
+          container: { role: "list", label: "Vehicle results", occurrence: 1 },
+          item: {
+            role: "listitem",
+            position: 1,
+            promotion: "exclude-marked-promoted",
+          },
+        },
+      }),
+    ).resolves.toEqual([]);
+  });
+
   it("rejects unbounded factory options", () => {
     expect(() =>
       createPlaywrightDiscoveryReplayBrowserFactory({ actionTimeoutMs: 0 }),
