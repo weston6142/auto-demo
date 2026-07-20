@@ -386,11 +386,11 @@ Update the project map with exact PR head, CI run, review disposition, and WES-2
 
 Verify the PR base repository is `origin`, switch to `develop`, fetch `origin/develop`, and run `rtk git pull --ff-only origin develop`. Confirm the squash commit locally. Run `linear-sync-gate` in completion mode with PR, squash commit, checks, tests, review, spec, plan, and map evidence. Add the WES-267 completion comment, move it to Done, add the readiness handoff to WES-268, reconcile WES-265 and WES-273, and set WES-268 as next without starting it.
 
-- [ ] **Step 11: Publish a completion-sync PR only if the final gate requires tracked corrections**
+- [x] **Step 11: Publish a completion-sync PR only if the final gate requires tracked corrections**
 
 If completion synchronization changes the tracked map or plan after the feature merge, create a scoped `wes-267-completion-sync` branch and PR to `develop`, wait for required checks, squash merge it, and fast-forward local `develop` again. Never push directly to `develop`.
 
-- [ ] **Step 12: Confirm no unfinished in-scope work remains**
+- [x] **Step 12: Confirm no unfinished in-scope work remains**
 
 Run: `rtk rg -n '^\s*[-*]\s+\[ \]' docs/superpowers/plans/2026-07-19-wes-267-improve-target-ranking-structural-positional-intent.md`
 
