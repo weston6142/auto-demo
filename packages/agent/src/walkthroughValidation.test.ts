@@ -178,19 +178,20 @@ describe("validateWalkthroughPlan", () => {
 
     expect(isWalkthroughPlan(structural)).toBe(true);
 
+    type MutableStructure = Record<string, unknown> & {
+      container: Record<string, unknown>;
+      item: Record<string, unknown>;
+    };
     const mutate = [
-      (structure: Record<string, unknown>) => (structure.extra = true),
-      (structure: Record<string, any>) => (structure.container.role = "dialog"),
-      (structure: Record<string, any>) => (structure.item.position = 0),
-      (structure: Record<string, any>) => (structure.item.occurrence = 1),
-      (structure: Record<string, any>) => (structure.container.role = "form"),
+      (structure: MutableStructure) => (structure.extra = true),
+      (structure: MutableStructure) => (structure.container.role = "dialog"),
+      (structure: MutableStructure) => (structure.item.position = 0),
+      (structure: MutableStructure) => (structure.item.occurrence = 1),
+      (structure: MutableStructure) => (structure.container.role = "form"),
     ];
     for (const change of mutate) {
       const malformed = structuredClone(structural);
-      const structure = malformed.steps[0].targetHint?.structure as unknown as Record<
-        string,
-        unknown
-      >;
+      const structure = malformed.steps[0].targetHint?.structure as unknown as MutableStructure;
       change(structure);
       expect(isWalkthroughPlan(malformed)).toBe(false);
     }

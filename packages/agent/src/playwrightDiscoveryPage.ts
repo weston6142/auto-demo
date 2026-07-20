@@ -480,6 +480,27 @@ function collectBrowserSnapshot(input: {
     if (element.tagName === "ARTICLE") return "article";
     return undefined;
   };
+  const structuralContainerLabel = (element: Element) => {
+    const labelledBy = boundedText(element.getAttribute("aria-labelledby") ?? "");
+    const elementRoot = element.getRootNode();
+    const labelledIds = labelledBy.split(/\s+/).filter((id) => id.length > 0);
+    if (labelledIds.length > 32) truncatedContent += 1;
+    const labelledText = combineText(
+      labelledIds.slice(0, 32).map((id) => {
+        if (elementRoot instanceof Document || elementRoot instanceof ShadowRoot) {
+          const labelledElement = elementRoot.getElementById(id);
+          return labelledElement === null ? "" : safeText(labelledElement, false, true);
+        }
+        const labelledElement = document.getElementById(id);
+        return labelledElement === null ? "" : safeText(labelledElement, false, true);
+      }),
+    );
+    if (labelledText.length > 0) return labelledText;
+    for (const candidate of [element.getAttribute("aria-label"), element.getAttribute("title")]) {
+      if (candidate !== null && candidate.trim().length > 0) return boundedText(candidate);
+    }
+    return "";
+  };
   const nearestStructuralContainer = (element: Element) => {
     let depth = 0;
     for (
@@ -536,12 +557,12 @@ function collectBrowserSnapshot(input: {
     }
     const container = nearestStructuralContainer(itemElement ?? element);
     if (container === undefined) return undefined;
-    const containerLabel = boundedText(label(container.element).trim());
+    const containerLabel = boundedText(structuralContainerLabel(container.element).trim());
     const equivalentContainers = elements.filter(
       (candidate) =>
         visible(candidate) &&
         structuralContainerRole(candidate) === container.role &&
-        boundedText(label(candidate).trim()) === containerLabel,
+        boundedText(structuralContainerLabel(candidate).trim()) === containerLabel,
     );
     const containerOccurrence = equivalentContainers.indexOf(container.element) + 1;
     const base = {

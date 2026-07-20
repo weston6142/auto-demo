@@ -191,18 +191,23 @@ async function requireOneVisibleTarget(
   let candidateSince = 0;
   do {
     let foundCandidate = false;
-    const locators =
+    let locators =
       target.structure === undefined
         ? matchingLocators(page, target)
         : await structuralTargetLocators(page, target);
-    if (target.structure !== undefined && locators.length > 1) {
-      throw new PlaywrightExecutionControllerError("ambiguous_target");
+    if (target.structure !== undefined) {
+      if (target.structure.item === undefined && target.occurrence !== undefined) {
+        const selected = locators[target.occurrence - 1];
+        locators = selected === undefined ? [] : [selected];
+      } else if (locators.length > 1) {
+        throw new PlaywrightExecutionControllerError("ambiguous_target");
+      }
     }
     for (let locatorIndex = 0; locatorIndex < locators.length; locatorIndex += 1) {
       const locator = locators[locatorIndex];
       const visible = await visibleLocators(locator);
       if (visible.length === 0) continue;
-      if (target.occurrence !== undefined) {
+      if (target.structure === undefined && target.occurrence !== undefined) {
         const selected = visible[target.occurrence - 1];
         if (selected === undefined) continue;
         const key = `${locatorIndex}:${visible.length}:${target.occurrence}`;

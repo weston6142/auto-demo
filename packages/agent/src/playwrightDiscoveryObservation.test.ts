@@ -539,6 +539,18 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
     expect(JSON.stringify(result)).not.toMatch(/private-value|selector|outerHTML/);
   });
 
+  it("does not turn changing content into an unlabeled container identity", async () => {
+    await openHtml(`<main><a href="/story">Read story</a></main>`);
+
+    const result = await createPlaywrightDiscoveryObservationExtractor(page).observe();
+    if (!result.ok) throw new Error("unlabeled main observation must succeed");
+
+    expect(
+      result.observation.interactiveTargets.find((target) => target.label === "Read story")
+        ?.structure?.container,
+    ).toEqual({ role: "main", occurrence: 1 });
+  });
+
   it("computes visible omissions after priority ancestors suppress descendants", async () => {
     const descendants = Array.from(
       { length: 101 },
