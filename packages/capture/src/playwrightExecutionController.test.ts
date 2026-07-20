@@ -95,7 +95,7 @@ describe("createPlaywrightExecutionController", () => {
     await page.setContent(`
       <button onclick="this.dataset.clicked='outside'">2026 Kia Sorento A</button>
       <ul aria-label="Vehicle results">
-        <li><span>Sponsored</span><button onclick="this.dataset.clicked='sponsored'">Paid result</button></li>
+        <li>Sponsored <button onclick="this.dataset.clicked='sponsored'">Paid result</button></li>
         <li>
           <button onclick="this.dataset.clicked='eligible'">Renamed first result</button>
           <label>Condition <select><option>Used</option><option>New</option></select></label>
@@ -148,6 +148,30 @@ describe("createPlaywrightExecutionController", () => {
     await expect(
       controller.click({ label: "Stale label", role: "button", structure: firstEligibleResult }),
     ).rejects.toMatchObject({ code: "target_not_found" });
+  });
+
+  it("keeps recording positions local to the selected repeated container", async () => {
+    await page.setContent(`
+      <ul aria-label="Vehicle results">
+        <li><button>One</button></li>
+        <li><ul aria-label="Nested"><li><button>Nested</button></li></ul></li>
+        <li><button onclick="this.dataset.clicked='target'">Target</button></li>
+      </ul>
+    `);
+    const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
+
+    await controller.click({
+      label: "Old target",
+      role: "button",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: { role: "listitem", position: 3 },
+      },
+    });
+
+    expect(await page.getByRole("button", { name: "Target" }).getAttribute("data-clicked")).toBe(
+      "target",
+    );
   });
 
   it("rejects missing, disabled, and ambiguous public option labels", async () => {

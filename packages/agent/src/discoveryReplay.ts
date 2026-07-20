@@ -566,7 +566,16 @@ function prepareRepair(
 function preservesStructuralIntent(current: WalkthroughPlan, repaired: WalkthroughPlan): boolean {
   const structuralIntents = (plan: WalkthroughPlan) =>
     plan.steps.flatMap((step) =>
-      step.targetHint?.structure === undefined ? [] : [structuredClone(step.targetHint.structure)],
+      step.targetHint?.structure === undefined
+        ? []
+        : [
+            {
+              order: step.order,
+              action: step.action,
+              role: step.targetHint.role,
+              structure: structuredClone(step.targetHint.structure),
+            },
+          ],
     );
   const expected = structuralIntents(current);
   return (
@@ -670,7 +679,7 @@ async function requireReplayMatch(
 ): Promise<DiscoveryReplayMatch> {
   if (target === undefined) throw new DiscoveryReplayBrowserError("target_not_found");
   const matches = await browser.findMatches(target);
-  if (target.occurrence !== undefined) {
+  if (target.occurrence !== undefined && target.structure?.item === undefined) {
     const selected = matches[target.occurrence - 1];
     if (selected === undefined) throw new DiscoveryReplayBrowserError("target_not_found", matches);
     return selected;

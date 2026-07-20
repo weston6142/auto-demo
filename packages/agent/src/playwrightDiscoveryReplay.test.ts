@@ -549,7 +549,7 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
   it("resolves structural position after promoted insertion and label changes", async () => {
     const origin = await fixture(`<!doctype html>
       <ul aria-label="Vehicle results">
-        <li><span>Sponsored</span><a href="/sponsored">Sponsored vehicle</a></li>
+        <li>Sponsored <a href="/sponsored">Sponsored vehicle</a></li>
         <li><a href="/next">Renamed first vehicle</a></li>
         <li><a href="/other">Renamed second vehicle</a></li>
       </ul>`);
@@ -606,6 +606,59 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
         },
       }),
     ).resolves.toEqual([]);
+  });
+
+  it("fails boundedly for missing structural positions and ambiguous descendants", async () => {
+    const origin = await fixture(`<!doctype html>
+      <ul aria-label="Vehicle results"><li><a href="/one">One</a><a href="/two">Two</a></li></ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+    const target = {
+      kind: "accessible" as const,
+      label: "Stale",
+      role: "link",
+      structure: {
+        container: { role: "list" as const, label: "Vehicle results", occurrence: 1 },
+        item: { role: "listitem" as const, position: 1 },
+      },
+    };
+
+    await expect(browser.findMatches(target)).resolves.toHaveLength(2);
+    target.structure.item.position = 2;
+    await expect(browser.findMatches(target)).resolves.toEqual([]);
+  });
+
+  it("ignores items owned by nested repeated containers", async () => {
+    const origin = await fixture(`<!doctype html>
+      <ul aria-label="Vehicle results">
+        <li><a href="/first">First outer</a></li>
+        <li><ul aria-label="Nested"><li><a href="/nested">Nested result</a></li></ul></li>
+        <li><a href="/target">Target outer</a></li>
+      </ul>`);
+    const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
+      policy: { mode: "safe", allowedOrigins: [origin] },
+      attempt: 1,
+    });
+    browsers.push(browser);
+    await browser.open(origin);
+
+    const matches = await browser.findMatches({
+      kind: "accessible",
+      label: "Old target",
+      role: "link",
+      structure: {
+        container: { role: "list", label: "Vehicle results", occurrence: 1 },
+        item: { role: "listitem", position: 3 },
+      },
+    });
+    expect(matches).toHaveLength(1);
+    await browser.click(matches[0]!);
+    await browser.waitForSettled();
+    await expect(browser.inspectPage()).resolves.toEqual({ url: `${origin}/target` });
   });
 
   it("rejects unbounded factory options", () => {

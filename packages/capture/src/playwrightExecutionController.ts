@@ -303,15 +303,13 @@ async function structuralTargetLocators(
       continue;
     }
     if (target.role === undefined) continue;
-    let items = await visibleLocators(
-      container.getByRole(structure.item.role as Parameters<Locator["getByRole"]>[0]),
-    );
+    let items = await visibleStructuralItems(container, structure.item.role);
     if (structure.item.promotion === "exclude-marked-promoted") {
       const promotionFlags = await Promise.all(
         items.map((item) =>
           item.evaluate((element) => {
             const marker = /^(sponsored|promoted|ad|advertisement)$/i;
-            return Array.from(element.children).some((child) =>
+            return Array.from(element.childNodes).some((child) =>
               marker.test((child.textContent ?? "").replace(/\s+/g, " ").trim()),
             );
           }),
@@ -330,9 +328,40 @@ async function structuralTargetLocators(
   return matches;
 }
 
+async function visibleStructuralItems(
+  container: Locator,
+  itemRole: "listitem" | "article",
+): Promise<Locator[]> {
+  const items = await visibleLocators(
+    container.getByRole(itemRole as Parameters<Locator["getByRole"]>[0]),
+  );
+  const containerElement = await container.elementHandle();
+  if (containerElement === null) return [];
+  const direct: Locator[] = [];
+  for (const item of items) {
+    const belongs = await item.evaluate((element, expectedContainer) => {
+      let depth = 0;
+      for (
+        let current = element.parentElement;
+        current !== null && depth < 32;
+        current = current.parentElement, depth += 1
+      ) {
+        const role = current.getAttribute("role")?.toLowerCase();
+        const structural =
+          ["form", "region", "main", "list", "feed"].includes(role ?? "") ||
+          ["FORM", "MAIN", "UL", "OL"].includes(current.tagName);
+        if (structural) return current === expectedContainer;
+      }
+      return false;
+    }, containerElement);
+    if (belongs) direct.push(item);
+  }
+  return direct;
+}
+
 async function visibleLocators(locator: Locator): Promise<Locator[]> {
   const visible: Locator[] = [];
-  for (let index = 0; index < (await locator.count()); index += 1) {
+  for (let index = 0; index < Math.min(await locator.count(), 100); index += 1) {
     const candidate = locator.nth(index);
     if (await candidate.isVisible()) visible.push(candidate);
   }

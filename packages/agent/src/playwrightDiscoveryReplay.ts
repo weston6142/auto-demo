@@ -546,15 +546,13 @@ async function structuralTargetLocators(
       continue;
     }
     if (target.role === undefined) continue;
-    let items = await visibleLocatorArray(
-      container.getByRole(structure.item.role as Parameters<Locator["getByRole"]>[0]),
-    );
+    let items = await visibleStructuralItems(container, structure.item.role);
     if (structure.item.promotion === "exclude-marked-promoted") {
       const promotionFlags = await Promise.all(
         items.map((item) =>
           item.evaluate((element) => {
             const marker = /^(sponsored|promoted|ad|advertisement)$/i;
-            return Array.from(element.children).some((child) =>
+            return Array.from(element.childNodes).some((child) =>
               marker.test((child.textContent ?? "").replace(/\s+/g, " ").trim()),
             );
           }),
@@ -571,6 +569,41 @@ async function structuralTargetLocators(
     );
   }
   return matches.slice(0, MAX_RUNTIME_MATCHES);
+}
+
+async function visibleStructuralItems(
+  container: Locator,
+  itemRole: "listitem" | "article",
+): Promise<Locator[]> {
+  const items = await visibleLocatorArray(
+    container.getByRole(itemRole as Parameters<Locator["getByRole"]>[0]),
+  );
+  const containerElement = await container.elementHandle();
+  if (containerElement === null) return [];
+  const direct: Locator[] = [];
+  for (const item of items) {
+    const belongs = await item.evaluate((element, expectedContainer) => {
+      const structuralRole = (candidate: Element) => {
+        const explicit = candidate.getAttribute("role")?.toLowerCase();
+        if (["form", "region", "main", "list", "feed"].includes(explicit ?? "")) return explicit;
+        if (candidate.tagName === "FORM") return "form";
+        if (candidate.tagName === "MAIN") return "main";
+        if (candidate.tagName === "UL" || candidate.tagName === "OL") return "list";
+        return undefined;
+      };
+      let depth = 0;
+      for (
+        let current = element.parentElement;
+        current !== null && depth < 32;
+        current = current.parentElement, depth += 1
+      ) {
+        if (structuralRole(current) !== undefined) return current === expectedContainer;
+      }
+      return false;
+    }, containerElement);
+    if (belongs) direct.push(item);
+  }
+  return direct;
 }
 
 async function visibleLocatorArray(locator: Locator): Promise<Locator[]> {

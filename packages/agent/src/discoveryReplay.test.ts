@@ -609,6 +609,25 @@ describe("replayAndRepairDiscoveryPlan single attempt", () => {
 });
 
 describe("replayAndRepairDiscoveryPlan repairs", () => {
+  it("does not reapply a global occurrence after structural item resolution", async () => {
+    const root = await structuralCompiledFixture();
+    root.sourceSession.observations[0].interactiveTargets[0].occurrence = 2;
+    root.sourceSession.observations[0].interactiveTargets[0].structure!.item!.position = 2;
+    const compiled = compileDiscoverySessionToWalkthroughPlan(root.sourceSession);
+    if (!compiled.ok) throw new Error("occurrence fixture must compile");
+    const browser = new FakeReplayBrowser();
+    browser.matches = [{ id: "structural-match", label: "Renamed", role: "button" }];
+
+    const result = await replayAndRepairDiscoveryPlan(
+      { sourceSession: root.sourceSession, plan: compiled.plan },
+      { maxRepairs: 0 },
+      { browserFactory: browserFactory(browser) },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(browser.calls).toContain("click:structural-match");
+  });
+
   it("accepts changed descriptive labels when repair preserves structural intent", async () => {
     const root = await structuralCompiledFixture();
     const child = completedChild(root.sourceSession, "session-repair-1", "Renamed vehicle");
@@ -654,6 +673,12 @@ describe("replayAndRepairDiscoveryPlan repairs", () => {
       "container",
       (child: DiscoverySessionV1) => {
         child.observations[0].interactiveTargets[0].structure!.container.label = "Featured";
+      },
+    ],
+    [
+      "target role",
+      (child: DiscoverySessionV1) => {
+        child.observations[0].interactiveTargets[0].role = "link";
       },
     ],
   ])("rejects repair with %s structural intent", async (_name, mutate) => {
