@@ -378,11 +378,11 @@ git commit -m "WES-267: document structural target behavior"
 
 Push `wes-267-improve-target-ranking-positional-intent`; open a PR to `develop` referencing WES-267, the spec and plan, preserved unrelated files, and exact verification. Monitor structured check state and review threads. Diagnose any failed check with `gh-pr-failing-tests`, triage feedback with `gh-pr-review-triage`, apply issue-scoped fixes through TDD, and push until required checks pass with no unresolved actionable findings.
 
-- [ ] **Step 9: Record final pre-merge evidence and merge**
+- [x] **Step 9: Record final pre-merge evidence and merge**
 
 Update the project map with exact PR head, CI run, review disposition, and WES-268 as the deterministic post-merge pointer. Search this plan for unchecked in-scope implementation items. Commit and push the stable evidence update, wait for its exact-head checks, and squash merge only when all acceptance and review gates pass.
 
-- [ ] **Step 10: Synchronize the integration branch and Linear**
+- [x] **Step 10: Synchronize the integration branch and Linear**
 
 Verify the PR base repository is `origin`, switch to `develop`, fetch `origin/develop`, and run `rtk git pull --ff-only origin develop`. Confirm the squash commit locally. Run `linear-sync-gate` in completion mode with PR, squash commit, checks, tests, review, spec, plan, and map evidence. Add the WES-267 completion comment, move it to Done, add the readiness handoff to WES-268, reconcile WES-265 and WES-273, and set WES-268 as next without starting it.
 
