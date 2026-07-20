@@ -39,6 +39,60 @@ describe("CI change classification", () => {
 
     assert.equal(await readFile(outputFile, "utf8"), "route=docs-only\n");
   });
+
+  it("includes deleted and renamed paths when deciding whether a diff is Markdown-only", async () => {
+    const repository = await createGitRepository();
+    const base = git(repository, "rev-parse", "HEAD");
+    await rm(path.join(repository, "source.js"));
+    await writeFile(path.join(repository, "README.md"), "# Updated docs\n");
+    git(repository, "add", "--all");
+    git(repository, "commit", "-m", "delete source and update docs");
+    const deletionHead = git(repository, "rev-parse", "HEAD");
+    const outputFile = path.join(repository, "github-output.txt");
+
+    await runCiPolicy(["classify", base, deletionHead], { cwd: repository, outputFile });
+    assert.equal(await readFile(outputFile, "utf8"), "route=full\n");
+
+    const renameRepository = await createGitRepository();
+    const renameBase = git(renameRepository, "rev-parse", "HEAD");
+    git(renameRepository, "mv", "source.js", "source.md");
+    git(renameRepository, "commit", "-m", "rename source to Markdown");
+    const sourceRenameHead = git(renameRepository, "rev-parse", "HEAD");
+    const renameOutput = path.join(renameRepository, "github-output.txt");
+
+    await runCiPolicy(["classify", renameBase, sourceRenameHead], {
+      cwd: renameRepository,
+      outputFile: renameOutput,
+    });
+    assert.equal(await readFile(renameOutput, "utf8"), "route=full\n");
+
+    const markdownRepository = await createGitRepository();
+    const markdownBase = git(markdownRepository, "rev-parse", "HEAD");
+    git(markdownRepository, "mv", "README.md", "GUIDE.md");
+    git(markdownRepository, "commit", "-m", "rename Markdown");
+    const markdownRenameHead = git(markdownRepository, "rev-parse", "HEAD");
+    const markdownOutput = path.join(markdownRepository, "github-output.txt");
+
+    await runCiPolicy(["classify", markdownBase, markdownRenameHead], {
+      cwd: markdownRepository,
+      outputFile: markdownOutput,
+    });
+    assert.equal(await readFile(markdownOutput, "utf8"), "route=docs-only\n");
+
+    const markdownDeletionRepository = await createGitRepository();
+    const markdownDeletionBase = git(markdownDeletionRepository, "rev-parse", "HEAD");
+    await rm(path.join(markdownDeletionRepository, "README.md"));
+    git(markdownDeletionRepository, "add", "--all");
+    git(markdownDeletionRepository, "commit", "-m", "delete Markdown");
+    const markdownDeletionHead = git(markdownDeletionRepository, "rev-parse", "HEAD");
+    const markdownDeletionOutput = path.join(markdownDeletionRepository, "github-output.txt");
+
+    await runCiPolicy(["classify", markdownDeletionBase, markdownDeletionHead], {
+      cwd: markdownDeletionRepository,
+      outputFile: markdownDeletionOutput,
+    });
+    assert.equal(await readFile(markdownDeletionOutput, "utf8"), "route=docs-only\n");
+  });
 });
 
 describe("CI final gate", () => {
@@ -138,7 +192,8 @@ async function createGitRepository() {
   git(repository, "config", "user.email", "ci-policy@example.test");
   git(repository, "config", "user.name", "CI Policy Test");
   await writeFile(path.join(repository, "README.md"), "# Test\n");
-  git(repository, "add", "README.md");
+  await writeFile(path.join(repository, "source.js"), "export const value = 1;\n");
+  git(repository, "add", "README.md", "source.js");
   git(repository, "commit", "-m", "initial");
   return repository;
 }

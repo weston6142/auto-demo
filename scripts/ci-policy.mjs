@@ -77,11 +77,9 @@ export async function runCiPolicy(
 }
 
 async function gitChangedPaths({ cwd, base, head }) {
-  const output = await spawnForOutput(
-    "git",
-    ["diff", "--name-only", "--diff-filter=ACMR", base, head],
-    { cwd },
-  );
+  const output = await spawnForOutput("git", ["diff", "--name-only", "--no-renames", base, head], {
+    cwd,
+  });
   return output
     .split("\n")
     .map((line) => line.trim())

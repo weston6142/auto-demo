@@ -43,7 +43,7 @@ Tools such as Nx or Turborepo provide graph scheduling and caching. They add con
 
 ## Build and Test Command Design
 
-Create `scripts/run-workspace-task.mjs` with two responsibilities:
+Create `scripts/workspace-task-runner.mjs` with two responsibilities:
 
 1. Discover `packages/*/package.json`, map internal dependencies, and reject missing or cyclic internal workspace references.
 2. Execute a requested script in dependency-first order using `npm run <task> --workspace <name> --if-present --ignore-scripts`.
@@ -71,7 +71,7 @@ The GitHub workflow keeps the `CI` workflow name and a final job named `validate
 
 The workflow contains these jobs:
 
-1. `changes` checks out full history and classifies the exact diff as `docs_only` when every changed path is Markdown.
+1. `changes` checks out full history and classifies the exact diff as `docs-only` when every changed path is Markdown.
 2. `static` installs dependencies and always checks lint and formatting. Build and typecheck run for non-docs changes.
 3. `docs` installs dependencies, performs one build, and runs documentation contract tests.
 4. `unit` runs only for non-docs changes, performs one build, and runs unit tests.
