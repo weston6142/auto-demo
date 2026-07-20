@@ -10,6 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/index.test.ts src/capturePaths.test.ts src/captureEvents.test.ts src/jsonlEventWriter.test.ts src/playwrightMetadataRecorder.test.ts src/playwrightAdapter.test.ts src/playwrightExecutionController.test.ts src/captureManifest.test.ts",
+    "test:unit": "vitest run src/index.test.ts src/capturePaths.test.ts src/captureEvents.test.ts src/jsonlEventWriter.test.ts src/playwrightAdapter.test.ts src/captureManifest.test.ts",
+    "test:browser": "vitest run src/playwrightMetadataRecorder.test.ts src/playwrightExecutionController.test.ts",
     "test:smoke": "vitest run src/*.smoke.test.ts",
     "setup:browser": "playwright install chromium"
   },

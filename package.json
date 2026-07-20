@@ -10,17 +10,22 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "test": "node --test scripts/*.test.mjs && npm run test --workspaces --if-present",
+    "build": "node scripts/workspace-task-runner.mjs build",
+    "test": "npm run build && npm run test:ci",
+    "test:ci": "node --test scripts/*.test.mjs && node scripts/workspace-task-runner.mjs test",
+    "test:unit:ci": "node --test scripts/*.test.mjs && node scripts/workspace-task-runner.mjs test:unit",
+    "test:docs:ci": "node scripts/workspace-task-runner.mjs test:docs",
+    "test:browser:ci": "node scripts/workspace-task-runner.mjs test:browser",
     "test:smoke": "npm --workspace @auto-demo/capture run test:smoke",
     "setup:browser": "npm --workspace @auto-demo/capture run setup:browser --",
     "autodemo": "node packages/cli/dist/index.js",
     "validate:demo-ready": "node scripts/validate-demo-ready-export.mjs",
     "lint": "eslint .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build && npm run typecheck:ci",
+    "typecheck:ci": "node scripts/workspace-task-runner.mjs typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "validate": "npm run build && npm run typecheck && npm run lint && npm test && npm run format:check"
+    "validate": "npm run build && npm run typecheck:ci && npm run lint && npm run test:ci && npm run format:check"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

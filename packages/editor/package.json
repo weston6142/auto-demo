@@ -11,7 +11,8 @@
     "pretypecheck": "npm run build -w @auto-demo/project",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build -w @auto-demo/project",
-    "test": "vitest run src/index.test.ts"
+    "test": "vitest run src/index.test.ts",
+    "test:unit": "vitest run src/index.test.ts"
   },
   "dependencies": {
     "@auto-demo/project": "0.0.0"
