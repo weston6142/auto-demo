@@ -123,6 +123,7 @@ const browserFiles = new Set([
   "src/playwrightDiscoveryRehearsal.test.ts",
   "src/playwrightDiscoveryPolicyGuard.test.ts",
   "src/playwrightPolicyDiscoveryRehearsal.test.ts",
+  "src/playwrightDiscoveryReplay.test.ts",
   "src/playwrightMetadataRecorder.test.ts",
   "src/playwrightExecutionController.test.ts",
   "src/agenticDiscoveryAcceptance.test.ts",
@@ -305,7 +306,7 @@ Expected: FAIL against the current single-job workflow.
 
 - [ ] **Step 3: Implement the partitioned workflow**
 
-Use `actions/checkout@v4` and `actions/setup-node@v4` with Node 22 and npm caching. `changes` checks out with `fetch-depth: 0` and selects the comparison base from `github.event.pull_request.base.sha` or `github.event.before`.
+Use `actions/checkout@v7` and `actions/setup-node@v6` with Node 22 and npm caching. These action versions run on the current Node action runtime while the repository itself remains tested on Node 22. `changes` checks out with `fetch-depth: 0` and selects the comparison base from `github.event.pull_request.base.sha` or `github.event.before`.
 
 All validation jobs run `npm ci`. `static` always runs lint and format, and only builds/typechecks on the full route. `docs` builds once and runs `npm run test:docs:ci`. `unit` builds once and runs `npm run test:unit:ci`. `browser` installs Chromium and builds once, then invokes the `agent`, `capture`, and `cli` browser partitions explicitly with lifecycle hooks disabled. Each invocation writes a uniquely named JUnit file under the repository-root `artifacts/` directory, while the combined command stream is captured through `tee` with `pipefail`. Upload `artifacts/` only when the browser step fails.
 

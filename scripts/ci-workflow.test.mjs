@@ -16,6 +16,9 @@ describe("GitHub CI workflow contract", () => {
     assert.match(workflow, /^concurrency:$/m);
     assert.match(workflow, /group: ci-.*github\.event\.pull_request\.number.*github\.ref/);
     assert.match(workflow, /cancel-in-progress: true/);
+    assert.equal(matches(workflow, /uses: actions\/checkout@v7/g), 6);
+    assert.equal(matches(workflow, /uses: actions\/setup-node@v6/g), 4);
+    assert.doesNotMatch(workflow, /uses: actions\/(?:checkout|setup-node)@v4/);
   });
 
   it("runs static, docs, unit, and browser responsibilities independently", async () => {
