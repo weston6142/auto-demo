@@ -1,3 +1,5 @@
+/* global process */
+
 import { spawn } from "node:child_process";
 import { appendFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -35,7 +37,11 @@ export function validateCiResults(results) {
 
 export async function runCiPolicy(
   arguments_,
-  { cwd = process.cwd(), outputFile = process.env.GITHUB_OUTPUT, runGitDiff = gitChangedPaths } = {},
+  {
+    cwd = process.cwd(),
+    outputFile = process.env.GITHUB_OUTPUT,
+    runGitDiff = gitChangedPaths,
+  } = {},
 ) {
   const [mode, ...values] = arguments_;
   if (mode === "classify") {
@@ -71,13 +77,11 @@ export async function runCiPolicy(
 }
 
 async function gitChangedPaths({ cwd, base, head }) {
-  const output = await spawnForOutput("git", [
-    "diff",
-    "--name-only",
-    "--diff-filter=ACMR",
-    base,
-    head,
-  ], { cwd });
+  const output = await spawnForOutput(
+    "git",
+    ["diff", "--name-only", "--diff-filter=ACMR", base, head],
+    { cwd },
+  );
   return output
     .split("\n")
     .map((line) => line.trim())

@@ -11,8 +11,8 @@ describe("GitHub CI workflow contract", () => {
   it("retains pull-request and develop-push validation with superseded-run cancellation", async () => {
     const workflow = await readFile(workflowPath, "utf8");
     assert.match(workflow, /^name: CI$/m);
-    assert.match(workflow, /^  pull_request:$/m);
-    assert.match(workflow, /^  push:\n    branches:\n      - develop$/m);
+    assert.match(workflow, /^ {2}pull_request:$/m);
+    assert.match(workflow, /^ {2}push:\n {4}branches:\n {6}- develop$/m);
     assert.match(workflow, /^concurrency:$/m);
     assert.match(workflow, /group: ci-.*github\.event\.pull_request\.number.*github\.ref/);
     assert.match(workflow, /cancel-in-progress: true/);
@@ -45,7 +45,7 @@ describe("GitHub CI workflow contract", () => {
 
   it("keeps a stable always-running fail-closed validate job", async () => {
     const validate = jobBlock(await readFile(workflowPath, "utf8"), "validate");
-    assert.match(validate, /^  validate:\n    name: validate$/m);
+    assert.match(validate, /^ {2}validate:\n {4}name: validate$/m);
     assert.match(validate, /if: always\(\)/);
     assert.match(validate, /needs: \[changes, static, docs, unit, browser\]/);
     assert.match(validate, /node scripts\/ci-policy\.mjs gate/);
@@ -69,6 +69,6 @@ function jobBlock(workflow, job) {
   const start = workflow.indexOf(marker);
   assert.notEqual(start, -1, `missing ${job} job`);
   const remainder = workflow.slice(start + marker.length);
-  const nextJob = remainder.search(/^  [a-z][a-z-]*:\n/m);
+  const nextJob = remainder.search(/^ {2}[a-z][a-z-]*:\n/m);
   return workflow.slice(start, nextJob === -1 ? workflow.length : start + marker.length + nextJob);
 }

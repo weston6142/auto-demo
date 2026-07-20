@@ -14,9 +14,9 @@ const temporaryDirectories = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
@@ -29,11 +29,7 @@ describe("workspace task graph", () => {
         workspace("@auto-demo/project", []),
         workspace("@auto-demo/agent", ["@auto-demo/project"]),
       ]),
-      [
-        ["@auto-demo/project", "@auto-demo/render"],
-        ["@auto-demo/agent"],
-        ["@auto-demo/cli"],
-      ],
+      [["@auto-demo/project", "@auto-demo/render"], ["@auto-demo/agent"], ["@auto-demo/cli"]],
     );
   });
 
@@ -50,10 +46,7 @@ describe("workspace task graph", () => {
 
   it("rejects missing internal workspace dependencies", () => {
     assert.throws(
-      () =>
-        buildWorkspaceLevels([
-          workspace("@auto-demo/agent", ["@auto-demo/missing"]),
-        ]),
+      () => buildWorkspaceLevels([workspace("@auto-demo/agent", ["@auto-demo/missing"])]),
       /missing.*@auto-demo\/missing/i,
     );
   });
@@ -61,22 +54,19 @@ describe("workspace task graph", () => {
 
 describe("workspace task command", () => {
   it("suppresses lifecycle hooks and forwards task arguments", () => {
-    assert.deepEqual(
-      workspaceTaskCommand("build", "@auto-demo/project", ["--reporter=junit"]),
-      {
-        command: "npm",
-        args: [
-          "run",
-          "build",
-          "--workspace",
-          "@auto-demo/project",
-          "--if-present",
-          "--ignore-scripts",
-          "--",
-          "--reporter=junit",
-        ],
-      },
-    );
+    assert.deepEqual(workspaceTaskCommand("build", "@auto-demo/project", ["--reporter=junit"]), {
+      command: "npm",
+      args: [
+        "run",
+        "build",
+        "--workspace",
+        "@auto-demo/project",
+        "--if-present",
+        "--ignore-scripts",
+        "--",
+        "--reporter=junit",
+      ],
+    });
   });
 
   it("rejects an empty task", () => {

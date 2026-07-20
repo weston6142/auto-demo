@@ -1,3 +1,5 @@
+/* global process */
+
 import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -17,12 +19,17 @@ export async function discoverWorkspaces(repositoryRoot) {
         try {
           manifest = JSON.parse(await readFile(manifestPath, "utf8"));
         } catch (error) {
-          throw new Error(`Unable to read workspace manifest: packages/${entry.name}/package.json`, {
-            cause: error,
-          });
+          throw new Error(
+            `Unable to read workspace manifest: packages/${entry.name}/package.json`,
+            {
+              cause: error,
+            },
+          );
         }
         if (typeof manifest.name !== "string" || manifest.name.length === 0) {
-          throw new Error(`Workspace manifest is missing a name: packages/${entry.name}/package.json`);
+          throw new Error(
+            `Workspace manifest is missing a name: packages/${entry.name}/package.json`,
+          );
         }
         const dependencies = {
           ...objectValue(manifest.dependencies),
@@ -60,7 +67,9 @@ export function buildWorkspaceLevels(workspaces) {
     const dependencies = new Set(workspace.internalDependencies);
     for (const dependency of dependencies) {
       if (!workspaceByName.has(dependency)) {
-        throw new Error(`Missing internal workspace dependency ${dependency} for ${workspace.name}`);
+        throw new Error(
+          `Missing internal workspace dependency ${dependency} for ${workspace.name}`,
+        );
       }
       consumersByDependency.get(dependency).add(workspace.name);
     }
@@ -100,14 +109,7 @@ export function workspaceTaskCommand(task, workspaceName, taskArguments = []) {
   if (typeof task !== "string" || task.length === 0) {
     throw new Error("Workspace task is required.");
   }
-  const args = [
-    "run",
-    task,
-    "--workspace",
-    workspaceName,
-    "--if-present",
-    "--ignore-scripts",
-  ];
+  const args = ["run", task, "--workspace", workspaceName, "--if-present", "--ignore-scripts"];
   if (taskArguments.length > 0) args.push("--", ...taskArguments);
   return { command: "npm", args };
 }

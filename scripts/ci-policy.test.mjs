@@ -4,19 +4,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, it } from "node:test";
-import {
-  classifyChangedPaths,
-  runCiPolicy,
-  validateCiResults,
-} from "./ci-policy.mjs";
+import { classifyChangedPaths, runCiPolicy, validateCiResults } from "./ci-policy.mjs";
 
 const temporaryDirectories = [];
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
