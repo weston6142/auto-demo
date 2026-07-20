@@ -16,6 +16,7 @@ import {
   type FinalizedDiscoveryAttempt,
   type PendingDiscoveryAttempt,
   type DiscoverySessionV1,
+  type DiscoveryTargetStructure,
 } from "./discoveryContract.js";
 import type {
   BeginDiscoveryAttemptInput,
@@ -225,6 +226,101 @@ function sanitizeFormState(
   };
 }
 
+function sanitizeTargetStructure(
+  value: unknown,
+  path: string,
+  errors: DiscoveryContractError[],
+): DiscoveryTargetStructure | undefined {
+  if (!isRecord(value)) {
+    errors.push(
+      discoveryError("invalid_discovery_input", "Target structure is invalid.", { path }),
+    );
+    return undefined;
+  }
+  const initialErrorCount = errors.length;
+  errors.push(...invalidUnknownFields(value, ["container", "item"], path));
+  if (!isRecord(value.container)) {
+    errors.push(
+      discoveryError("invalid_discovery_input", "Target structure is invalid.", {
+        path: `${path}.container`,
+      }),
+    );
+    return undefined;
+  }
+  const container = value.container;
+  errors.push(
+    ...invalidUnknownFields(container, ["role", "label", "occurrence"], `${path}.container`),
+  );
+  const containerRoles = new Set(["form", "region", "main", "list", "feed"]);
+  const normalizedLabel =
+    typeof container.label === "string" ? container.label.replace(/\s+/g, " ").trim() : undefined;
+  const label =
+    container.label === undefined
+      ? undefined
+      : sanitizeRequiredPublicText(container.label, `${path}.container.label`, errors);
+  if (
+    !containerRoles.has(String(container.role)) ||
+    (container.label !== undefined &&
+      (label === undefined || label !== normalizedLabel || label.includes("[redacted-secret]"))) ||
+    (container.occurrence !== undefined &&
+      (!Number.isInteger(container.occurrence) ||
+        Number(container.occurrence) < 1 ||
+        Number(container.occurrence) > DISCOVERY_LIMITS.interactiveTargetsPerObservation))
+  ) {
+    errors.push(
+      discoveryError("invalid_discovery_input", "Target structure is invalid.", { path }),
+    );
+  }
+
+  let item: DiscoveryTargetStructure["item"];
+  if (value.item !== undefined) {
+    if (!isRecord(value.item)) {
+      errors.push(
+        discoveryError("invalid_discovery_input", "Target structure is invalid.", {
+          path: `${path}.item`,
+        }),
+      );
+    } else {
+      errors.push(
+        ...invalidUnknownFields(value.item, ["role", "position", "promotion"], `${path}.item`),
+      );
+      if (
+        (value.item.role !== "listitem" && value.item.role !== "article") ||
+        !Number.isInteger(value.item.position) ||
+        Number(value.item.position) < 1 ||
+        Number(value.item.position) > DISCOVERY_LIMITS.interactiveTargetsPerObservation ||
+        (value.item.promotion !== undefined &&
+          value.item.promotion !== "exclude-marked-promoted") ||
+        (container.role !== "list" && container.role !== "feed")
+      ) {
+        errors.push(
+          discoveryError("invalid_discovery_input", "Target structure is invalid.", { path }),
+        );
+      } else {
+        item = {
+          role: value.item.role,
+          position: Number(value.item.position),
+          ...(value.item.promotion === undefined ? {} : { promotion: value.item.promotion }),
+        };
+      }
+    }
+  }
+  if (
+    errors.length !== initialErrorCount ||
+    (label === undefined && container.label !== undefined)
+  ) {
+    return undefined;
+  }
+  return {
+    container: {
+      role: container.role as DiscoveryTargetStructure["container"]["role"],
+      ...(label === undefined ? {} : { label }),
+      ...(container.occurrence === undefined ? {} : { occurrence: Number(container.occurrence) }),
+    },
+    ...(item === undefined ? {} : { item }),
+  };
+}
+
 export function isSafeArtifactPath(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0 || value.includes("\\")) return false;
   if (value.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(value)) return false;
@@ -369,7 +465,7 @@ export function sanitizeObservationInput(
     errors.push(
       ...invalidUnknownFields(
         value,
-        ["id", "label", "role", "occurrence", "disabled", "actionRisk", "form"],
+        ["id", "label", "role", "occurrence", "disabled", "actionRisk", "form", "structure"],
         path,
       ),
     );
@@ -380,6 +476,10 @@ export function sanitizeObservationInput(
         : sanitizeRequiredPublicText(value.role, `${path}.role`, errors);
     const form =
       value.form === undefined ? undefined : sanitizeFormState(value.form, `${path}.form`, errors);
+    const structure =
+      value.structure === undefined
+        ? undefined
+        : sanitizeTargetStructure(value.structure, `${path}.structure`, errors);
     if (
       !isSafeDiscoveryId(value.id) ||
       nestedIds.has(value.id) ||
@@ -404,6 +504,7 @@ export function sanitizeObservationInput(
         disabled: value.disabled,
         ...(value.actionRisk === undefined ? {} : { actionRisk: value.actionRisk }),
         ...(form === undefined ? {} : { form }),
+        ...(structure === undefined ? {} : { structure }),
       },
     ];
   });

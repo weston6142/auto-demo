@@ -240,6 +240,28 @@ function sanitizeCandidate(candidate: WalkthroughValidationMatch): WalkthroughVa
             ...(candidate.targetHint.occurrence === undefined
               ? {}
               : { occurrence: candidate.targetHint.occurrence }),
+            ...(candidate.targetHint.structure === undefined
+              ? {}
+              : {
+                  structure: {
+                    container: {
+                      role: candidate.targetHint.structure.container.role,
+                      ...(candidate.targetHint.structure.container.label === undefined
+                        ? {}
+                        : {
+                            label: sanitizeWalkthroughText(
+                              candidate.targetHint.structure.container.label,
+                            ),
+                          }),
+                      ...(candidate.targetHint.structure.container.occurrence === undefined
+                        ? {}
+                        : { occurrence: candidate.targetHint.structure.container.occurrence }),
+                    },
+                    ...(candidate.targetHint.structure.item === undefined
+                      ? {}
+                      : { item: { ...candidate.targetHint.structure.item } }),
+                  },
+                }),
           },
         }),
   };
