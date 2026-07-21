@@ -36,6 +36,8 @@ export type CoordinateTraceRecord = {
   semanticAction?: DiscoveryAction;
   target?: DiscoveryInteractiveTarget;
   publicEffect?: "none" | "navigation" | "scroll" | "popup" | "layout" | "form-change";
+  pageBefore?: { url: string; title: string };
+  pageAfter?: { url: string; title: string };
 };
 
 export type CoordinateDiscoveryBoundary =
@@ -166,6 +168,8 @@ export function createCoordinateDiscoverySession(input: {
           ...(semanticAction === undefined ? {} : { semanticAction }),
           ...(target === undefined ? {} : { target: structuredClone(target.target) }),
           publicEffect: publicEffect(before, after, target, afterTarget),
+          pageBefore: { url: before.url, title: "" },
+          pageAfter: { url: after.url, title: "" },
         });
         if (afterTarget !== undefined) lastTarget = afterTarget;
 

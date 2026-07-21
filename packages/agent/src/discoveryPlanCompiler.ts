@@ -69,6 +69,17 @@ export function compileDiscoverySessionToWalkthroughPlan(
   }
 }
 
+export function compileValidatedDiscoverySessionToWalkthroughPlan(
+  session: DiscoverySessionV1,
+): CompileDiscoverySessionResult {
+  try {
+    return compileValidatedSession(session);
+  } catch (error) {
+    if (error instanceof CompilationFailure) return { ok: false, errors: [error.error] };
+    return failure("invalid_compiled_plan", "Discovery plan compilation failed safely.");
+  }
+}
+
 function compileValidatedSession(session: DiscoverySessionV1): CompileDiscoverySessionResult {
   if (session.status !== "completed" || session.terminal?.status !== "completed") {
     return failure(

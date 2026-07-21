@@ -136,6 +136,14 @@ export {
 } from "./coordinateDiscoveryStore.js";
 
 export {
+  finalizeCoordinateDiscovery,
+  type CoordinateDiscoveryFinalizeDependencies,
+  type CoordinateDiscoveryFinalizeInput,
+  type CoordinateDiscoveryFinalizeResult,
+  type CoordinateReplayResult,
+} from "./coordinateDiscoveryFinalize.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,
