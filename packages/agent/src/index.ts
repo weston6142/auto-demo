@@ -107,6 +107,16 @@ export {
 } from "./discoveryContract.js";
 
 export {
+  COORDINATE_DISCOVERY_LIMITS,
+  parseCoordinateActionBatch,
+  type CoordinateActionBatch,
+  type CoordinateActionBatchResult,
+  type CoordinateDiscoveryAction,
+  type CoordinateDiscoveryContractError,
+  type CoordinateFrame,
+} from "./coordinateDiscoveryContract.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,
