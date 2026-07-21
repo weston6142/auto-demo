@@ -170,6 +170,7 @@ function runtimeFor(state: ReturnType<typeof createRuntimeState>): DiscoverHostR
     },
     async act(actions) {
       const acted = await state.session.act(actions);
+      if (!acted.ok && acted.code === "anti_bot_challenge") state.phase = "failed";
       let frame: Record<string, unknown> | undefined;
       if (acted.frame !== undefined) {
         const persisted = await state.persistFrame(acted.frame);
@@ -193,6 +194,13 @@ function runtimeFor(state: ReturnType<typeof createRuntimeState>): DiscoverHostR
       };
     },
     async finish() {
+      if (state.phase === "failed") {
+        return {
+          ok: false,
+          code: "anti_bot_challenge",
+          message: "Coordinate discovery stopped at an anti-bot challenge.",
+        };
+      }
       const finalized = await finalizeCoordinateDiscovery(
         {
           sessionId: state.bootstrap.sessionId,

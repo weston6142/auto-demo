@@ -27,6 +27,7 @@ export interface CoordinateDiscoveryPage {
     grid: boolean;
   }): Promise<CapturedCoordinateFrame>;
   state(): Promise<CoordinatePageState>;
+  challenge(): Promise<boolean>;
   inspectPoint(point: ScreenPoint): Promise<CoordinateTargetEvidence | undefined>;
   execute(action: CoordinateDiscoveryAction): Promise<void>;
 }
@@ -59,7 +60,12 @@ export type CoordinateDiscoveryActResult =
   | {
       ok: false;
       executedActions: number;
-      code: "invalid_action_batch" | "stale_frame" | "action_failed" | "frame_unavailable";
+      code:
+        | "invalid_action_batch"
+        | "stale_frame"
+        | "action_failed"
+        | "frame_unavailable"
+        | "anti_bot_challenge";
       message: string;
       failedActionIndex?: number;
       frame?: CapturedCoordinateFrame;
@@ -88,6 +94,7 @@ export function createCoordinateDiscoverySession(input: {
   let activeState: CoordinatePageState | undefined;
   let lastTarget: CoordinateTargetEvidence | undefined;
   let lastTargetPoint: ScreenPoint | undefined;
+  let challengeDetected = false;
   const trace: CoordinateTraceRecord[] = [];
   const bindings = new Map<string, string>();
 
@@ -129,6 +136,16 @@ export function createCoordinateDiscoverySession(input: {
     },
 
     async act(value): Promise<CoordinateDiscoveryActResult> {
+      if (challengeDetected || (await input.page.challenge())) {
+        challengeDetected = true;
+        return failure(
+          "anti_bot_challenge",
+          0,
+          "Coordinate discovery stopped at an anti-bot challenge.",
+          undefined,
+          activeFrame,
+        );
+      }
       if (activeFrame === undefined || activeState === undefined) {
         return failure("stale_frame", 0, "Coordinate discovery frame is stale.");
       }
@@ -174,6 +191,25 @@ export function createCoordinateDiscoverySession(input: {
         }
         executedActions += 1;
         const after = await input.page.state();
+        if (await input.page.challenge()) {
+          challengeDetected = true;
+          try {
+            return failure(
+              "anti_bot_challenge",
+              executedActions,
+              "Coordinate discovery stopped at an anti-bot challenge.",
+              index,
+              await capture(),
+            );
+          } catch {
+            return failure(
+              "anti_bot_challenge",
+              executedActions,
+              "Coordinate discovery stopped at an anti-bot challenge.",
+              index,
+            );
+          }
+        }
         const afterTarget =
           lastTargetPoint === undefined
             ? undefined

@@ -39,6 +39,21 @@ Write one JSON action file against the current frame:
 }
 ```
 
+The complete action shapes are:
+
+```json
+{ "type": "move", "x": 420, "y": 245 }
+{ "type": "click", "x": 420, "y": 245 }
+{ "type": "double-click", "x": 420, "y": 245 }
+{ "type": "scroll", "x": 420, "y": 245, "deltaY": 400 }
+{ "type": "keypress", "keys": ["K", "ENTER"] }
+{ "type": "type", "text": "Kia", "binding": "make" }
+{ "type": "wait", "durationMs": 500 }
+```
+
+`keypress` always uses the plural `keys` array, even for one key. Run
+`npm run autodemo -- discover act --help` for the same schema at the terminal.
+
 Then submit it:
 
 ```bash

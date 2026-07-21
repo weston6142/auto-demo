@@ -496,6 +496,8 @@ describe("agent wrapper documentation", () => {
       "explicit approval",
       "coordinates never enter replay",
       "auto demo never calls a model api",
+      '{ "type": "keypress", "keys": ["k", "enter"] }',
+      '{ "type": "scroll", "x": 420, "y": 245, "deltay": 400 }',
     ]) {
       expect(combined.toLowerCase()).toContain(required.toLowerCase());
     }

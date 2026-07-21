@@ -54,6 +54,19 @@ describe("natural browser input", () => {
     expect(moves.some((event) => event.point.x !== 20 && event.point.y !== 30)).toBe(true);
   });
 
+  it("exposes only screen coordinates when an action-shaped destination is supplied", async () => {
+    const events: NaturalInputEvent[] = [];
+    const driver = createNaturalInputDriver(recordingPort(events), {
+      pointer: { x: 0, y: 0 },
+    });
+
+    const actionShapedDestination = { type: "move", x: 12, y: 34 };
+    await driver.move(actionShapedDestination);
+
+    expect(driver.pointer()).toEqual({ x: 12, y: 34 });
+    expect(events.at(-1)).toEqual({ kind: "move", point: { x: 12, y: 34 } });
+  });
+
   it("settles at the destination before a physical click", async () => {
     const events: NaturalInputEvent[] = [];
     const driver = createNaturalInputDriver(recordingPort(events), {

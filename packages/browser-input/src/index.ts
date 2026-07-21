@@ -40,7 +40,7 @@ export function createNaturalInputDriver(
   options: NaturalInputOptions,
 ): NaturalInputDriver {
   assertPoint(options.pointer);
-  let pointer = { ...options.pointer };
+  let pointer = screenPoint(options.pointer);
   const settleMs = options.settleMs ?? 40;
   const doubleClickIntervalMs = options.doubleClickIntervalMs ?? 80;
 
@@ -61,7 +61,7 @@ export function createNaturalInputDriver(
       const remaining = 1 - eased;
       const point =
         index === steps
-          ? { ...destination }
+          ? screenPoint(destination)
           : {
               x:
                 remaining * remaining * origin.x +
@@ -74,7 +74,7 @@ export function createNaturalInputDriver(
             };
       await port.move(point);
     }
-    pointer = { ...destination };
+    pointer = screenPoint(destination);
   };
 
   const settle = async () => {
@@ -87,7 +87,7 @@ export function createNaturalInputDriver(
   };
 
   return {
-    pointer: () => ({ ...pointer }),
+    pointer: () => screenPoint(pointer),
     move,
     async click(destination) {
       await move(destination);
@@ -120,4 +120,8 @@ function assertPoint(point: ScreenPoint): void {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
     throw new Error("invalid coordinates");
   }
+}
+
+function screenPoint(point: ScreenPoint): ScreenPoint {
+  return { x: point.x, y: point.y };
 }

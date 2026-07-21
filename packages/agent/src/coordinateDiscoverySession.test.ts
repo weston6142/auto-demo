@@ -21,6 +21,7 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
     layoutIdentity: "layout-1",
   };
   private selectedOption = "Any make";
+  private blocked = false;
 
   shiftLayout() {
     this.pageState.layoutIdentity = "layout-external";
@@ -44,6 +45,10 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
 
   async state() {
     return structuredClone(this.pageState);
+  }
+
+  async challenge() {
+    return this.blocked;
   }
 
   async inspectPoint(point: {
@@ -100,6 +105,12 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
       this.pageState.layoutIdentity = "layout-2";
     }
     if (action.type === "scroll") this.pageState.scroll.y += action.deltaY;
+    if (action.type === "click" && action.x > 600) {
+      this.pageState.documentToken = "document-blocked";
+      this.pageState.url = "https://example.test/blocked";
+      this.pageState.title = "Verify you are human";
+      this.blocked = true;
+    }
   }
 }
 
@@ -175,6 +186,34 @@ describe("coordinate discovery session", () => {
     expect(stale).toMatchObject({ ok: false, executedActions: 0, code: "stale_frame" });
     expect(invalid).toMatchObject({ ok: false, executedActions: 0, code: "invalid_action_batch" });
     expect(page.executed).toHaveLength(0);
+  });
+
+  it("stops at an anti-bot challenge without inspecting or executing another action", async () => {
+    const { page, session, frame } = await started();
+
+    const result = await session.act({
+      frameId: frame.id,
+      actions: [
+        { type: "click", x: 700, y: 80 },
+        { type: "click", x: 300, y: 80 },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "anti_bot_challenge",
+      executedActions: 1,
+      failedActionIndex: 0,
+      frame: { id: "frame-2" },
+    });
+    expect(page.executed).toHaveLength(1);
+    expect(
+      await session.act({
+        frameId: "frame-2",
+        actions: [{ type: "click", x: 300, y: 80 }],
+      }),
+    ).toMatchObject({ ok: false, code: "anti_bot_challenge", executedActions: 0 });
+    expect(page.executed).toHaveLength(1);
   });
 
   it("invalidates a cached frame when the page moves before the next action", async () => {

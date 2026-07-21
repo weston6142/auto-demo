@@ -44,6 +44,26 @@ function backend(): DiscoverCommandBackend & { calls: unknown[] } {
 }
 
 describe("discover CLI command", () => {
+  it("documents the exact provider-neutral action JSON schema", async () => {
+    const active = backend();
+
+    const result = await runDiscoverCommand(["act", "--help"], active);
+
+    expect(result).toMatchObject({ exitCode: 0, stderr: "" });
+    for (const example of [
+      '{ "type": "move", "x": 420, "y": 245 }',
+      '{ "type": "click", "x": 420, "y": 245 }',
+      '{ "type": "double-click", "x": 420, "y": 245 }',
+      '{ "type": "scroll", "x": 420, "y": 245, "deltaY": 400 }',
+      '{ "type": "keypress", "keys": ["K", "ENTER"] }',
+      '{ "type": "type", "text": "Kia", "binding": "make" }',
+      '{ "type": "wait", "durationMs": 500 }',
+    ]) {
+      expect(result.stdout).toContain(example);
+    }
+    expect(active.calls).toHaveLength(0);
+  });
+
   it("starts a headed provider-neutral discovery session", async () => {
     const active = backend();
     const result = await runDiscoverCommand(

@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { PNG } from "pngjs";
+import { classifyBrowserChallenge } from "@auto-demo/browser-profile";
 import {
   createNaturalInputDriver,
   type NaturalInputDriver,
@@ -159,6 +160,19 @@ export class PlaywrightCoordinateDiscoveryPage {
 
   async nativeUiState(): Promise<"closed" | "open"> {
     return this.nativePopupOpen ? "open" : "closed";
+  }
+
+  async challenge(): Promise<boolean> {
+    if (this.nativePopupOpen) return false;
+    const summary = await this.page
+      .locator("body")
+      .innerText({ timeout: 1_000 })
+      .then(async (visibleText) => ({
+        title: await this.page.title().catch(() => ""),
+        visibleText: visibleText.slice(0, 8192),
+      }))
+      .catch(() => ({ title: "", visibleText: "" }));
+    return classifyBrowserChallenge(summary) !== undefined;
   }
 
   async execute(action: CoordinateDiscoveryAction): Promise<void> {

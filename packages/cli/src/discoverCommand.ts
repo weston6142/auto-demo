@@ -27,6 +27,9 @@ export async function runDiscoverCommand(
   args: string[],
   backend: DiscoverCommandBackend,
 ): Promise<DiscoverCliResult> {
+  if (args.includes("--help") || args.includes("-h")) {
+    return { exitCode: 0, stdout: discoverHelpText(), stderr: "" };
+  }
   if (!args.includes("--json")) {
     return {
       exitCode: 1,
@@ -56,6 +59,31 @@ export async function runDiscoverCommand(
       payload,
     ),
   );
+}
+
+function discoverHelpText(): string {
+  return [
+    "Usage:",
+    "  autodemo discover start --url <https-url> --goal <text> --risk <safe|public-browse|disposable|yolo> --json",
+    "  autodemo discover observe --session <id> --json",
+    "  autodemo discover act --session <id> --actions-file <json-file> --json",
+    "  autodemo discover status --session <id> --json",
+    "  autodemo discover finish --session <id> --json",
+    "  autodemo discover abandon --session <id> --json",
+    "",
+    "Action file:",
+    '  { "frameId": "frame-1", "actions": [ ... ] }',
+    "",
+    "Actions:",
+    '  { "type": "move", "x": 420, "y": 245 }',
+    '  { "type": "click", "x": 420, "y": 245 }',
+    '  { "type": "double-click", "x": 420, "y": 245 }',
+    '  { "type": "scroll", "x": 420, "y": 245, "deltaY": 400 }',
+    '  { "type": "keypress", "keys": ["K", "ENTER"] }',
+    '  { "type": "type", "text": "Kia", "binding": "make" }',
+    '  { "type": "wait", "durationMs": 500 }',
+    "",
+  ].join("\n");
 }
 
 function parseStart(args: string[]): { ok: true; input: DiscoverStartInput } | { ok: false } {
