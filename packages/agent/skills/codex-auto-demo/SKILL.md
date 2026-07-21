@@ -111,6 +111,10 @@ fallback. Persist the selected profile in `DiscoverySessionV1`; compilation and
 approval bind it into the plan. Treat `anti_bot_challenge` as distinct from a
 policy denial and report only its bounded provider and profile identifier.
 
+For ordinary autonomous public-site discovery, omit `launchProfilePlan` to use
+the headed Chrome primary and headed bundled-Chromium fallback. Use headless
+mode only when the user explicitly requests it by supplying a profile plan.
+
 1. For `safe` and `public-browse`, declare exact allowed top-level origins. For
    `disposable`, obtain a fresh `environment-is-disposable` acknowledgement and
    exact allowed origins before each discovery or replay run. For `yolo`, do not

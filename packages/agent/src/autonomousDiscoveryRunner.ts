@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  DEFAULT_AUTONOMOUS_BROWSER_LAUNCH_PROFILE_PLAN,
   validateBrowserLaunchProfilePlan,
   type BrowserLaunchProfilePlanV1,
   type BrowserLaunchProfileV1,
@@ -120,7 +121,7 @@ export type AutonomousDiscoveryRunnerInput = {
   goal: string;
   host: DiscoveryHostProvenance;
   policy: DiscoveryPolicy;
-  launchProfilePlan: BrowserLaunchProfilePlanV1;
+  launchProfilePlan?: BrowserLaunchProfilePlanV1;
   inputBindings?: Record<string, unknown>;
 };
 
@@ -898,7 +899,9 @@ function prepareInput(
   ) {
     return { ok: false, message: "Autonomous discovery runner input is invalid." };
   }
-  const profiles = validateBrowserLaunchProfilePlan(input.launchProfilePlan);
+  const profiles = validateBrowserLaunchProfilePlan(
+    input.launchProfilePlan ?? DEFAULT_AUTONOMOUS_BROWSER_LAUNCH_PROFILE_PLAN,
+  );
   const policy = validateDiscoveryPolicy(input.policy, input.targetUrl);
   if (!profiles.ok || !policy.ok) {
     return { ok: false, message: "Autonomous discovery runner input is invalid." };

@@ -244,6 +244,8 @@ Run affected agent tests/typechecks, followed by issue-owned ESLint, Prettier, b
 
 Give the reviewer WES-274, both WES-274 docs, the WES-273 handoff evidence, the full `origin/develop...HEAD` diff, and verification output. Fix every verified Critical/Important finding through RED-GREEN; verify and fix low-risk Minor findings.
 
+Review found that the clean-base publication had dropped the headed autonomous default and still exercised the screenshot fixture headless. RED-GREEN restores the headed Chrome plus headed bundled-Chromium default inside WES-274 and runs the visual-observation browser fixture headed under CI's virtual display, without restoring WES-273's paused pointer/select implementation.
+
 - [x] **Step 3: Commit only issue-owned paths**
 
 Stage explicit docs and package paths. Never stage `.gitignore` or `workflow/`. Publish WES-274 independently from WES-273's paused implementation history.

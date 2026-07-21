@@ -9,6 +9,8 @@ Autonomous discovery will make each decision from the existing sanitized text ob
 
 This work follows the WES-273 acceptance evidence that exposed the visual gap, but it is published independently from WES-273's paused implementation commits. WES-273's acceptance run, approval, recording, handoff, and completion are not part of WES-274.
 
+Ordinary autonomous discovery remains headed: when the caller omits a launch plan, the runner uses installed headed Chrome with headed bundled Chromium as its only fallback. Headless remains available only through an explicit launch plan. CI runs the visual-observation browser fixture headed under a virtual display so focus-preserving screenshot behavior is exercised in the supported mode.
+
 ## Selected Approach
 
 Extend the existing discovery screenshot artifact boundary into the autonomous runner rather than creating a sidecar service or embedding image data in observations.

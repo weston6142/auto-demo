@@ -333,6 +333,23 @@ async function runnerFixture(store = new MemoryStore()) {
 }
 
 describe("autonomous discovery runner", () => {
+  it("uses the headed autonomous profile plan when the caller does not explicitly choose one", async () => {
+    const fixture = await runnerFixture();
+    const launch = vi.spyOn(fixture.dependencies.browserLauncher, "launch");
+    const inputWithoutProfile = { ...INPUT, launchProfilePlan: undefined };
+
+    await runAutonomousDiscoveryToReview(inputWithoutProfile, fixture.dependencies);
+
+    expect(launch).toHaveBeenCalledWith({
+      url: INPUT.targetUrl,
+      profilePlan: {
+        schemaVersion: 1,
+        primary: expect.objectContaining({ channel: "chrome", headless: false }),
+        fallbacks: [expect.objectContaining({ channel: "bundled", headless: false })],
+      },
+    });
+  });
+
   it("can change the next decision from image content absent from the text observation", async () => {
     const visible = await runnerFixture();
     const unavailable = await runnerFixture();

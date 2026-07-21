@@ -133,7 +133,7 @@ jobs:
           set -o pipefail
           {
             npm --workspace @auto-demo/capture --ignore-scripts run test:browser -- --reporter=default --reporter=junit --outputFile.junit=../../artifacts/capture.xml
-            npm --workspace @auto-demo/agent --ignore-scripts run test:browser -- --reporter=default --reporter=junit --outputFile.junit=../../artifacts/agent.xml
+            xvfb-run --auto-servernum env AUTODEMO_BROWSER_TEST_MODE=headed npm --workspace @auto-demo/agent --ignore-scripts run test:browser -- --reporter=default --reporter=junit --outputFile.junit=../../artifacts/agent.xml
             npm --workspace @auto-demo/cli --ignore-scripts run test:browser -- --reporter=default --reporter=junit --outputFile.junit=../../artifacts/cli.xml
           } 2>&1 | tee artifacts/browser-tests.log
 

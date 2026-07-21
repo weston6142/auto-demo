@@ -375,6 +375,10 @@ Persistent contexts, executable paths, arbitrary launch arguments, cookies, stor
 authenticated browser state are outside the contract. Existing plans without a profile retain the
 bundled headless Chromium 1280x720 default.
 
+New autonomous discovery runs that omit `launchProfilePlan` start with headed installed Chrome and
+fall back only to headed bundled Chromium. Headless discovery remains available through an explicit
+profile plan, but is not an automatic fallback for ordinary public-site browsing.
+
 ## Structured Browser Observation Snapshots
 
 `createPlaywrightDiscoveryObservationExtractor()` inspects an existing Playwright page and

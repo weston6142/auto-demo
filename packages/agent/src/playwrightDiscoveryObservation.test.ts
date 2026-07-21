@@ -10,7 +10,9 @@ let context: BrowserContext;
 let page: Page;
 
 beforeEach(async () => {
-  browser = await chromium.launch();
+  browser = await chromium.launch({
+    headless: process.env.AUTODEMO_BROWSER_TEST_MODE !== "headed",
+  });
   context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   page = await context.newPage();
 });
