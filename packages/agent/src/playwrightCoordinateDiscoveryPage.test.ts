@@ -35,6 +35,26 @@ async function fixture() {
   `);
 }
 
+async function shadowSelectFixture() {
+  await page.setContent(`
+    <a href="#background" style="position:fixed;left:40px;top:40px;width:220px;height:60px">
+      Background promotion
+    </a>
+    <demo-shadow-select style="position:fixed;left:40px;top:40px;width:220px;height:60px"></demo-shadow-select>
+    <script>
+      customElements.define("demo-shadow-select", class extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" }).innerHTML =
+            '<style>:host { display:block } select { width:220px; height:60px }</style>' +
+            '<div><label>Shadow Make</label>' +
+            '<select><option>Any make</option><option>Kia</option></select></div>';
+        }
+      });
+    </script>
+  `);
+}
+
 describe("Playwright coordinate discovery page", () => {
   it("composes a cursor into an exact viewport PNG without changing page DOM", async () => {
     await fixture();
@@ -192,5 +212,27 @@ describe("Playwright coordinate discovery page", () => {
       adapter.captureFrame({ id: "frame-2", pointer: { x: 10, y: 10 }, grid: false }),
     ).rejects.toThrow("native_window_capture_unavailable");
     await adapter.execute({ type: "keypress", keys: ["ESCAPE"] });
+  });
+
+  it("resolves a native form control through nested open shadow roots", async () => {
+    await shadowSelectFixture();
+    const adapter = new PlaywrightCoordinateDiscoveryPage(page, {
+      windowCapture: { async capture() { return undefined; } },
+    });
+    const point = { x: 150, y: 70 };
+
+    expect(await adapter.inspectPoint(point)).toMatchObject({
+      target: {
+        label: "Shadow Make",
+        role: "combobox",
+        form: { selectedOption: "Any make" },
+      },
+    });
+
+    await adapter.state();
+    await adapter.execute({ type: "click", ...point });
+    await expect(
+      adapter.captureFrame({ id: "shadow-frame", pointer: point, grid: false }),
+    ).rejects.toThrow("native_window_capture_unavailable");
   });
 });

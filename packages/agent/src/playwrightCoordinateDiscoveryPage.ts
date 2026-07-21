@@ -183,7 +183,21 @@ export class PlaywrightCoordinateDiscoveryPage {
       case "click":
         this.nativePopupOpen = await this.page.evaluate(
           ({ x, y }) => {
-            const layers = document.elementsFromPoint(x, y);
+            const layers: Element[] = [];
+            const seen = new Set<Element>();
+            const seenRoots = new Set<Document | ShadowRoot>();
+            const visit = (root: Document | ShadowRoot) => {
+              if (seenRoots.has(root)) return;
+              seenRoots.add(root);
+              for (const element of root.elementsFromPoint(x, y)) {
+                if (!seen.has(element)) {
+                  seen.add(element);
+                  layers.push(element);
+                }
+                if (element.shadowRoot !== null) visit(element.shadowRoot);
+              }
+            };
+            visit(document);
             const layeredSelect = layers
               .map((element) => element.closest("select"))
               .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
@@ -242,7 +256,7 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
   const selector =
     'a[href],button,input,select,textarea,[contenteditable="true"],[role="button"],[role="link"],[role="combobox"]';
   const formSelector = 'button,input,select,textarea,[contenteditable="true"],[role="button"],[role="combobox"]';
-  const layers = document.elementsFromPoint(point.x, point.y);
+  const layers = deepElementsFromPoint(document, point);
   const layeredFormControl = layers
     .map((candidate) => candidate.closest(formSelector))
     .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement);
@@ -250,7 +264,7 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
     .map((candidate) => candidate.closest("label"))
     .map((label) => (label instanceof HTMLLabelElement ? label.control : null))
     .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement);
-  const containedFormControl = Array.from(document.querySelectorAll(formSelector))
+  const containedFormControl = deepQueryAll(document, formSelector)
     .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
     .filter((candidate) => containsPoint(candidate, point))
     .sort(bySmallestArea)[0];
@@ -261,7 +275,7 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
     layers
       .map((candidate) => candidate.closest(selector))
       .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement) ??
-    Array.from(document.querySelectorAll(selector))
+    deepQueryAll(document, selector)
       .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
       .filter((candidate) => containsPoint(candidate, point))
       .sort(bySmallestArea)[0];
@@ -285,6 +299,34 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
     return leftRect.width * leftRect.height - rightRect.width * rightRect.height;
   }
 
+  function deepElementsFromPoint(root: Document | ShadowRoot, target: ScreenPoint): Element[] {
+    const results: Element[] = [];
+    const seen = new Set<Element>();
+    const seenRoots = new Set<Document | ShadowRoot>();
+    const visit = (current: Document | ShadowRoot) => {
+      if (seenRoots.has(current)) return;
+      seenRoots.add(current);
+      for (const candidate of current.elementsFromPoint(target.x, target.y)) {
+        if (!seen.has(candidate)) {
+          seen.add(candidate);
+          results.push(candidate);
+        }
+        if (candidate.shadowRoot !== null) visit(candidate.shadowRoot);
+      }
+    };
+    visit(root);
+    return results;
+  }
+
+  function deepQueryAll(root: Document | ShadowRoot, query: string): HTMLElement[] {
+    const results: HTMLElement[] = [];
+    for (const candidate of Array.from(root.querySelectorAll("*"))) {
+      if (candidate instanceof HTMLElement && candidate.matches(query)) results.push(candidate);
+      if (candidate.shadowRoot !== null) results.push(...deepQueryAll(candidate.shadowRoot, query));
+    }
+    return results;
+  }
+
   const normalized = (value: string | null | undefined) => value?.replace(/\s+/g, " ").trim() ?? "";
   const roleOf = (candidate: Element): string | undefined => {
     const explicit = normalized(candidate.getAttribute("role"));
@@ -306,9 +348,15 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
     if (aria !== "") return aria;
     const labelledBy = normalized(candidate.getAttribute("aria-labelledby"));
     if (labelledBy !== "") {
+      const candidateRoot = candidate.getRootNode();
       const labelled = labelledBy
         .split(/\s+/)
-        .map((id) => normalized(document.getElementById(id)?.textContent))
+        .map((id) =>
+          normalized(
+            (candidateRoot instanceof ShadowRoot ? candidateRoot.getElementById(id) : null)
+              ?.textContent ?? document.getElementById(id)?.textContent,
+          ),
+        )
         .filter(Boolean)
         .join(" ");
       if (labelled !== "") return labelled;
@@ -322,6 +370,9 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
         .map((label) => normalized(label.childNodes[0]?.textContent ?? label.textContent))
         .find(Boolean);
       if (associated !== undefined) return associated;
+      const nearbyLabel = candidate.parentElement?.querySelector(":scope > label, label");
+      const nearbyLabelText = normalized(nearbyLabel?.textContent);
+      if (nearbyLabelText !== "") return nearbyLabelText;
       const placeholder = normalized(candidate.getAttribute("placeholder"));
       if (placeholder !== "") return placeholder;
       if (
@@ -336,11 +387,9 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
 
   const role = roleOf(element);
   const label = labelOf(element);
-  const candidates = Array.from(
-    document.querySelectorAll(
-      'a[href],button,input,select,textarea,[contenteditable="true"],[role="button"],[role="link"],[role="combobox"]',
-    ),
-  ).filter((candidate) => roleOf(candidate) === role && labelOf(candidate) === label);
+  const candidates = deepQueryAll(document, selector).filter(
+    (candidate) => roleOf(candidate) === role && labelOf(candidate) === label,
+  );
   const occurrence = candidates.indexOf(element) + 1;
 
   const root = globalThis as typeof globalThis & {
@@ -398,9 +447,9 @@ function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence |
     const organicItems = allItems.filter((candidate) => !promoted(candidate));
     const position = organicItems.findIndex((candidate) => candidate === item) + 1;
     const containerLabel = labelOf(container);
-    const sameContainers = Array.from(
-      document.querySelectorAll('ol,ul,[role="list"],[role="feed"]'),
-    ).filter((candidate) => labelOf(candidate) === containerLabel);
+    const sameContainers = deepQueryAll(document, 'ol,ul,[role="list"],[role="feed"]').filter(
+      (candidate) => labelOf(candidate) === containerLabel,
+    );
     if (position > 0) {
       structure = {
         container: {
