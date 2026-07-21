@@ -18,8 +18,9 @@ afterEach(async () => {
 
 describe("file discover command backend", () => {
   it("starts once and reconnects later commands from safe host metadata", async () => {
-    const workflowDirectory = await mkdtemp(join(tmpdir(), "discover-backend-"));
-    directories.push(workflowDirectory);
+    const root = await mkdtemp(join(tmpdir(), "discover-backend-"));
+    directories.push(root);
+    const workflowDirectory = join(root, "workflow");
     const backend = createFileDiscoverCommandBackend({
       workflowDirectory,
       idGenerator: () => "discovery-123",

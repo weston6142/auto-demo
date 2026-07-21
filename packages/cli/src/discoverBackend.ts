@@ -42,6 +42,7 @@ export function createFileDiscoverCommandBackend(
       if (!/^[a-z0-9-]{8,128}$/i.test(token)) return startFailure();
       const bootstrapPath = join(sessionDirectory, "bootstrap.json");
       try {
+        await mkdir(resolve(options.workflowDirectory), { recursive: true });
         await mkdir(sessionDirectory, { recursive: false });
         await writeFile(join(sessionDirectory, ".host-token"), token, {
           encoding: "utf8",
