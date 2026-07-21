@@ -5,9 +5,7 @@ import {
   validateBrowserLaunchProfile,
   type BrowserLaunchProfileV1,
 } from "@auto-demo/browser-profile";
-import type { DiscoveryPolicy } from "./discoveryPolicy.js";
-import { validateDiscoveryPolicy } from "./discoveryPolicy.js";
-import type { DiscoverySessionV1 } from "./discoveryContract.js";
+import { DISCOVERY_LIMITS, type DiscoverySessionV1 } from "./discoveryContract.js";
 import { isSafeDiscoveryId, validateDiscoverySession } from "./discoveryValidation.js";
 import type { WalkthroughPlan } from "./index.js";
 import { isWalkthroughPlan } from "./walkthroughValidation.js";
@@ -37,10 +35,40 @@ export type AutonomousDiscoveryRunCheckpoint = {
   schemaVersion: 1;
   runId: string;
   phase: AutonomousDiscoveryRunPhase;
-  policy: DiscoveryPolicy;
+  policySelection: AutonomousDiscoveryPolicySelection;
   target: { url: string; goal: string };
   launchProfile: BrowserLaunchProfileV1;
   artifacts: Partial<Record<AutonomousDiscoveryArtifactKind, string>>;
+};
+
+export type AutonomousDiscoveryPolicySelection =
+  { mode: "yolo" } | { mode: "safe" | "public-browse" | "disposable"; allowedOrigins: string[] };
+
+export type AutonomousDiscoveryReplayArtifact = {
+  schemaVersion: 1;
+  status: "passed" | "failed";
+  attempts: number;
+};
+
+export type AutonomousDiscoveryReviewArtifact = {
+  schemaVersion: 1;
+  planFingerprint: string;
+  approval: { eligible: boolean; basis?: "validated" | "best-guess-bypass" };
+  blockerCount: number;
+};
+
+export type AutonomousDiscoveryExecutionArtifact = {
+  schemaVersion: 1;
+  status: "completed";
+  stepCount: number;
+};
+
+export type AutonomousDiscoveryHandoffArtifact = {
+  schemaVersion: 1;
+  status: "completed";
+  projectDirectory: string;
+  projectName: string;
+  nextStepCount: number;
 };
 
 export type AutonomousDiscoveryStoreErrorCode =
@@ -84,10 +112,21 @@ export type AutonomousDiscoveryStore = {
   loadPlan(
     kind: "replay-validated" | "approved",
   ): Promise<{ ok: true; plan: WalkthroughPlan } | AutonomousDiscoveryStoreError>;
-  writeReplay(value: unknown): Promise<AutonomousDiscoveryStoreWriteResult>;
-  writeReview(value: unknown): Promise<AutonomousDiscoveryStoreWriteResult>;
-  writeExecution(value: unknown): Promise<AutonomousDiscoveryStoreWriteResult>;
-  writeHandoff(value: unknown): Promise<AutonomousDiscoveryStoreWriteResult>;
+  writeReplay(
+    value: AutonomousDiscoveryReplayArtifact,
+  ): Promise<AutonomousDiscoveryStoreWriteResult>;
+  writeReview(
+    value: AutonomousDiscoveryReviewArtifact,
+  ): Promise<AutonomousDiscoveryStoreWriteResult>;
+  loadReview(): Promise<
+    { ok: true; review: AutonomousDiscoveryReviewArtifact } | AutonomousDiscoveryStoreError
+  >;
+  writeExecution(
+    value: AutonomousDiscoveryExecutionArtifact,
+  ): Promise<AutonomousDiscoveryStoreWriteResult>;
+  writeHandoff(
+    value: AutonomousDiscoveryHandoffArtifact,
+  ): Promise<AutonomousDiscoveryStoreWriteResult>;
 };
 
 const ARTIFACT_PATHS = {
@@ -219,15 +258,25 @@ export function createFileAutonomousDiscoveryStore(directory: string): Autonomou
       return { ok: true, plan: structuredClone(read.value) };
     },
     async writeReplay(value) {
+      if (!isReplayArtifact(value)) return invalidArtifact();
       return await writeArtifact(ARTIFACT_PATHS.replay, value);
     },
     async writeReview(value) {
+      if (!isReviewArtifact(value)) return invalidArtifact();
       return await writeArtifact(ARTIFACT_PATHS.review, value);
     },
+    async loadReview() {
+      const read = await readJson(ARTIFACT_PATHS.review);
+      if (!read.ok) return read;
+      if (!isReviewArtifact(read.value)) return invalidArtifact();
+      return { ok: true, review: structuredClone(read.value) };
+    },
     async writeExecution(value) {
+      if (!isExecutionArtifact(value)) return invalidArtifact();
       return await writeArtifact(ARTIFACT_PATHS.execution, value);
     },
     async writeHandoff(value) {
+      if (!isHandoffArtifact(value)) return invalidArtifact();
       return await writeArtifact(ARTIFACT_PATHS.handoff, value);
     },
   };
@@ -240,7 +289,7 @@ function isCheckpoint(value: unknown): value is AutonomousDiscoveryRunCheckpoint
       "schemaVersion",
       "runId",
       "phase",
-      "policy",
+      "policySelection",
       "target",
       "launchProfile",
       "artifacts",
@@ -267,11 +316,115 @@ function isCheckpoint(value: unknown): value is AutonomousDiscoveryRunCheckpoint
     return false;
   }
   if (!validateBrowserLaunchProfile(value.launchProfile).ok) return false;
-  if (!validateDiscoveryPolicy(value.policy as DiscoveryPolicy, value.target.url).ok) return false;
+  if (!isPolicySelection(value.policySelection, value.target.url)) return false;
   return Object.entries(value.artifacts).every(
     ([kind, path]) =>
       isArtifactKind(kind) && typeof path === "string" && path === artifactPathForKind(kind),
   );
+}
+
+function isPolicySelection(
+  value: unknown,
+  targetUrl: string,
+): value is AutonomousDiscoveryPolicySelection {
+  if (!isRecord(value) || typeof value.mode !== "string") return false;
+  if (value.mode === "yolo") return hasOnlyKeys(value, ["mode"]);
+  if (
+    !["safe", "public-browse", "disposable"].includes(value.mode) ||
+    !hasOnlyKeys(value, ["mode", "allowedOrigins"]) ||
+    !Array.isArray(value.allowedOrigins) ||
+    value.allowedOrigins.length === 0 ||
+    !value.allowedOrigins.every((origin) => typeof origin === "string" && isExactOrigin(origin))
+  )
+    return false;
+  return value.allowedOrigins.includes(new URL(targetUrl).origin);
+}
+
+function isReplayArtifact(value: unknown): value is AutonomousDiscoveryReplayArtifact {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["schemaVersion", "status", "attempts"]) &&
+    value.schemaVersion === 1 &&
+    ["passed", "failed"].includes(String(value.status)) &&
+    Number.isInteger(value.attempts) &&
+    Number(value.attempts) >= 0 &&
+    Number(value.attempts) <= 3
+  );
+}
+
+function isReviewArtifact(value: unknown): value is AutonomousDiscoveryReviewArtifact {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ["schemaVersion", "planFingerprint", "approval", "blockerCount"]) ||
+    value.schemaVersion !== 1 ||
+    typeof value.planFingerprint !== "string" ||
+    !Number.isInteger(value.blockerCount) ||
+    Number(value.blockerCount) < 0 ||
+    !isRecord(value.approval)
+  )
+    return false;
+  return (
+    hasOnlyKeys(value.approval, ["eligible", "basis"]) &&
+    typeof value.approval.eligible === "boolean" &&
+    (value.approval.basis === undefined ||
+      ["validated", "best-guess-bypass"].includes(String(value.approval.basis)))
+  );
+}
+
+function isExecutionArtifact(value: unknown): value is AutonomousDiscoveryExecutionArtifact {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ["schemaVersion", "status", "stepCount"]) ||
+    value.schemaVersion !== 1 ||
+    value.status !== "completed" ||
+    !Number.isInteger(value.stepCount) ||
+    Number(value.stepCount) < 0 ||
+    Number(value.stepCount) > DISCOVERY_LIMITS.selectedPathAttempts
+  )
+    return false;
+  return true;
+}
+
+function isHandoffArtifact(value: unknown): value is AutonomousDiscoveryHandoffArtifact {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "schemaVersion",
+      "status",
+      "projectDirectory",
+      "projectName",
+      "nextStepCount",
+    ]) &&
+    value.schemaVersion === 1 &&
+    value.status === "completed" &&
+    typeof value.projectDirectory === "string" &&
+    value.projectDirectory.length > 0 &&
+    value.projectDirectory.length <= DISCOVERY_LIMITS.publicStringCharacters &&
+    typeof value.projectName === "string" &&
+    value.projectName.length > 0 &&
+    value.projectName.length <= DISCOVERY_LIMITS.publicStringCharacters &&
+    Number.isInteger(value.nextStepCount) &&
+    Number(value.nextStepCount) >= 0 &&
+    Number(value.nextStepCount) <= DISCOVERY_LIMITS.selectedPathAttempts
+  );
+}
+
+function isExactOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      /^https?:$/.test(url.protocol) &&
+      url.origin === value &&
+      url.username === "" &&
+      url.password === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
+function invalidArtifact(): AutonomousDiscoveryStoreError {
+  return storeError("invalid_runner_artifact", "Autonomous discovery artifact is invalid.");
 }
 
 function isRunPhase(value: unknown): value is AutonomousDiscoveryRunPhase {

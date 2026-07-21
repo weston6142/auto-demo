@@ -310,11 +310,13 @@ selected path, freshly replays it with at most two repairs, persists the sanitiz
 `review_required` without approving, recording, or handing off.
 
 After the operator gives explicit approval through the established approval API or CLI, call
-`completeApprovedAutonomousDiscovery()` with that approved plan. This separate phase verifies the
-persisted replay checkpoint and approval fingerprint, re-establishes the exact tier and launch profile
+`completeApprovedAutonomousDiscovery()` with that approved plan and a freshly supplied policy. This
+separate phase verifies the persisted replay checkpoint, review evidence, approval fingerprint, and
+policy tier/scope, then re-establishes the exact tier and launch profile
 for fresh recording, persists completed execution before project handoff, and does not open the editor
 or export. Runtime input values are passed only to the recording dependency and are never accepted by
-the runner artifact store.
+the runner artifact store. The checkpoint retains only the non-authorizing tier/scope selection; it
+never retains a disposable acknowledgement or another phase's authority.
 
 The runner is a public model-agnostic API, not an interactive discovery CLI. Hosts may layer a
 transport over its decision-provider contract without taking ownership of browser cleanup,

@@ -20,7 +20,7 @@ const CHECKPOINT: AutonomousDiscoveryRunCheckpoint = {
   schemaVersion: 1,
   runId: "run-1",
   phase: "discovering",
-  policy: { mode: "yolo" },
+  policySelection: { mode: "yolo" },
   target: { url: "https://example.com/search", goal: "Find one vehicle" },
   launchProfile: PROFILE,
   artifacts: {},
@@ -77,7 +77,10 @@ describe("file autonomous discovery store", () => {
     const root = await mkdtemp(join(tmpdir(), "autodemo-runner-store-"));
     const directory = join(root, "run-1");
     await mkdir(directory);
-    await writeFile(join(directory, "run.json"), JSON.stringify({ ...CHECKPOINT, policy: {} }));
+    await writeFile(
+      join(directory, "run.json"),
+      JSON.stringify({ ...CHECKPOINT, policySelection: {} }),
+    );
 
     await expect(createFileAutonomousDiscoveryStore(directory).loadCheckpoint()).resolves.toEqual({
       ok: false,
@@ -109,5 +112,33 @@ describe("file autonomous discovery store", () => {
     const sessionText = await readFile(join(directory, "sessions/root.json"), "utf8");
     expect(`${checkpointText}${sessionText}`).not.toContain("inputBindings");
     expect(`${checkpointText}${sessionText}`).not.toContain("10001");
+  });
+
+  it("rejects arbitrary value-bearing execution artifacts", async () => {
+    const root = await mkdtemp(join(tmpdir(), "autodemo-runner-store-"));
+    const store = createFileAutonomousDiscoveryStore(join(root, "run-1"));
+    await store.initialize(CHECKPOINT);
+
+    await expect(
+      store.writeExecution({
+        schemaVersion: 1,
+        status: "completed",
+        stepCount: 1,
+        capture: {
+          outputDir: "capture",
+          manifestPath: "capture/capture.manifest.json",
+          mediaPath: "capture/media/viewport.webm",
+          metadataPath: "capture/metadata/events.jsonl",
+          startedAt: "2026-07-20T12:00:00.000Z",
+          endedAt: "2026-07-20T12:01:00.000Z",
+          durationMs: 60_000,
+        },
+        inputBindings: { "demo-zip": "10001" },
+      } as never),
+    ).resolves.toEqual({
+      ok: false,
+      code: "invalid_runner_artifact",
+      message: "Autonomous discovery artifact is invalid.",
+    });
   });
 });

@@ -273,7 +273,7 @@ Inspect every persisted JSON value and assert it does not contain `10001` or the
 
 - [x] **Step 5: Implement completion sequencing and failure preservation**
 
-Pass the persisted policy and exact profile to `record`; persist its successful execution before `handoff`; persist handoff before setting phase `completed`. A recording failure leaves phase `recording` with no handoff artifact. A handoff failure retains the execution artifact and returns phase `handoff` without claiming completion.
+Require a freshly supplied policy matching the persisted non-authorizing tier/scope selection and pass it with the exact profile to `record`; persist a bounded successful execution summary before `handoff`; persist a bounded handoff summary before setting phase `completed`. A recording failure leaves phase `recording` with no handoff artifact. A handoff failure retains the execution artifact and returns phase `handoff` without claiming completion.
 
 - [x] **Step 6: Run focused tests, typecheck, and commit**
 

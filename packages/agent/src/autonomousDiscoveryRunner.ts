@@ -15,7 +15,7 @@ import type {
   DiscoveryRehearsalActionInput,
   DiscoveryRehearsalDiagnostic,
 } from "./discoveryRehearsal.js";
-import type { DiscoveryPolicy } from "./discoveryPolicy.js";
+import type { DiscoveryPolicy, ValidatedDiscoveryPolicy } from "./discoveryPolicy.js";
 import { validateDiscoveryPolicy } from "./discoveryPolicy.js";
 import type {
   DiscoveryPlanRepairProvider,
@@ -40,6 +40,7 @@ import {
 import type { WalkthroughExecutionResult } from "./walkthroughExecution.js";
 import type {
   AutonomousDiscoveryArtifactKind,
+  AutonomousDiscoveryPolicySelection,
   AutonomousDiscoveryRunCheckpoint,
   AutonomousDiscoverySessionArtifact,
   AutonomousDiscoveryStore,
@@ -182,7 +183,8 @@ export type AutonomousDiscoveryRunnerError = {
     | "discovery_failed"
     | "compilation_failed"
     | "replay_failed"
-    | "review_blocked";
+    | "review_blocked"
+    | "cleanup_failed";
   message: string;
 };
 
@@ -203,12 +205,13 @@ export type AutonomousDiscoveryToReviewResult =
     }
   | {
       ok: false;
-      phase: "preflight" | "launch" | "discovery" | "compilation" | "replay" | "review";
+      phase: "preflight" | "launch" | "discovery" | "compilation" | "replay" | "review" | "cleanup";
       errors: AutonomousDiscoveryRunnerError[];
     };
 
 export type CompleteApprovedAutonomousDiscoveryInput = {
   plan: WalkthroughPlan;
+  policy: DiscoveryPolicy;
   inputBindings?: Record<string, unknown>;
   outputDir: string;
   projectDirectory: string;
@@ -283,10 +286,42 @@ export async function completeApprovedAutonomousDiscovery(
       "Autonomous discovery completion requires an explicitly approved plan.",
     );
   }
+  const freshPolicy = validateDiscoveryPolicy(input.policy, checkpointResult.checkpoint.target.url);
+  if (!freshPolicy.ok) {
+    return completionFailure(
+      "approval",
+      "approved_plan_mismatch",
+      "Approved recording policy does not match the reviewed discovery scope.",
+    );
+  }
+  if (
+    !samePolicySelection(
+      policySelection(freshPolicy.policy),
+      checkpointResult.checkpoint.policySelection,
+    )
+  ) {
+    return completionFailure(
+      "approval",
+      "approved_plan_mismatch",
+      "Approved recording policy does not match the reviewed discovery scope.",
+    );
+  }
   const persistedPlan = await dependencies.store.loadPlan("replay-validated");
+  const persistedReview = await dependencies.store.loadReview();
+  if (!persistedReview.ok) {
+    return completionFailure(
+      "approval",
+      "runner_not_reviewable",
+      "Autonomous discovery review evidence is missing or invalid.",
+    );
+  }
   if (
     !persistedPlan.ok ||
     walkthroughPlanFingerprint(persistedPlan.plan) !== walkthroughPlanFingerprint(input.plan) ||
+    !sameReviewArtifact(
+      persistedReview.review,
+      reviewArtifact(persistedPlan.ok ? persistedPlan.plan : undefined),
+    ) ||
     input.plan.launchProfile === undefined ||
     !sameProfile(input.plan.launchProfile, checkpointResult.checkpoint.launchProfile) ||
     input.plan.target.url !== checkpointResult.checkpoint.target.url
@@ -299,8 +334,11 @@ export async function completeApprovedAutonomousDiscovery(
   }
   if (
     input.outputDir.trim().length === 0 ||
+    input.outputDir.length > DISCOVERY_LIMITS.publicStringCharacters ||
     input.projectDirectory.trim().length === 0 ||
-    input.projectName.trim().length === 0
+    input.projectDirectory.length > DISCOVERY_LIMITS.publicStringCharacters ||
+    input.projectName.trim().length === 0 ||
+    input.projectName.length > DISCOVERY_LIMITS.publicStringCharacters
   ) {
     return completionFailure(
       "approval",
@@ -329,7 +367,7 @@ export async function completeApprovedAutonomousDiscovery(
   try {
     execution = await dependencies.record({
       plan: structuredClone(input.plan),
-      policy: structuredClone(checkpoint.policy),
+      policy: structuredClone(input.policy),
       launchProfile: structuredClone(checkpoint.launchProfile),
       outputDir: input.outputDir,
       inputBindings: input.inputBindings ?? {},
@@ -348,7 +386,11 @@ export async function completeApprovedAutonomousDiscovery(
       "Autonomous discovery recording failed.",
     );
   }
-  const executionWrite = await dependencies.store.writeExecution(execution);
+  const executionWrite = await dependencies.store.writeExecution({
+    schemaVersion: 1,
+    status: "completed",
+    stepCount: execution.steps.length,
+  });
   if (!executionWrite.ok) {
     return completionFailure("recording", "artifact_persistence_failed", executionWrite.message);
   }
@@ -375,7 +417,13 @@ export async function completeApprovedAutonomousDiscovery(
       "Autonomous discovery project handoff failed.",
     );
   }
-  const handoffWrite = await dependencies.store.writeHandoff(handoff);
+  const handoffWrite = await dependencies.store.writeHandoff({
+    schemaVersion: 1,
+    status: "completed",
+    projectDirectory: input.projectDirectory,
+    projectName: input.projectName,
+    nextStepCount: handoff.nextSteps.length,
+  });
   if (!handoffWrite.ok) {
     return completionFailure("handoff", "artifact_persistence_failed", handoffWrite.message);
   }
@@ -405,7 +453,7 @@ export async function runAutonomousDiscoveryToReview(
     schemaVersion: 1,
     runId: input.runId,
     phase: "discovering",
-    policy: structuredClone(input.policy),
+    policySelection: policySelection(prepared.policy),
     target: { url: input.targetUrl, goal: input.goal },
     launchProfile: prepared.profilePlan.primary,
     artifacts: {},
@@ -426,195 +474,219 @@ export async function runAutonomousDiscoveryToReview(
     checkpoint = { ...checkpoint, launchProfile: structuredClone(launched.profile) };
     const selected = await dependencies.store.writeCheckpoint(checkpoint);
     if (!selected.ok) {
-      await launched.close().catch(() => undefined);
+      if (await cleanupDiscoveryResources(undefined, () => launched.close())) {
+        return runnerFailure("cleanup", "cleanup_failed", "Autonomous discovery cleanup failed.");
+      }
       return runnerFailure("launch", "artifact_persistence_failed", selected.message);
     }
   }
 
   let controller: AutonomousDiscoveryRunnerController | undefined;
-  try {
-    controller = await dependencies.createController({
-      page: launched.page,
-      policy: input.policy,
-      inputResolver: dependencies.inputResolver,
-    });
-    const started = await controller.start({
-      id: dependencies.idGenerator("session"),
-      target: { kind: "browser", startUrl: input.targetUrl },
-      goal: input.goal,
-      host: input.host,
-      launchProfile: launched.profile,
-    });
-    if (!started.ok || started.observation === undefined) {
-      return runnerFailure(
-        "discovery",
-        "discovery_failed",
-        "Autonomous discovery could not start.",
-      );
-    }
-    let current = started;
-    const firstWrite = await dependencies.store.writeSession("root", current.session);
-    if (!firstWrite.ok) {
-      return runnerFailure("discovery", "artifact_persistence_failed", firstWrite.message);
-    }
-
-    while (true) {
-      let decision: AutonomousDiscoveryDecision;
-      try {
-        decision = await dependencies.decisionProvider.decide({
-          session: structuredClone(current.session),
-          observation: structuredClone(current.observation!),
-          diagnostics: structuredClone(current.diagnostics),
-        });
-      } catch {
+  const result = await (async (): Promise<AutonomousDiscoveryToReviewResult> => {
+    try {
+      controller = await dependencies.createController({
+        page: launched.page,
+        policy: input.policy,
+        inputResolver: dependencies.inputResolver,
+      });
+      const started = await controller.start({
+        id: dependencies.idGenerator("session"),
+        target: { kind: "browser", startUrl: input.targetUrl },
+        goal: input.goal,
+        host: input.host,
+        launchProfile: launched.profile,
+      });
+      if (!started.ok || started.observation === undefined) {
         return runnerFailure(
           "discovery",
           "discovery_failed",
-          "Autonomous discovery decision failed.",
+          "Autonomous discovery could not start.",
         );
       }
+      let current = started;
+      const firstWrite = await dependencies.store.writeSession("root", current.session);
+      if (!firstWrite.ok) {
+        return runnerFailure("discovery", "artifact_persistence_failed", firstWrite.message);
+      }
 
-      if (decision.kind === "act") {
-        const performed = await controller.perform(decision.input);
-        if (!performed.ok || performed.observation === undefined) {
+      while (true) {
+        let decision: AutonomousDiscoveryDecision;
+        try {
+          decision = await dependencies.decisionProvider.decide({
+            session: structuredClone(current.session),
+            observation: structuredClone(current.observation!),
+            diagnostics: structuredClone(current.diagnostics),
+          });
+        } catch {
           return runnerFailure(
             "discovery",
             "discovery_failed",
-            "Autonomous discovery action failed.",
+            "Autonomous discovery decision failed.",
           );
         }
-        const written = await dependencies.store.writeSession("root", performed.session);
-        if (!written.ok) {
-          return runnerFailure("discovery", "artifact_persistence_failed", written.message);
-        }
-        current = performed;
-        continue;
-      }
 
-      const stopped = await controller.stop(
-        decision.kind === "complete"
-          ? {
-              outcome: "complete",
-              attemptIds: decision.attemptIds,
-              source: decision.source,
+        if (decision.kind === "act") {
+          const performed = await controller.perform(decision.input);
+          if (!performed.ok && performed.session !== undefined) {
+            const failedWrite = await dependencies.store.writeSession("root", performed.session);
+            if (!failedWrite.ok) {
+              return runnerFailure("discovery", "artifact_persistence_failed", failedWrite.message);
             }
-          : { outcome: "abandon", reason: decision.reason },
-      );
-      if (!stopped.ok) {
-        return runnerFailure(
-          "discovery",
-          "discovery_failed",
-          "Autonomous discovery could not stop.",
-        );
-      }
-      const terminalWrite = await dependencies.store.writeSession("root", stopped.session);
-      if (!terminalWrite.ok) {
-        return runnerFailure("discovery", "artifact_persistence_failed", terminalWrite.message);
-      }
-      checkpoint = withArtifact(checkpoint, "root-session", terminalWrite.path);
+          }
+          if (!performed.ok || performed.observation === undefined) {
+            return runnerFailure(
+              "discovery",
+              "discovery_failed",
+              "Autonomous discovery action failed.",
+            );
+          }
+          const written = await dependencies.store.writeSession("root", performed.session);
+          if (!written.ok) {
+            return runnerFailure("discovery", "artifact_persistence_failed", written.message);
+          }
+          current = performed;
+          continue;
+        }
 
-      if (decision.kind === "abandon") {
-        checkpoint = { ...checkpoint, phase: "abandoned" };
-        const checkpointWrite = await dependencies.store.writeCheckpoint(checkpoint);
-        if (!checkpointWrite.ok) {
-          return runnerFailure("discovery", "artifact_persistence_failed", checkpointWrite.message);
+        const stopped = await controller.stop(
+          decision.kind === "complete"
+            ? {
+                outcome: "complete",
+                attemptIds: decision.attemptIds,
+                source: decision.source,
+              }
+            : { outcome: "abandon", reason: decision.reason },
+        );
+        if (!stopped.ok) {
+          return runnerFailure(
+            "discovery",
+            "discovery_failed",
+            "Autonomous discovery could not stop.",
+          );
+        }
+        const terminalWrite = await dependencies.store.writeSession("root", stopped.session);
+        if (!terminalWrite.ok) {
+          return runnerFailure("discovery", "artifact_persistence_failed", terminalWrite.message);
+        }
+        checkpoint = withArtifact(checkpoint, "root-session", terminalWrite.path);
+
+        if (decision.kind === "abandon") {
+          checkpoint = { ...checkpoint, phase: "abandoned" };
+          const checkpointWrite = await dependencies.store.writeCheckpoint(checkpoint);
+          if (!checkpointWrite.ok) {
+            return runnerFailure(
+              "discovery",
+              "artifact_persistence_failed",
+              checkpointWrite.message,
+            );
+          }
+          return {
+            ok: true,
+            phase: "abandoned",
+            session: structuredClone(stopped.session),
+            checkpoint: structuredClone(checkpoint),
+          };
+        }
+
+        const compiled = dependencies.compile(stopped.session);
+        if (!compiled.ok) {
+          return runnerFailure(
+            "compilation",
+            "compilation_failed",
+            "Autonomous discovery session could not be compiled.",
+          );
+        }
+        const draftWrite = await dependencies.store.writePlan("draft", compiled.plan);
+        if (!draftWrite.ok) {
+          return runnerFailure("compilation", "artifact_persistence_failed", draftWrite.message);
+        }
+        checkpoint = withArtifact(checkpoint, "draft-plan", draftWrite.path);
+        checkpoint = { ...checkpoint, phase: "replaying" };
+        const replayCheckpoint = await dependencies.store.writeCheckpoint(checkpoint);
+        if (!replayCheckpoint.ok) {
+          return runnerFailure("replay", "artifact_persistence_failed", replayCheckpoint.message);
+        }
+
+        const repair: DiscoveryPlanRepairProvider = {
+          async repair(repairInput) {
+            const repairResult = await runRepairSession({
+              input,
+              checkpoint,
+              dependencies,
+              repairNumber: repairInput.repairNumber,
+              parentSession: repairInput.parentSession,
+              failure: repairInput.failure,
+            });
+            if (repairResult.decision === "repaired") {
+              const artifactKind = `repair-${repairInput.repairNumber}-session` as const;
+              checkpoint = withArtifact(checkpoint, artifactKind, repairResult.path);
+            }
+            return repairResult.decision === "repaired"
+              ? { decision: "repaired", session: repairResult.session }
+              : { decision: "stop", reason: repairResult.reason };
+          },
+        };
+        const replay = await dependencies.replay({
+          sourceSession: stopped.session,
+          plan: compiled.plan,
+          policy: input.policy,
+          inputBindings: input.inputBindings ?? {},
+          maxRepairs: 2,
+          repair,
+        });
+        const replayWrite = await dependencies.store.writeReplay({
+          schemaVersion: 1,
+          status: replay.ok ? "passed" : "failed",
+          attempts: replay.attempts.length,
+        });
+        if (!replayWrite.ok) {
+          return runnerFailure("replay", "artifact_persistence_failed", replayWrite.message);
+        }
+        checkpoint = withArtifact(checkpoint, "replay", replayWrite.path);
+        if (!replay.ok) {
+          return runnerFailure("replay", "replay_failed", "Autonomous discovery replay failed.");
+        }
+        const planWrite = await dependencies.store.writePlan("replay-validated", replay.plan);
+        if (!planWrite.ok) {
+          return runnerFailure("replay", "artifact_persistence_failed", planWrite.message);
+        }
+        checkpoint = withArtifact(checkpoint, "replay-validated-plan", planWrite.path);
+        const review = reviewWalkthroughPlan(replay.plan);
+        if (!review.ok || !review.review.approval.eligible || review.review.blockers.length > 0) {
+          return runnerFailure(
+            "review",
+            "review_blocked",
+            "Autonomous discovery review is blocked.",
+          );
+        }
+        const reviewWrite = await dependencies.store.writeReview(reviewArtifact(replay.plan)!);
+        if (!reviewWrite.ok) {
+          return runnerFailure("review", "artifact_persistence_failed", reviewWrite.message);
+        }
+        checkpoint = withArtifact(checkpoint, "review", reviewWrite.path);
+        checkpoint = { ...checkpoint, phase: "review-required" };
+        const finalCheckpoint = await dependencies.store.writeCheckpoint(checkpoint);
+        if (!finalCheckpoint.ok) {
+          return runnerFailure("review", "artifact_persistence_failed", finalCheckpoint.message);
         }
         return {
           ok: true,
-          phase: "abandoned",
-          session: structuredClone(stopped.session),
+          phase: "review_required",
+          plan: structuredClone(replay.plan),
+          review: structuredClone(review.review),
+          replayAttempts: replay.attempts.length,
           checkpoint: structuredClone(checkpoint),
         };
       }
-
-      const compiled = dependencies.compile(stopped.session);
-      if (!compiled.ok) {
-        return runnerFailure(
-          "compilation",
-          "compilation_failed",
-          "Autonomous discovery session could not be compiled.",
-        );
-      }
-      const draftWrite = await dependencies.store.writePlan("draft", compiled.plan);
-      if (!draftWrite.ok) {
-        return runnerFailure("compilation", "artifact_persistence_failed", draftWrite.message);
-      }
-      checkpoint = withArtifact(checkpoint, "draft-plan", draftWrite.path);
-      checkpoint = { ...checkpoint, phase: "replaying" };
-      const replayCheckpoint = await dependencies.store.writeCheckpoint(checkpoint);
-      if (!replayCheckpoint.ok) {
-        return runnerFailure("replay", "artifact_persistence_failed", replayCheckpoint.message);
-      }
-
-      const repair: DiscoveryPlanRepairProvider = {
-        async repair(repairInput) {
-          const repairResult = await runRepairSession({
-            input,
-            checkpoint,
-            dependencies,
-            repairNumber: repairInput.repairNumber,
-            parentSession: repairInput.parentSession,
-            failure: repairInput.failure,
-          });
-          if (repairResult.decision === "repaired") {
-            const artifactKind = `repair-${repairInput.repairNumber}-session` as const;
-            checkpoint = withArtifact(checkpoint, artifactKind, repairResult.path);
-          }
-          return repairResult.decision === "repaired"
-            ? { decision: "repaired", session: repairResult.session }
-            : { decision: "stop", reason: repairResult.reason };
-        },
-      };
-      const replay = await dependencies.replay({
-        sourceSession: stopped.session,
-        plan: compiled.plan,
-        policy: input.policy,
-        inputBindings: input.inputBindings ?? {},
-        maxRepairs: 2,
-        repair,
-      });
-      const replayWrite = await dependencies.store.writeReplay(replay);
-      if (!replayWrite.ok) {
-        return runnerFailure("replay", "artifact_persistence_failed", replayWrite.message);
-      }
-      checkpoint = withArtifact(checkpoint, "replay", replayWrite.path);
-      if (!replay.ok) {
-        return runnerFailure("replay", "replay_failed", "Autonomous discovery replay failed.");
-      }
-      const planWrite = await dependencies.store.writePlan("replay-validated", replay.plan);
-      if (!planWrite.ok) {
-        return runnerFailure("replay", "artifact_persistence_failed", planWrite.message);
-      }
-      checkpoint = withArtifact(checkpoint, "replay-validated-plan", planWrite.path);
-      const review = dependencies.review(replay.plan);
-      if (!review.ok || !review.review.approval.eligible || review.review.blockers.length > 0) {
-        return runnerFailure("review", "review_blocked", "Autonomous discovery review is blocked.");
-      }
-      const reviewWrite = await dependencies.store.writeReview(review.review);
-      if (!reviewWrite.ok) {
-        return runnerFailure("review", "artifact_persistence_failed", reviewWrite.message);
-      }
-      checkpoint = withArtifact(checkpoint, "review", reviewWrite.path);
-      checkpoint = { ...checkpoint, phase: "review-required" };
-      const finalCheckpoint = await dependencies.store.writeCheckpoint(checkpoint);
-      if (!finalCheckpoint.ok) {
-        return runnerFailure("review", "artifact_persistence_failed", finalCheckpoint.message);
-      }
-      return {
-        ok: true,
-        phase: "review_required",
-        plan: structuredClone(replay.plan),
-        review: structuredClone(review.review),
-        replayAttempts: replay.attempts.length,
-        checkpoint: structuredClone(checkpoint),
-      };
+    } catch {
+      return runnerFailure("discovery", "discovery_failed", "Autonomous discovery failed.");
     }
-  } catch {
-    return runnerFailure("discovery", "discovery_failed", "Autonomous discovery failed.");
-  } finally {
-    await controller?.dispose().catch(() => undefined);
-    await launched.close().catch(() => undefined);
+  })();
+  const cleanupFailed = await cleanupDiscoveryResources(controller, () => launched.close());
+  if (cleanupFailed) {
+    return runnerFailure("cleanup", "cleanup_failed", "Autonomous discovery cleanup failed.");
   }
+  return result;
 }
 
 async function runRepairSession(input: {
@@ -637,68 +709,106 @@ async function runRepairSession(input: {
     return { decision: "stop", reason: "manual_review_required" };
   }
   let controller: AutonomousDiscoveryRunnerController | undefined;
-  try {
-    controller = await input.dependencies.createController({
-      page: launched.page,
-      policy: input.input.policy,
-      inputResolver: input.dependencies.inputResolver,
-    });
-    const started = await controller.start({
-      id: input.dependencies.idGenerator("repair-session"),
-      target: { kind: "browser", startUrl: input.parentSession.target.startUrl },
-      goal: input.parentSession.goal,
-      host: input.parentSession.host,
-      launchProfile: input.checkpoint.launchProfile,
-      parentSessionId: input.parentSession.id,
-    });
-    if (!started.ok || started.observation === undefined) {
+  const result = await (async (): Promise<
+    | { decision: "repaired"; session: DiscoverySessionV1; path: string }
+    | { decision: "stop"; reason: "manual_review_required" | "repair_declined" }
+  > => {
+    try {
+      controller = await input.dependencies.createController({
+        page: launched.page,
+        policy: input.input.policy,
+        inputResolver: input.dependencies.inputResolver,
+      });
+      const started = await controller.start({
+        id: input.dependencies.idGenerator("repair-session"),
+        target: { kind: "browser", startUrl: input.parentSession.target.startUrl },
+        goal: input.parentSession.goal,
+        host: input.parentSession.host,
+        launchProfile: input.checkpoint.launchProfile,
+        parentSessionId: input.parentSession.id,
+      });
+      if (!started.ok || started.observation === undefined) {
+        return { decision: "stop", reason: "manual_review_required" };
+      }
+      let current = started;
+      const artifactKind = `repair-${input.repairNumber}` as AutonomousDiscoverySessionArtifact;
+      const initialWrite = await input.dependencies.store.writeSession(
+        artifactKind,
+        current.session,
+      );
+      if (!initialWrite.ok) throw new Error("persistence");
+
+      while (true) {
+        const decision = await input.dependencies.decisionProvider.decide({
+          session: structuredClone(current.session),
+          observation: structuredClone(current.observation!),
+          diagnostics: structuredClone(current.diagnostics),
+          repair: { number: input.repairNumber, failure: structuredClone(input.failure) },
+        });
+        if (decision.kind === "act") {
+          const performed = await controller.perform(decision.input);
+          if (!performed.ok && performed.session !== undefined) {
+            const failedWrite = await input.dependencies.store.writeSession(
+              artifactKind,
+              performed.session,
+            );
+            if (!failedWrite.ok) throw new Error("persistence");
+          }
+          if (!performed.ok || performed.observation === undefined) {
+            return { decision: "stop", reason: "manual_review_required" };
+          }
+          const written = await input.dependencies.store.writeSession(
+            artifactKind,
+            performed.session,
+          );
+          if (!written.ok) throw new Error("persistence");
+          current = performed;
+          continue;
+        }
+        const stopped = await controller.stop(
+          decision.kind === "complete"
+            ? { outcome: "complete", attemptIds: decision.attemptIds, source: decision.source }
+            : { outcome: "abandon", reason: decision.reason },
+        );
+        if (!stopped.ok) return { decision: "stop", reason: "manual_review_required" };
+        const written = await input.dependencies.store.writeSession(artifactKind, stopped.session);
+        if (!written.ok) throw new Error("persistence");
+        if (decision.kind === "abandon") return { decision: "stop", reason: "repair_declined" };
+        return { decision: "repaired", session: stopped.session, path: written.path };
+      }
+    } catch {
       return { decision: "stop", reason: "manual_review_required" };
     }
-    let current = started;
-    const artifactKind = `repair-${input.repairNumber}` as AutonomousDiscoverySessionArtifact;
-    const initialWrite = await input.dependencies.store.writeSession(artifactKind, current.session);
-    if (!initialWrite.ok) throw new Error("persistence");
-
-    while (true) {
-      const decision = await input.dependencies.decisionProvider.decide({
-        session: structuredClone(current.session),
-        observation: structuredClone(current.observation!),
-        diagnostics: structuredClone(current.diagnostics),
-        repair: { number: input.repairNumber, failure: structuredClone(input.failure) },
-      });
-      if (decision.kind === "act") {
-        const performed = await controller.perform(decision.input);
-        if (!performed.ok || performed.observation === undefined) {
-          return { decision: "stop", reason: "manual_review_required" };
-        }
-        const written = await input.dependencies.store.writeSession(
-          artifactKind,
-          performed.session,
-        );
-        if (!written.ok) throw new Error("persistence");
-        current = performed;
-        continue;
-      }
-      const stopped = await controller.stop(
-        decision.kind === "complete"
-          ? { outcome: "complete", attemptIds: decision.attemptIds, source: decision.source }
-          : { outcome: "abandon", reason: decision.reason },
-      );
-      if (!stopped.ok) return { decision: "stop", reason: "manual_review_required" };
-      const written = await input.dependencies.store.writeSession(artifactKind, stopped.session);
-      if (!written.ok) throw new Error("persistence");
-      if (decision.kind === "abandon") return { decision: "stop", reason: "repair_declined" };
-      return { decision: "repaired", session: stopped.session, path: written.path };
-    }
-  } finally {
-    await controller?.dispose().catch(() => undefined);
-    await launched.close().catch(() => undefined);
+  })();
+  if (await cleanupDiscoveryResources(controller, () => launched.close())) {
+    return { decision: "stop", reason: "manual_review_required" };
   }
+  return result;
+}
+
+async function cleanupDiscoveryResources(
+  controller: AutonomousDiscoveryRunnerController | undefined,
+  close: () => Promise<void>,
+): Promise<boolean> {
+  let failed = false;
+  try {
+    await controller?.dispose();
+  } catch {
+    failed = true;
+  }
+  try {
+    await close();
+  } catch {
+    failed = true;
+  }
+  return failed;
 }
 
 function prepareInput(
   input: AutonomousDiscoveryRunnerInput,
-): { ok: true; profilePlan: BrowserLaunchProfilePlanV1 } | { ok: false; message: string } {
+):
+  | { ok: true; profilePlan: BrowserLaunchProfilePlanV1; policy: ValidatedDiscoveryPolicy }
+  | { ok: false; message: string } {
   if (
     !isSafeDiscoveryId(input.runId) ||
     input.goal.trim().length === 0 ||
@@ -719,7 +829,52 @@ function prepareInput(
   if (!profiles.ok || !policy.ok) {
     return { ok: false, message: "Autonomous discovery runner input is invalid." };
   }
-  return { ok: true, profilePlan: profiles.plan };
+  return { ok: true, profilePlan: profiles.plan, policy: policy.policy };
+}
+
+function policySelection(
+  policy:
+    | {
+        mode: "safe" | "public-browse" | "disposable" | "yolo";
+        allowedOrigins: ReadonlySet<string>;
+      }
+    | undefined,
+): AutonomousDiscoveryPolicySelection {
+  if (policy === undefined || policy.mode === "yolo") return { mode: "yolo" };
+  return { mode: policy.mode, allowedOrigins: [...policy.allowedOrigins].sort() };
+}
+
+function samePolicySelection(
+  left: AutonomousDiscoveryPolicySelection,
+  right: AutonomousDiscoveryPolicySelection,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function reviewArtifact(plan: WalkthroughPlan | undefined) {
+  if (plan === undefined) return undefined;
+  const reviewed = reviewWalkthroughPlan(plan);
+  if (!reviewed.ok) return undefined;
+  return {
+    schemaVersion: 1 as const,
+    planFingerprint: walkthroughPlanFingerprint(plan),
+    approval: {
+      eligible: reviewed.review.approval.eligible,
+      ...(reviewed.review.approval.basis === undefined
+        ? {}
+        : { basis: reviewed.review.approval.basis }),
+    },
+    blockerCount: reviewed.review.blockers.length,
+  };
+}
+
+function sameReviewArtifact(
+  left: ReturnType<typeof reviewArtifact>,
+  right: ReturnType<typeof reviewArtifact>,
+): boolean {
+  return (
+    left !== undefined && right !== undefined && JSON.stringify(left) === JSON.stringify(right)
+  );
 }
 
 function sameProfile(left: BrowserLaunchProfileV1, right: BrowserLaunchProfileV1): boolean {

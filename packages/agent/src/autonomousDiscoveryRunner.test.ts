@@ -19,6 +19,7 @@ import {
 } from "./autonomousDiscoveryRunner.js";
 import type {
   AutonomousDiscoveryPlanArtifact,
+  AutonomousDiscoveryReviewArtifact,
   AutonomousDiscoveryRunCheckpoint,
   AutonomousDiscoverySessionArtifact,
   AutonomousDiscoveryStore,
@@ -48,6 +49,7 @@ class MemoryStore implements AutonomousDiscoveryStore {
   readonly events: StoreEvent[] = [];
   checkpoint?: AutonomousDiscoveryRunCheckpoint;
   plans = new Map<string, WalkthroughPlan>();
+  reviewValue?: AutonomousDiscoveryReviewArtifact;
   failSessionWriteAt?: number;
   private sessionWrites = 0;
 
@@ -110,9 +112,21 @@ class MemoryStore implements AutonomousDiscoveryStore {
     return { ok: true, path: "replay.json" } as const;
   }
 
-  async writeReview(value: unknown) {
+  async writeReview(value: AutonomousDiscoveryReviewArtifact) {
+    this.reviewValue = structuredClone(value);
     this.events.push({ kind: "review", value });
     return { ok: true, path: "review.json" } as const;
+  }
+
+  async loadReview() {
+    if (this.reviewValue === undefined) {
+      return {
+        ok: false,
+        code: "runner_artifact_read_failed",
+        message: "Autonomous discovery artifact could not be read.",
+      } as const;
+    }
+    return { ok: true, review: structuredClone(this.reviewValue) } as const;
   }
 
   async writeExecution(value: unknown) {
@@ -360,6 +374,32 @@ describe("autonomous discovery runner", () => {
     expect(fixture.browser.closed).toBe(true);
   });
 
+  it("persists the controller's failed action session before returning", async () => {
+    const fixture = await runnerFixture();
+    const failedSession = {
+      ...structuredClone(fixture.completed),
+      status: "active" as const,
+      selectedPath: undefined,
+      terminal: undefined,
+    };
+    fixture.controller.perform.mockImplementationOnce(
+      async () =>
+        ({
+          ok: false,
+          session: failedSession,
+          errors: [{ code: "policy_blocked", message: "Discovery action was blocked." }],
+        }) as never,
+    );
+
+    const result = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
+
+    expect(result).toMatchObject({ ok: false, phase: "discovery" });
+    expect(fixture.store.events).toContainEqual({
+      kind: "session",
+      value: { kind: "root", session: failedSession },
+    });
+  });
+
   it("rejects invalid policy and launch profile input before browser launch", async () => {
     const fixture = await runnerFixture();
     const launch = vi.spyOn(fixture.dependencies.browserLauncher, "launch");
@@ -401,6 +441,49 @@ describe("autonomous discovery runner", () => {
 
     expect(result.plan.approvals).toEqual({ required: true, approved: false });
     expect(approveWalkthroughPlan(result.plan, { now: () => new Date() }).ok).toBe(true);
+  });
+
+  it("reports cleanup failure instead of a successful review checkpoint", async () => {
+    const fixture = await runnerFixture();
+    fixture.dependencies.browserLauncher.launch = vi.fn(async () => ({
+      ok: true as const,
+      page: {} as Page,
+      profile: PROFILE,
+      profileId: "profile-1",
+      attempts: [],
+      async close() {
+        throw new Error("private close detail");
+      },
+    }));
+
+    const result = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "cleanup",
+      errors: [{ code: "cleanup_failed", message: "Autonomous discovery cleanup failed." }],
+    });
+    expect(JSON.stringify(result)).not.toContain("private close detail");
+  });
+
+  it("persists disposable scope without carrying its acknowledgement authority", async () => {
+    const fixture = await runnerFixture();
+    const result = await runAutonomousDiscoveryToReview(
+      {
+        ...INPUT,
+        policy: {
+          mode: "disposable",
+          acknowledgement: "environment-is-disposable",
+          allowedOrigins: ["https://example.com"],
+        },
+      },
+      fixture.dependencies,
+    );
+
+    expect(result.ok).toBe(true);
+    const persisted = JSON.stringify(fixture.store.events);
+    expect(persisted).toContain('"mode":"disposable"');
+    expect(persisted).not.toContain("environment-is-disposable");
   });
 
   it("runs a bounded repair in a fresh child session", async () => {
@@ -497,6 +580,7 @@ describe("autonomous discovery runner", () => {
     const result = await completeApprovedAutonomousDiscovery(
       {
         plan: discovered.plan,
+        policy: INPUT.policy,
         inputBindings: {},
         outputDir: "/capture",
         projectDirectory: "/project",
@@ -536,6 +620,7 @@ describe("autonomous discovery runner", () => {
         endedAt: "2026-07-20T12:12:00.000Z",
         durationMs: 60_000,
       },
+      inputBindings: { "demo-zip": "10001" },
     };
     const handoffResult = {
       ok: true as const,
@@ -549,6 +634,7 @@ describe("autonomous discovery runner", () => {
     const result = await completeApprovedAutonomousDiscovery(
       {
         plan: approved.plan,
+        policy: INPUT.policy,
         inputBindings: { "demo-zip": "10001" },
         outputDir: "/capture",
         projectDirectory: "/project",
@@ -592,6 +678,7 @@ describe("autonomous discovery runner", () => {
     const result = await completeApprovedAutonomousDiscovery(
       {
         plan: approved.plan,
+        policy: INPUT.policy,
         outputDir: "/capture",
         projectDirectory: "/project",
         projectName: "Demo project",
@@ -603,6 +690,107 @@ describe("autonomous discovery runner", () => {
       ok: false,
       phase: "approval",
       errors: [{ code: "approved_plan_required" }],
+    });
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("blocks completion when the persisted review artifact is missing", async () => {
+    const fixture = await runnerFixture();
+    const discovered = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
+    if (!discovered.ok || discovered.phase !== "review_required")
+      throw new Error("review expected");
+    const approved = approveWalkthroughPlan(discovered.plan, {
+      now: () => new Date("2026-07-20T12:10:00.000Z"),
+    });
+    if (!approved.ok) throw new Error("approval expected");
+    fixture.store.reviewValue = undefined;
+    const record = vi.fn();
+
+    const result = await completeApprovedAutonomousDiscovery(
+      {
+        plan: approved.plan,
+        policy: INPUT.policy,
+        outputDir: "/capture",
+        projectDirectory: "/project",
+        projectName: "Demo project",
+      },
+      { store: fixture.store, record, handoff: vi.fn() },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "approval",
+      errors: [{ code: "runner_not_reviewable" }],
+    });
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("blocks completion when persisted review evidence was substituted", async () => {
+    const fixture = await runnerFixture();
+    const discovered = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
+    if (!discovered.ok || discovered.phase !== "review_required")
+      throw new Error("review expected");
+    const approved = approveWalkthroughPlan(discovered.plan, {
+      now: () => new Date("2026-07-20T12:10:00.000Z"),
+    });
+    if (!approved.ok || fixture.store.reviewValue === undefined)
+      throw new Error("approval expected");
+    fixture.store.reviewValue = { ...fixture.store.reviewValue, planFingerprint: "substituted" };
+    const record = vi.fn();
+
+    const result = await completeApprovedAutonomousDiscovery(
+      {
+        plan: approved.plan,
+        policy: INPUT.policy,
+        outputDir: "/capture",
+        projectDirectory: "/project",
+        projectName: "Demo project",
+      },
+      { store: fixture.store, record, handoff: vi.fn() },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "approval",
+      errors: [{ code: "approved_plan_mismatch" }],
+    });
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("requires fresh disposable acknowledgement for the recording phase", async () => {
+    const fixture = await runnerFixture();
+    const policy = {
+      mode: "disposable" as const,
+      acknowledgement: "environment-is-disposable" as const,
+      allowedOrigins: ["https://example.com"],
+    };
+    const discovered = await runAutonomousDiscoveryToReview(
+      { ...INPUT, policy },
+      fixture.dependencies,
+    );
+    if (!discovered.ok || discovered.phase !== "review_required")
+      throw new Error("review expected");
+    const approved = approveWalkthroughPlan(discovered.plan, {
+      now: () => new Date("2026-07-20T12:10:00.000Z"),
+    });
+    if (!approved.ok) throw new Error("approval expected");
+    const record = vi.fn();
+
+    const result = await completeApprovedAutonomousDiscovery(
+      {
+        plan: approved.plan,
+        policy: { mode: "disposable", allowedOrigins: ["https://example.com"] } as never,
+        outputDir: "/capture",
+        projectDirectory: "/project",
+        projectName: "Demo project",
+      },
+      { store: fixture.store, record, handoff: vi.fn() },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "approval",
+      errors: [{ code: "approved_plan_mismatch" }],
     });
     expect(record).not.toHaveBeenCalled();
   });

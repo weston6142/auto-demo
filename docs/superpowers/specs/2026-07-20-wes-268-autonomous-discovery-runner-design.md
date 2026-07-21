@@ -65,7 +65,7 @@ The decision provider receives only a cloned validated session, the latest bound
 
 The runner returns `review_required` with a validated unapproved plan, sanitized review, replay-attempt count, and artifact paths; `abandoned` with the persisted terminal session and bounded reason; or `blocked`/`failed` with a fixed phase and sanitized errors.
 
-The post-approval phase exposes `completeApprovedAutonomousDiscovery(input, dependencies)`. It requires the workflow directory, the explicitly approved plan returned by the existing approval API or CLI, local runtime bindings, capture directory, project directory, and project name. It loads the persisted review checkpoint and rejects a stale, unapproved, mismatched, or already-recorded plan. It passes the persisted policy into the recording dependency as fresh phase authority, requires a new capture context using the exact resolved launch profile, persists the execution result, then invokes handoff and persists the final result. No discovery page, context, permit, acknowledgement object, cookies, storage, or runtime values cross the review boundary.
+The post-approval phase exposes `completeApprovedAutonomousDiscovery(input, dependencies)`. It requires the workflow directory, the explicitly approved plan returned by the existing approval API or CLI, a freshly supplied `DiscoveryPolicy`, local runtime bindings, capture directory, project directory, and project name. It loads the persisted review checkpoint and rejects a stale, unapproved, mismatched, or already-recorded plan. It verifies that the fresh policy has the reviewed tier and normalized scope, passes that fresh policy into the recording dependency as new phase authority, requires a new capture context using the exact resolved launch profile, persists a bounded execution summary, then invokes handoff and persists a bounded final summary. No discovery page, context, permit, acknowledgement object, cookies, storage, or runtime values cross the review boundary.
 
 ## Runner Components
 
@@ -81,7 +81,7 @@ Every acquired controller and browser handle is disposed in `finally`. Cleanup f
 
 `autonomousDiscoveryStore.ts` defines a small store contract and a default filesystem implementation. The filesystem store creates one run directory only when it is missing or empty and writes JSON with a temporary sibling followed by rename. Stable file names are runner-owned:
 
-- `run.json` for bounded lifecycle metadata, policy, selected profile, and artifact references;
+- `run.json` for bounded lifecycle metadata, non-authorizing policy tier/scope selection, selected profile, and artifact references;
 - `sessions/root.json` and `sessions/repair-<n>.json`;
 - `plan.draft.json` and `plan.replay-validated.json`;
 - `replay.json`;
@@ -90,11 +90,11 @@ Every acquired controller and browser handle is disposed in `finally`. Cleanup f
 - `execution.json`;
 - `handoff.json`.
 
-The store never persists runtime binding values. It accepts only validated runner artifacts and returns safe relative artifact paths. Existing non-empty directories, unsafe run IDs, and path escape attempts fail closed.
+The store never persists runtime binding values, disposable acknowledgements, raw replay objects, or dependency return objects. Replay, review, execution, and handoff files contain exact-schema bounded summaries. It accepts only validated runner artifacts and returns safe relative artifact paths. Existing non-empty directories, unsafe run IDs, and path escape attempts fail closed.
 
 ### Recording And Handoff Seam
 
-The agent package must not depend on the CLI or capture package. The completion API therefore takes a `record` dependency and a `handoff` dependency. Unlike an ad hoc host orchestrator, these callbacks do not choose lifecycle order. `record` receives the verified approved plan, exact persisted policy, capture directory, and runtime bindings; it must create a fresh isolated capture context. `handoff` receives only a successful execution result and the requested new project metadata.
+The agent package must not depend on the CLI or capture package. The completion API therefore takes a `record` dependency and a `handoff` dependency. Unlike an ad hoc host orchestrator, these callbacks do not choose lifecycle order. `record` receives the verified approved plan, freshly supplied policy matching the persisted tier/scope selection, capture directory, and runtime bindings; it must create a fresh isolated capture context. `handoff` receives only a successful execution result and the requested new project metadata.
 
 This dependency direction avoids package cycles while making policy re-establishment observable and testable. The CLI can later expose the runner without changing the lifecycle contract.
 
@@ -102,7 +102,7 @@ This dependency direction avoids package cycles while making policy re-establish
 
 The runner writes the new session before returning its first observation. After each `perform()` result, including blocked or failed attempts, it writes the entire validated session before another decision is requested. Terminal completion or abandonment is persisted before compilation or return.
 
-`run.json` records a monotonic public phase and safe artifact references. Discovery may resume only from a persisted active session whose run metadata matches the requested target, goal, policy, and launch profile. The initial implementation fails closed on active-run resume rather than trying to reconstruct a live browser; durable evidence remains available for a deliberate restart or abandonment. Completed review checkpoints are resumable only through the post-approval API.
+`run.json` records a monotonic public phase, the selected policy tier and normalized origin scope without authority-bearing acknowledgement, and safe artifact references. Discovery may resume only from a persisted active session whose run metadata matches the requested target, goal, policy selection, and launch profile. The initial implementation fails closed on active-run resume rather than trying to reconstruct a live browser; durable evidence remains available for a deliberate restart or abandonment. Completed review checkpoints are resumable only through the post-approval API with freshly supplied matching policy authority.
 
 Write failure stops the runner immediately, closes browser resources, and never performs another browser action. A temporary file may remain after a process crash, but the last renamed artifact remains authoritative.
 
@@ -135,7 +135,7 @@ Tests exercise public behavior with fakes at browser and recording boundaries ra
 - Policy and anti-bot hard boundaries do not ask for repair.
 - The default file store rejects unsafe/non-empty targets, writes parseable artifacts atomically, and never serializes runtime bindings.
 - Completion rejects unapproved, stale, mismatched, and already-completed plans.
-- Successful completion passes the exact persisted policy and profile to a fresh recording dependency, persists execution before handoff, creates the project, and never opens or exports.
+- Successful completion requires a freshly supplied policy matching the persisted tier/scope selection, passes it and the exact profile to a fresh recording dependency, persists execution before handoff, creates the project, and never opens or exports.
 - Recording and handoff failures preserve the preceding durable checkpoint and expose only bounded errors.
 - Package exports, README, Codex skill, and wrapper behavior checks direct normal discovery through the runner.
 
