@@ -411,6 +411,15 @@ function collectBrowserSnapshot(input: {
     ]) {
       if (candidate !== null && candidate.trim().length > 0) return boundedText(candidate);
     }
+    if (element instanceof HTMLInputElement) {
+      const type = element.type.toLowerCase();
+      if (
+        (type === "submit" || type === "button" || type === "reset") &&
+        element.value.trim().length > 0
+      ) {
+        return boundedText(element.value);
+      }
+    }
     return valueBearing(element) ? "" : safeText(element);
   };
 
