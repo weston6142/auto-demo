@@ -2,9 +2,11 @@ import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  completeApprovedAutonomousDiscovery,
   compileDiscoverySessionToWalkthroughPlan,
   createPlaywrightDiscoveryReplayBrowserFactory,
   createPolicyEnforcedPlaywrightDiscoveryRehearsalController,
+  runAutonomousDiscoveryToReview,
   reviewWalkthroughPlan,
   validateDiscoverySession,
   verifyWalkthroughPlanApproval,
@@ -61,6 +63,28 @@ function markdownTableRow(
 }
 
 describe("agent wrapper documentation", () => {
+  it("routes normal autonomous discovery through the durable two-phase runner", async () => {
+    const readme = normalizeWhitespace(await readAgentDoc("README.md"));
+    const skill = normalizeWhitespace(await readAgentDoc("skills/codex-auto-demo/SKILL.md"));
+    const combined = `${readme} ${skill}`;
+
+    expect(typeof runAutonomousDiscoveryToReview).toBe("function");
+    expect(typeof completeApprovedAutonomousDiscovery).toBe("function");
+    for (const expected of [
+      "runAutonomousDiscoveryToReview()",
+      "completeApprovedAutonomousDiscovery()",
+      "must not reproduce the lifecycle in an ad hoc script",
+      "explicit risk tier before browser activity",
+      "persists every accepted session transition before requesting another decision",
+      "review_required",
+      "explicit approval",
+      "fresh recording",
+      "does not open the editor or export",
+    ]) {
+      expect(combined).toContain(expected);
+    }
+  });
+
   it("documents deterministic discovery replay and bounded repair ownership", async () => {
     const agentReadme = normalizeWhitespace(await readAgentDoc("README.md"));
     const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));

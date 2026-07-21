@@ -175,6 +175,37 @@ export {
 } from "./playwrightDiscoveryBrowserLauncher.js";
 
 export {
+  createFileAutonomousDiscoveryStore,
+  type AutonomousDiscoveryArtifactKind,
+  type AutonomousDiscoveryPlanArtifact,
+  type AutonomousDiscoveryRunCheckpoint,
+  type AutonomousDiscoveryRunPhase,
+  type AutonomousDiscoverySessionArtifact,
+  type AutonomousDiscoveryStore,
+  type AutonomousDiscoveryStoreError,
+  type AutonomousDiscoveryStoreErrorCode,
+  type AutonomousDiscoveryStoreWriteResult,
+} from "./autonomousDiscoveryStore.js";
+
+export {
+  completeApprovedAutonomousDiscovery,
+  createPlaywrightAutonomousDiscoveryRunnerDependencies,
+  runAutonomousDiscoveryToReview,
+  type AutonomousDiscoveryDecision,
+  type AutonomousDiscoveryDecisionProvider,
+  type AutonomousDiscoveryHandoffResult,
+  type AutonomousDiscoveryRunnerController,
+  type AutonomousDiscoveryRunnerDependencies,
+  type AutonomousDiscoveryRunnerError,
+  type AutonomousDiscoveryRunnerInput,
+  type AutonomousDiscoveryToReviewResult,
+  type CompleteApprovedAutonomousDiscoveryDependencies,
+  type CompleteApprovedAutonomousDiscoveryInput,
+  type CompleteApprovedAutonomousDiscoveryResult,
+  type PlaywrightAutonomousDiscoveryRunnerDependencyInput,
+} from "./autonomousDiscoveryRunner.js";
+
+export {
   createDiscoveryObservationExtractor,
   type DiscoveryObservationArtifactSink,
   type DiscoveryObservationDiagnostic,

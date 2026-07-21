@@ -298,8 +298,33 @@ is optional and is not a CI dependency.
 
 ## Codex-Hosted Risk-Tiered Discovery
 
-The repository-owned `skills/codex-auto-demo/SKILL.md` composes the public discovery APIs into
-Codex-hosted risk-tiered discovery for a target URL and natural-language goal. Codex resolves one
+### Autonomous discovery runner
+
+Normal autonomous discovery uses `runAutonomousDiscoveryToReview()` with
+`createPlaywrightAutonomousDiscoveryRunnerDependencies()` and a durable
+`createFileAutonomousDiscoveryStore()`. A host supplies bounded one-action decisions and runtime-only
+input resolution; it must not reproduce the lifecycle in an ad hoc script. The runner requires an
+explicit risk tier before browser activity, owns fresh browser launch and repair contexts, and
+persists every accepted session transition before requesting another decision. It compiles the
+selected path, freshly replays it with at most two repairs, persists the sanitized review, and returns
+`review_required` without approving, recording, or handing off.
+
+After the operator gives explicit approval through the established approval API or CLI, call
+`completeApprovedAutonomousDiscovery()` with that approved plan and a freshly supplied policy. This
+separate phase verifies the persisted replay checkpoint, review evidence, approval fingerprint, and
+policy tier/scope, then re-establishes the exact tier and launch profile
+for fresh recording, persists completed execution before project handoff, and does not open the editor
+or export. Runtime input values are passed only to the recording dependency and are never accepted by
+the runner artifact store. The checkpoint retains only the non-authorizing tier/scope selection; it
+never retains a disposable acknowledgement or another phase's authority. Completion returns the same
+bounded execution and handoff summaries that are persisted, never raw dependency objects.
+
+The runner is a public model-agnostic API, not an interactive discovery CLI. Hosts may layer a
+transport over its decision-provider contract without taking ownership of browser cleanup,
+persistence ordering, repair limits, or the review boundary.
+
+The repository-owned `skills/codex-auto-demo/SKILL.md` uses the public runner for Codex-hosted
+risk-tiered discovery from a target URL and natural-language goal. Codex resolves one
 of `safe`, `public-browse`, `disposable`, or `yolo` before browser or network activity; generic
 autonomous intent does not select a tier. An ambiguous prompt produces one focused selection
 question. YOLO now means the unrestricted Auto Demo tier, while host, platform, repository, and
