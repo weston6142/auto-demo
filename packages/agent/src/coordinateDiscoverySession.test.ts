@@ -23,6 +23,8 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
   private selectedOption = "Any make";
   private blocked = false;
 
+  constructor(private readonly failPopupCapture = false) {}
+
   shiftLayout() {
     this.pageState.layoutIdentity = "layout-external";
   }
@@ -32,6 +34,9 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
   }
 
   async captureFrame(input: { id: string; pointer: { x: number; y: number }; grid: boolean }) {
+    if (this.failPopupCapture && this.pageState.popup === "open") {
+      throw new Error("native_window_capture_unavailable");
+    }
     this.frameIds.push(input.id);
     return {
       id: input.id,
@@ -170,6 +175,22 @@ describe("coordinate discovery session", () => {
       frame: { id: "frame-2" },
     });
     expect(page.executed).toHaveLength(1);
+  });
+
+  it("preserves the native-window capability error at a popup boundary", async () => {
+    const { session, frame } = await started(new FakeCoordinatePage(true));
+
+    expect(
+      await session.act({
+        frameId: frame.id,
+        actions: [{ type: "click", x: 120, y: 80 }],
+      }),
+    ).toMatchObject({
+      ok: false,
+      code: "native_window_capture_unavailable",
+      executedActions: 1,
+      failedActionIndex: 0,
+    });
   });
 
   it("rejects stale or invalid batches before any browser side effect", async () => {

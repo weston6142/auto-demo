@@ -65,6 +65,7 @@ export type CoordinateDiscoveryActResult =
         | "stale_frame"
         | "action_failed"
         | "frame_unavailable"
+        | "native_window_capture_unavailable"
         | "anti_bot_challenge";
       message: string;
       failedActionIndex?: number;
@@ -74,11 +75,11 @@ export type CoordinateDiscoveryActResult =
 export type CoordinateDiscoverySession = {
   start(): Promise<
     | { ok: true; frame: CapturedCoordinateFrame }
-    | { ok: false; code: "frame_unavailable"; message: string }
+    | { ok: false; code: CoordinateFrameFailureCode; message: string }
   >;
   observe(): Promise<
     | { ok: true; frame: CapturedCoordinateFrame }
-    | { ok: false; code: "frame_unavailable"; message: string }
+    | { ok: false; code: CoordinateFrameFailureCode; message: string }
   >;
   act(value: unknown): Promise<CoordinateDiscoveryActResult>;
   durableTrace(): CoordinateTraceRecord[];
@@ -114,24 +115,16 @@ export function createCoordinateDiscoverySession(input: {
       if (activeFrame !== undefined) return { ok: true, frame: activeFrame };
       try {
         return { ok: true, frame: await capture() };
-      } catch {
-        return {
-          ok: false,
-          code: "frame_unavailable",
-          message: "Coordinate discovery frame is unavailable.",
-        };
+      } catch (error) {
+        return frameFailure(error);
       }
     },
 
     async observe() {
       try {
         return { ok: true, frame: await capture() };
-      } catch {
-        return {
-          ok: false,
-          code: "frame_unavailable",
-          message: "Coordinate discovery frame is unavailable.",
-        };
+      } catch (error) {
+        return frameFailure(error);
       }
     },
 
@@ -236,11 +229,12 @@ export function createCoordinateDiscoverySession(input: {
               boundary,
               frame: boundaryFrame,
             };
-          } catch {
+          } catch (error) {
+            const captureFailure = frameFailure(error);
             return failure(
-              "frame_unavailable",
+              captureFailure.code,
               executedActions,
-              "Coordinate discovery frame is unavailable.",
+              captureFailure.message,
               index,
             );
           }
@@ -280,6 +274,29 @@ export function createCoordinateDiscoverySession(input: {
       );
     }
   }
+}
+
+type CoordinateFrameFailureCode =
+  | "frame_unavailable"
+  | "native_window_capture_unavailable";
+
+function frameFailure(error: unknown): {
+  ok: false;
+  code: CoordinateFrameFailureCode;
+  message: string;
+} {
+  if (error instanceof Error && error.message === "native_window_capture_unavailable") {
+    return {
+      ok: false,
+      code: "native_window_capture_unavailable",
+      message: "Native browser UI capture is unavailable.",
+    };
+  }
+  return {
+    ok: false,
+    code: "frame_unavailable",
+    message: "Coordinate discovery frame is unavailable.",
+  };
 }
 
 function semanticIntent(
