@@ -20,7 +20,7 @@ export async function createDiscoverHostServer(input: {
   token: string;
   handle(request: DiscoverHostRequest): Promise<DiscoverHostResponse>;
 }): Promise<DiscoverHostServer> {
-  const server = createServer((socket) => {
+  const server = createServer({ allowHalfOpen: true }, (socket) => {
     void readFrame(socket).then(async (value) => {
       if (!value.ok) return writeResponse(socket, value);
       const envelope = value.value;

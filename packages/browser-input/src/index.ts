@@ -105,6 +105,7 @@ export function createNaturalInputDriver(
       await move(destination);
       await settle();
       await port.wheel(deltaX, deltaY);
+      await settle();
     },
     async keypress(keys) {
       for (const key of keys) await port.keypress(key);

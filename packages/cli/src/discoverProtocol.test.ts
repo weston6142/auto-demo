@@ -39,6 +39,29 @@ describe("discover host protocol", () => {
     await server.close();
   });
 
+  it("keeps the response side open while a browser action is in flight", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "discover-protocol-"));
+    directories.push(directory);
+    const socketPath = join(directory, "host.sock");
+    const server = await createDiscoverHostServer({
+      socketPath,
+      token: "private-token",
+      async handle() {
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        return { ok: true, executedActions: 1 };
+      },
+    });
+
+    await expect(
+      sendDiscoverHostRequest({
+        socketPath,
+        token: "private-token",
+        request: { command: "act", sessionId: "discovery-123" },
+      }),
+    ).resolves.toEqual({ ok: true, executedActions: 1 });
+    await server.close();
+  });
+
   it("rejects an invalid token before invoking the session handler", async () => {
     const directory = await mkdtemp(join(tmpdir(), "discover-protocol-"));
     directories.push(directory);

@@ -44,6 +44,8 @@ export type PlaywrightCoordinateDiscoveryPageOptions = {
 
 export class PlaywrightCoordinateDiscoveryPage {
   private readonly input: NaturalInputDriver;
+  private nativePopupOpen = false;
+  private cachedState: CoordinatePageState | undefined;
 
   constructor(
     private readonly page: Page,
@@ -134,27 +136,29 @@ export class PlaywrightCoordinateDiscoveryPage {
   }
 
   async state(): Promise<CoordinatePageState> {
+    if (this.nativePopupOpen) {
+      if (this.cachedState === undefined) throw new Error("coordinate_state_unavailable");
+      return { ...this.cachedState, popup: "open" };
+    }
     const state = await this.page.evaluate(() => {
       const root = globalThis as typeof globalThis & { __autoDemoCoordinateDocument?: string };
       root.__autoDemoCoordinateDocument ??= `document-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       return {
         documentToken: root.__autoDemoCoordinateDocument,
         url: location.href,
+        title: document.title,
         viewport: { width: innerWidth, height: innerHeight },
         scroll: { x: scrollX, y: scrollY },
-        popup:
-          document.activeElement instanceof HTMLSelectElement
-            ? ("open" as const)
-            : ("closed" as const),
+        popup: "closed" as const,
       };
     });
-    return { ...state, layoutIdentity: await this.layoutIdentity() };
+    const result = { ...state, layoutIdentity: await this.layoutIdentity() };
+    this.cachedState = result;
+    return result;
   }
 
   async nativeUiState(): Promise<"closed" | "open"> {
-    return await this.page.evaluate(() =>
-      document.activeElement instanceof HTMLSelectElement ? "open" : "closed",
-    );
+    return this.nativePopupOpen ? "open" : "closed";
   }
 
   async execute(action: CoordinateDiscoveryAction): Promise<void> {
@@ -163,7 +167,22 @@ export class PlaywrightCoordinateDiscoveryPage {
         await this.input.move(action);
         return;
       case "click":
-        await this.input.click(action);
+        this.nativePopupOpen = await this.page.evaluate(
+          ({ x, y }) => document.elementFromPoint(x, y)?.closest("select") !== null,
+          action,
+        );
+        try {
+          await this.input.click(action);
+          if (!this.nativePopupOpen) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 50));
+            await this.page
+              .waitForLoadState("domcontentloaded", { timeout: 2_000 })
+              .catch(() => undefined);
+          }
+        } catch (error) {
+          this.nativePopupOpen = false;
+          throw error;
+        }
         return;
       case "double-click":
         await this.input.doubleClick(action);
@@ -173,6 +192,9 @@ export class PlaywrightCoordinateDiscoveryPage {
         return;
       case "keypress":
         await this.input.keypress(action.keys);
+        if (action.keys.some((key) => ["ENTER", "ESCAPE", "TAB"].includes(key))) {
+          this.nativePopupOpen = false;
+        }
         return;
       case "type":
         await this.input.type(action.text);

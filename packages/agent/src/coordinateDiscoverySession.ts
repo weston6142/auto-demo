@@ -12,6 +12,7 @@ import type { DiscoveryAction, DiscoveryInteractiveTarget } from "./discoveryCon
 export type CoordinatePageState = {
   documentToken: string;
   url: string;
+  title: string;
   viewport: { width: number; height: number };
   scroll: { x: number; y: number };
   popup: "closed" | "open";
@@ -184,19 +185,20 @@ export function createCoordinateDiscoverySession(input: {
           ...(semanticAction === undefined ? {} : { semanticAction }),
           ...(target === undefined ? {} : { target: structuredClone(target.target) }),
           publicEffect: publicEffect(before, after, target, afterTarget),
-          pageBefore: { url: before.url, title: "" },
-          pageAfter: { url: after.url, title: "" },
+          pageBefore: { url: before.url, title: before.title || "Untitled page" },
+          pageAfter: { url: after.url, title: after.title || "Untitled page" },
         });
         if (afterTarget !== undefined) lastTarget = afterTarget;
 
         const boundary = classifyBoundary(before, after);
         if (boundary !== "unchanged") {
           try {
+            const boundaryFrame = await capture();
             return {
               ok: true,
               executedActions,
               boundary,
-              frame: await capture(),
+              frame: boundaryFrame,
             };
           } catch {
             return failure(

@@ -98,9 +98,12 @@ describe("natural browser input", () => {
 
     await driver.scroll({ x: 90, y: 120 }, 3, 400);
 
-    expect(events.at(-3)).toEqual({ kind: "move", point: { x: 90, y: 120 } });
-    expect(events.at(-2)).toEqual({ kind: "wait", durationMs: 25 });
-    expect(events.at(-1)).toEqual({ kind: "wheel", deltaX: 3, deltaY: 400 });
+    expect(events.slice(-4)).toEqual([
+      { kind: "move", point: { x: 90, y: 120 } },
+      { kind: "wait", durationMs: 25 },
+      { kind: "wheel", deltaX: 3, deltaY: 400 },
+      { kind: "wait", durationMs: 25 },
+    ]);
   });
 
   it("preserves keyboard action order and rejects invalid coordinates", async () => {

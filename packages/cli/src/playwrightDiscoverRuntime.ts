@@ -2,6 +2,7 @@ import { lstat, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import {
   PlaywrightCoordinateDiscoveryPage,
+  createMacOsBrowserWindowCapture,
   createCoordinateDiscoverySession,
   createFileCoordinateDiscoveryStore,
   createPlaywrightDiscoveryBrowserLauncher,
@@ -10,11 +11,13 @@ import {
   replayAndRepairDiscoveryPlan,
   reviewWalkthroughPlan,
   type CapturedCoordinateFrame,
+  type BrowserWindowCapture,
   type CoordinateDiscoveryCheckpoint,
   type CoordinateDiscoverySession,
   type DiscoveryBrowserLaunchHandle,
   type DiscoveryPolicy,
 } from "@auto-demo/agent";
+import type { Page } from "playwright";
 import type { DiscoverHostBootstrap } from "./discoverBackend.js";
 import type { DiscoverHostRuntime } from "./discoverHost.js";
 
@@ -23,8 +26,13 @@ export type PlaywrightDiscoverRuntimeResult = {
   initialResponse: Record<string, unknown> & { ok: boolean };
 };
 
+export type PlaywrightDiscoverRuntimeOptions = {
+  createWindowCapture?: (page: Page) => Promise<BrowserWindowCapture | undefined>;
+};
+
 export async function createPlaywrightDiscoverRuntime(
   bootstrap: DiscoverHostBootstrap,
+  options: PlaywrightDiscoverRuntimeOptions = {},
 ): Promise<PlaywrightDiscoverRuntimeResult> {
   const launcher = createPlaywrightDiscoveryBrowserLauncher();
   const launched = await launcher.launch({
@@ -60,7 +68,14 @@ export async function createPlaywrightDiscoverRuntime(
     };
   }
 
-  const adapter = new PlaywrightCoordinateDiscoveryPage(launched.page, {}, { x: 64, y: 64 });
+  const windowCapture = await (options.createWindowCapture ?? createMacOsBrowserWindowCapture)(
+    launched.page,
+  );
+  const adapter = new PlaywrightCoordinateDiscoveryPage(
+    launched.page,
+    { ...(windowCapture === undefined ? {} : { windowCapture }) },
+    { x: 64, y: 64 },
+  );
   const session = createCoordinateDiscoverySession({ page: adapter, grid: bootstrap.start.grid });
   const store = createFileCoordinateDiscoveryStore(bootstrap.sessionDirectory);
   const started = await session.start();

@@ -14,6 +14,7 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
   private pageState: CoordinatePageState = {
     documentToken: "document-1",
     url: "https://example.test/search",
+    title: "Vehicle search",
     viewport: { width: 800, height: 600 },
     scroll: { x: 0, y: 0 },
     popup: "closed",

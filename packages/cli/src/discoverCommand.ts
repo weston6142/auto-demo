@@ -95,7 +95,7 @@ function parseStart(args: string[]): { ok: true; input: DiscoverStartInput } | {
     goal.trim().length < 1 ||
     goal.length > 2_000 ||
     risk === undefined ||
-    !isHttpsUrl(url)
+    !isSafeBrowserUrl(url)
   ) {
     return { ok: false };
   }
@@ -163,9 +163,13 @@ function isSafeId(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,127}$/i.test(value);
 }
 
-function isHttpsUrl(value: string): boolean {
+function isSafeBrowserUrl(value: string): boolean {
   try {
-    return new URL(value).protocol === "https:";
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" ||
+      (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
+    );
   } catch {
     return false;
   }

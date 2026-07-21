@@ -116,9 +116,17 @@ describe("Playwright coordinate discovery page", () => {
     await page.evaluate(() => scrollTo(0, 200));
     expect(await adapter.layoutIdentity()).not.toBe(before);
 
-    await page.getByLabel("Make").focus();
+    const box = await page.getByLabel("Make").boundingBox();
+    if (box === null) throw new Error("fixture select unavailable");
+    await adapter.state();
+    await adapter.execute({
+      type: "click",
+      x: Math.floor(box.x + box.width / 2),
+      y: Math.floor(box.y + box.height / 2),
+    });
     await expect(
       adapter.captureFrame({ id: "frame-2", pointer: { x: 10, y: 10 }, grid: false }),
     ).rejects.toThrow("native_window_capture_unavailable");
+    await adapter.execute({ type: "keypress", keys: ["ESCAPE"] });
   });
 });

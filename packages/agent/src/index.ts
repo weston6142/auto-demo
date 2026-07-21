@@ -152,6 +152,11 @@ export {
 } from "./playwrightCoordinateDiscoveryPage.js";
 
 export {
+  createMacOsBrowserWindowCapture,
+  type MacOsBrowserWindowCaptureOptions,
+} from "./macOsBrowserWindowCapture.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,
