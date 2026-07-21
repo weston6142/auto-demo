@@ -128,7 +128,10 @@ class MemoryStore implements AutonomousDiscoveryStore {
 
 async function completedSession(): Promise<DiscoverySessionV1> {
   return JSON.parse(
-    await readFile(new URL("../fixtures/discovery-session-completed.json", import.meta.url), "utf8"),
+    await readFile(
+      new URL("../fixtures/discovery-session-completed.json", import.meta.url),
+      "utf8",
+    ),
   ) as DiscoverySessionV1;
 }
 
@@ -226,7 +229,10 @@ async function runnerFixture(store = new MemoryStore()) {
         return {
           kind: "act" as const,
           input: {
-            action: { kind: "click" as const, targetId: initial.observations[0]!.interactiveTargets[0]!.id },
+            action: {
+              kind: "click" as const,
+              targetId: initial.observations[0]!.interactiveTargets[0]!.id,
+            },
             expectations: [],
             confidence: { level: "high" as const, bases: ["exact-accessible-target" as const] },
           },
@@ -259,13 +265,19 @@ async function runnerFixture(store = new MemoryStore()) {
           profile: PROFILE,
           profileId: "profile-1",
           attempts: [],
-          async close() { browser.closed = true; },
+          async close() {
+            browser.closed = true;
+          },
         };
       },
     },
-    async createController() { return controller; },
+    async createController() {
+      return controller;
+    },
     compile: compileDiscoverySessionToWalkthroughPlan,
-    async replay({ sourceSession, plan }) { return replaySuccess(sourceSession, plan); },
+    async replay({ sourceSession, plan }) {
+      return replaySuccess(sourceSession, plan);
+    },
     review: reviewWalkthroughPlan,
     clock: () => "2026-07-20T12:00:00.000Z",
     idGenerator: (kind) => `${kind}-1`,
@@ -447,7 +459,9 @@ describe("autonomous discovery runner", () => {
         failure,
       });
       if (repair.decision !== "repaired") throw new Error("repair expected");
-      const compiled = compileDiscoverySessionToWalkthroughPlan(repair.session as DiscoverySessionV1);
+      const compiled = compileDiscoverySessionToWalkthroughPlan(
+        repair.session as DiscoverySessionV1,
+      );
       if (!compiled.ok) throw new Error("repair must compile");
       return replaySuccess(repair.session as DiscoverySessionV1, compiled.plan);
     });
@@ -471,7 +485,8 @@ describe("autonomous discovery runner", () => {
   it("rejects unapproved completion before recording", async () => {
     const fixture = await runnerFixture();
     const discovered = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
-    if (!discovered.ok || discovered.phase !== "review_required") throw new Error("review expected");
+    if (!discovered.ok || discovered.phase !== "review_required")
+      throw new Error("review expected");
     const record = vi.fn();
     const completionDependencies: CompleteApprovedAutonomousDiscoveryDependencies = {
       store: fixture.store,
@@ -501,7 +516,8 @@ describe("autonomous discovery runner", () => {
   it("re-establishes the persisted tier for fresh approved recording before handoff", async () => {
     const fixture = await runnerFixture();
     const discovered = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
-    if (!discovered.ok || discovered.phase !== "review_required") throw new Error("review expected");
+    if (!discovered.ok || discovered.phase !== "review_required")
+      throw new Error("review expected");
     const approved = approveWalkthroughPlan(discovered.plan, {
       now: () => new Date("2026-07-20T12:10:00.000Z"),
     });
@@ -562,7 +578,8 @@ describe("autonomous discovery runner", () => {
   it("treats changed discovery source lineage as stale approval", async () => {
     const fixture = await runnerFixture();
     const discovered = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
-    if (!discovered.ok || discovered.phase !== "review_required") throw new Error("review expected");
+    if (!discovered.ok || discovered.phase !== "review_required")
+      throw new Error("review expected");
     const approved = approveWalkthroughPlan(discovered.plan, {
       now: () => new Date("2026-07-20T12:10:00.000Z"),
     });

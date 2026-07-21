@@ -63,13 +63,13 @@ describe("file autonomous discovery store", () => {
     await mkdir(directory);
     await writeFile(join(directory, "keep.txt"), "keep");
 
-    await expect(createFileAutonomousDiscoveryStore(directory).initialize(CHECKPOINT)).resolves.toEqual(
-      {
-        ok: false,
-        code: "workflow_directory_not_empty",
-        message: "Autonomous discovery workflow directory must be missing or empty.",
-      },
-    );
+    await expect(
+      createFileAutonomousDiscoveryStore(directory).initialize(CHECKPOINT),
+    ).resolves.toEqual({
+      ok: false,
+      code: "workflow_directory_not_empty",
+      message: "Autonomous discovery workflow directory must be missing or empty.",
+    });
     expect(await readFile(join(directory, "keep.txt"), "utf8")).toBe("keep");
   });
 

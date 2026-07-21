@@ -58,8 +58,7 @@ export type AutonomousDiscoveryStoreError = {
 };
 
 export type AutonomousDiscoveryStoreWriteResult =
-  | { ok: true; path: string }
-  | AutonomousDiscoveryStoreError;
+  { ok: true; path: string } | AutonomousDiscoveryStoreError;
 
 export type AutonomousDiscoverySessionArtifact = "root" | "repair-1" | "repair-2";
 export type AutonomousDiscoveryPlanArtifact = "draft" | "replay-validated" | "approved";
@@ -104,9 +103,7 @@ const ARTIFACT_PATHS = {
   handoff: "handoff.json",
 } as const;
 
-export function createFileAutonomousDiscoveryStore(
-  directory: string,
-): AutonomousDiscoveryStore {
+export function createFileAutonomousDiscoveryStore(directory: string): AutonomousDiscoveryStore {
   const writeArtifact = async (
     relativePath: string,
     value: unknown,
@@ -237,15 +234,19 @@ export function createFileAutonomousDiscoveryStore(
 }
 
 function isCheckpoint(value: unknown): value is AutonomousDiscoveryRunCheckpoint {
-  if (!isRecord(value) || !hasOnlyKeys(value, [
-    "schemaVersion",
-    "runId",
-    "phase",
-    "policy",
-    "target",
-    "launchProfile",
-    "artifacts",
-  ])) return false;
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, [
+      "schemaVersion",
+      "runId",
+      "phase",
+      "policy",
+      "target",
+      "launchProfile",
+      "artifacts",
+    ])
+  )
+    return false;
   if (
     value.schemaVersion !== 1 ||
     typeof value.runId !== "string" ||
@@ -257,7 +258,8 @@ function isCheckpoint(value: unknown): value is AutonomousDiscoveryRunCheckpoint
     typeof value.target.goal !== "string" ||
     value.target.goal.trim().length === 0 ||
     !isRecord(value.artifacts)
-  ) return false;
+  )
+    return false;
   try {
     const url = new URL(value.target.url);
     if (!/^https?:$/.test(url.protocol) || url.username !== "" || url.password !== "") return false;

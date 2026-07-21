@@ -10,7 +10,11 @@ import type {
   DiscoveryHostProvenance,
 } from "./discoveryContract.js";
 import { DISCOVERY_LIMITS } from "./discoveryContract.js";
-import type { DiscoveryInputResolver, DiscoveryRehearsalActionInput, DiscoveryRehearsalDiagnostic } from "./discoveryRehearsal.js";
+import type {
+  DiscoveryInputResolver,
+  DiscoveryRehearsalActionInput,
+  DiscoveryRehearsalDiagnostic,
+} from "./discoveryRehearsal.js";
 import type { DiscoveryPolicy } from "./discoveryPolicy.js";
 import { validateDiscoveryPolicy } from "./discoveryPolicy.js";
 import type {
@@ -88,13 +92,15 @@ export type AutonomousDiscoveryRunnerController = {
     parentSessionId?: string;
   }): Promise<RunnerControllerResult>;
   perform(input: DiscoveryRehearsalActionInput): Promise<RunnerControllerResult>;
-  stop(input:
-    | {
-        outcome: "complete";
-        attemptIds: string[];
-        source: "host-agent" | "user-directed";
-      }
-    | { outcome: "abandon"; reason: { code: string; summary: string } }): Promise<RunnerControllerResult>;
+  stop(
+    input:
+      | {
+          outcome: "complete";
+          attemptIds: string[];
+          source: "host-agent" | "user-directed";
+        }
+      | { outcome: "abandon"; reason: { code: string; summary: string } },
+  ): Promise<RunnerControllerResult>;
   dispose(): Promise<void>;
 };
 
@@ -306,11 +312,7 @@ export async function completeApprovedAutonomousDiscovery(
   let checkpoint = checkpointResult.checkpoint;
   const approvedWrite = await dependencies.store.writePlan("approved", input.plan);
   if (!approvedWrite.ok) {
-    return completionFailure(
-      "approval",
-      "artifact_persistence_failed",
-      approvedWrite.message,
-    );
+    return completionFailure("approval", "artifact_persistence_failed", approvedWrite.message);
   }
   checkpoint = withArtifact(checkpoint, "approved-plan", approvedWrite.path);
   checkpoint = { ...checkpoint, phase: "recording" };
@@ -348,11 +350,7 @@ export async function completeApprovedAutonomousDiscovery(
   }
   const executionWrite = await dependencies.store.writeExecution(execution);
   if (!executionWrite.ok) {
-    return completionFailure(
-      "recording",
-      "artifact_persistence_failed",
-      executionWrite.message,
-    );
+    return completionFailure("recording", "artifact_persistence_failed", executionWrite.message);
   }
   checkpoint = withArtifact(checkpoint, "execution", executionWrite.path);
 
@@ -448,7 +446,11 @@ export async function runAutonomousDiscoveryToReview(
       launchProfile: launched.profile,
     });
     if (!started.ok || started.observation === undefined) {
-      return runnerFailure("discovery", "discovery_failed", "Autonomous discovery could not start.");
+      return runnerFailure(
+        "discovery",
+        "discovery_failed",
+        "Autonomous discovery could not start.",
+      );
     }
     let current = started;
     const firstWrite = await dependencies.store.writeSession("root", current.session);
@@ -465,13 +467,21 @@ export async function runAutonomousDiscoveryToReview(
           diagnostics: structuredClone(current.diagnostics),
         });
       } catch {
-        return runnerFailure("discovery", "discovery_failed", "Autonomous discovery decision failed.");
+        return runnerFailure(
+          "discovery",
+          "discovery_failed",
+          "Autonomous discovery decision failed.",
+        );
       }
 
       if (decision.kind === "act") {
         const performed = await controller.perform(decision.input);
         if (!performed.ok || performed.observation === undefined) {
-          return runnerFailure("discovery", "discovery_failed", "Autonomous discovery action failed.");
+          return runnerFailure(
+            "discovery",
+            "discovery_failed",
+            "Autonomous discovery action failed.",
+          );
         }
         const written = await dependencies.store.writeSession("root", performed.session);
         if (!written.ok) {
@@ -491,7 +501,11 @@ export async function runAutonomousDiscoveryToReview(
           : { outcome: "abandon", reason: decision.reason },
       );
       if (!stopped.ok) {
-        return runnerFailure("discovery", "discovery_failed", "Autonomous discovery could not stop.");
+        return runnerFailure(
+          "discovery",
+          "discovery_failed",
+          "Autonomous discovery could not stop.",
+        );
       }
       const terminalWrite = await dependencies.store.writeSession("root", stopped.session);
       if (!terminalWrite.ok) {
@@ -657,7 +671,10 @@ async function runRepairSession(input: {
         if (!performed.ok || performed.observation === undefined) {
           return { decision: "stop", reason: "manual_review_required" };
         }
-        const written = await input.dependencies.store.writeSession(artifactKind, performed.session);
+        const written = await input.dependencies.store.writeSession(
+          artifactKind,
+          performed.session,
+        );
         if (!written.ok) throw new Error("persistence");
         current = performed;
         continue;
@@ -679,9 +696,9 @@ async function runRepairSession(input: {
   }
 }
 
-function prepareInput(input: AutonomousDiscoveryRunnerInput):
-  | { ok: true; profilePlan: BrowserLaunchProfilePlanV1 }
-  | { ok: false; message: string } {
+function prepareInput(
+  input: AutonomousDiscoveryRunnerInput,
+): { ok: true; profilePlan: BrowserLaunchProfilePlanV1 } | { ok: false; message: string } {
   if (
     !isSafeDiscoveryId(input.runId) ||
     input.goal.trim().length === 0 ||
