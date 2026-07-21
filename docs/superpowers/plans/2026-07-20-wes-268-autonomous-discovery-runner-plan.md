@@ -356,7 +356,7 @@ rtk rg -n '^\s*[-*]\s+\[ \]' docs/superpowers/plans/2026-07-20-wes-268-autonomou
 
 Only publication/completion steps whose prerequisites have not occurred may remain unchecked.
 
-- [ ] **Step 4: Commit, push, create the PR, and monitor checks**
+- [x] **Step 4: Commit, push, create the PR, and monitor checks**
 
 Stage only WES-268 paths, push `wes-268-autonomous-discovery-runner`, and create a PR targeting `develop` with the Linear issue, design/plan links, and exact verification. Triage review threads and failed checks before changing code; push scoped fixes and re-monitor exact-head status.
 
