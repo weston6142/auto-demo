@@ -191,11 +191,13 @@ export async function installPlaywrightDiscoveryPolicyGuard(
   };
 
   const handlePausedRequest = async (event: FetchRequestPaused) => {
-    const requestOrigin = safeRequestOrigin(event.request.url);
     const topLevelNavigation =
       event.resourceType === "Document" &&
       event.frameId !== undefined &&
       event.frameId === mainFrameId;
+    const requestOrigin = topLevelNavigation
+      ? safeRequestOrigin(event.request.url)
+      : normalizeHttpOrigin(event.request.url);
 
     if (requestOrigin === undefined) {
       recordViolation("unsafe_navigation_blocked");
