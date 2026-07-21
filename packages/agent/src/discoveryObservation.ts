@@ -15,6 +15,7 @@ export type DiscoveryObservationDiagnosticCode =
   | "credential_target_present"
   | "fallback_targets_included"
   | "screenshot_unavailable"
+  | "visual_state_unavailable"
   | "unstable_page_retried";
 
 export type DiscoveryObservationDiagnostic = {
@@ -95,6 +96,10 @@ export interface DiscoveryObservationPage {
   readDocumentToken(): Promise<string>;
   collectSnapshot(): Promise<DiscoveryObservationPageSnapshot>;
   captureViewportPng(): Promise<Uint8Array>;
+  inspectVisualState?(): Promise<
+    | { status: "available" }
+    | { status: "unavailable"; reason: "native_ui_not_representable" | "capture_failed" }
+  >;
   hasLiveIdentity(identityKey: string, documentToken: string): Promise<boolean>;
 }
 
@@ -167,9 +172,12 @@ export function createDiscoveryObservationExtractorWithRegistry(
           const snapshot = await dependencies.page.collectSnapshot();
           let screenshotBytes: Uint8Array | undefined;
           let screenshotFailed = false;
+          let visualStateUnavailable = false;
           if (dependencies.artifactSink !== undefined) {
             try {
-              screenshotBytes = await dependencies.page.captureViewportPng();
+              const visualState = await dependencies.page.inspectVisualState?.();
+              if (visualState?.status === "unavailable") visualStateUnavailable = true;
+              else screenshotBytes = await dependencies.page.captureViewportPng();
             } catch {
               screenshotFailed = true;
             }
@@ -198,6 +206,9 @@ export function createDiscoveryObservationExtractorWithRegistry(
           const screenshotDiagnostics: DiscoveryObservationDiagnostic[] = [];
           if (screenshotFailed) {
             screenshotDiagnostics.push(diagnostic("screenshot_unavailable", 1));
+          }
+          if (visualStateUnavailable) {
+            screenshotDiagnostics.push(diagnostic("visual_state_unavailable", 1));
           }
           if (screenshotBytes !== undefined && dependencies.artifactSink !== undefined) {
             const artifactId = idGenerator("artifact");

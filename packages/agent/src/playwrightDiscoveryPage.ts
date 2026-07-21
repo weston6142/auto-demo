@@ -44,6 +44,20 @@ export class PlaywrightDiscoveryObservationPage implements DiscoveryObservationP
     return await this.page.screenshot({ type: "png" });
   }
 
+  async inspectVisualState() {
+    const nativeUiOpen = await this.page.evaluate(() => {
+      if (document.activeElement instanceof HTMLSelectElement) return true;
+      try {
+        return document.querySelector("select:open") !== null;
+      } catch {
+        return false;
+      }
+    });
+    return nativeUiOpen
+      ? ({ status: "unavailable", reason: "native_ui_not_representable" } as const)
+      : ({ status: "available" } as const);
+  }
+
   async hasLiveIdentity(identityKey: string, documentToken: string) {
     return await this.page.evaluate(
       ({ registryKey, identityKey, documentToken }) => {

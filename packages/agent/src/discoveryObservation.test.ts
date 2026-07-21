@@ -49,6 +49,31 @@ function safePage(): DiscoveryObservationPage {
 }
 
 describe("createDiscoveryObservationExtractor", () => {
+  it("reports native browser UI as visually unavailable instead of storing a misleading page screenshot", async () => {
+    const page = safePage();
+    page.inspectVisualState = async () => ({
+      status: "unavailable",
+      reason: "native_ui_not_representable",
+    });
+    let writes = 0;
+
+    const result = await createDiscoveryObservationExtractor({
+      page,
+      artifactSink: {
+        async write() {
+          writes += 1;
+          return { path: "artifacts/page.png" };
+        },
+      },
+    }).observe();
+
+    expect(writes).toBe(0);
+    expect(result).toMatchObject({
+      ok: true,
+      observation: { artifacts: [] },
+      diagnostics: [expect.objectContaining({ code: "visual_state_unavailable" })],
+    });
+  });
   it("returns an observation accepted by the discovery session lifecycle", async () => {
     const ids = ["observation-1", "target-checkout", "visible-cart"];
     const extractor = createDiscoveryObservationExtractor({

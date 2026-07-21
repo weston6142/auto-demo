@@ -410,6 +410,13 @@ type, and SHA-256 hash; screenshot bytes stay behind the sink boundary. Target I
 while the same DOM element stays attached to the current main document. Use `hasLiveTarget()`
 before acting on a retained ID; navigation, removal, or element replacement invalidates it.
 
+The autonomous runner connects that sink to its durable store and reloads the current PNG through
+a runtime-only visual channel for each decision. The provider receives image bytes alongside the
+sanitized observation, but those bytes never enter durable session, checkpoint, review, or
+text-prompt JSON. Page screenshots do not reliably contain expanded native browser UI. When that
+state cannot be represented honestly, the decision receives `visual_state_unavailable` instead
+of a misleading page-only image; capture does not click, refocus, or move the pointer.
+
 Collection covers the main document and open shadow roots, excludes iframe contents, prioritizes
 accessible semantic controls, and reports bounded fallback targets and truncation through
 runtime-only diagnostics. It never returns form values, selectors, raw DOM, screenshot bytes, or

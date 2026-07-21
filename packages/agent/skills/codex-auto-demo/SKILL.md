@@ -66,6 +66,12 @@ bounded decision provider and runtime-only input resolver; you must not
 reproduce the lifecycle in an ad hoc script. The runner requires the explicit
 risk tier before browser activity, owns fresh root and repair contexts, and
 persists every accepted session transition before requesting another decision.
+For every decision, consume the sanitized observation and the image supplied by
+the runtime-only visual channel together. Image bytes never enter durable
+session, checkpoint, review, or text-prompt JSON. If expanded native browser UI
+cannot be captured without changing focus, the runner reports
+`visual_state_unavailable`; do not pretend a page-only screenshot represents
+that native browser UI.
 It returns `review_required` only after compilation, fresh replay, bounded
 repair, and sanitized review. Present that review and obtain explicit approval
 in a separate turn.

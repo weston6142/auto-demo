@@ -21,6 +21,8 @@ const MESSAGES = {
   credential_target_present: "Credential-like input is present.",
   fallback_targets_included: "Focusable or clickable-looking fallback targets were included.",
   screenshot_unavailable: "The optional viewport screenshot is unavailable.",
+  visual_state_unavailable:
+    "Visual state is unavailable because native browser UI cannot be represented.",
   unstable_page_retried: "Observation retried after the main document changed.",
 } as const;
 

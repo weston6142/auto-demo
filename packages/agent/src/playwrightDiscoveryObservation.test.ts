@@ -607,7 +607,10 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
   });
 
   it("persists real viewport PNG bytes behind a safe artifact reference", async () => {
-    await openHtml("<title>Screenshot</title><button>Capture me</button>");
+    await openHtml(
+      "<title>Screenshot</title><details open><summary>Filters</summary><button autofocus>Capture me</button></details>",
+    );
+    await page.locator("button").focus();
     const stored: Uint8Array[] = [];
     const extractor = createPlaywrightDiscoveryObservationExtractor(page, {
       artifactSink: {
@@ -633,6 +636,32 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
       },
     });
     expect(JSON.stringify(result)).not.toContain("bytes");
+    expect(await page.locator("details").getAttribute("open")).not.toBeNull();
+    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe("Capture me");
+  });
+
+  it("fails closed instead of capturing page-only pixels while a native select owns focus", async () => {
+    await openHtml(
+      "<title>Native select</title><label>Make<select><option>Kia</option><option>Mazda</option></select></label>",
+    );
+    await page.locator("select").focus();
+    let writes = 0;
+    const result = await createPlaywrightDiscoveryObservationExtractor(page, {
+      artifactSink: {
+        async write() {
+          writes += 1;
+          return { path: "artifacts/native-select.png" };
+        },
+      },
+    }).observe();
+
+    expect(writes).toBe(0);
+    expect(result).toMatchObject({
+      ok: true,
+      observation: { artifacts: [] },
+      diagnostics: [expect.objectContaining({ code: "visual_state_unavailable" })],
+    });
+    expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("SELECT");
   });
 
   it("invalidates prior-document targets and reports navigation and closure", async () => {
