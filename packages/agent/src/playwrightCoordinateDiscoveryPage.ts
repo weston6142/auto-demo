@@ -15,6 +15,7 @@ import type {
   DiscoveryTargetStructure,
 } from "./discoveryContract.js";
 import type { DiscoveryTargetRuntimeRisk } from "./discoveryTargetRegistry.js";
+import type { CoordinatePageState } from "./coordinateDiscoverySession.js";
 
 export type BrowserWindowCapture = {
   capture(): Promise<Uint8Array | undefined>;
@@ -130,6 +131,24 @@ export class PlaywrightCoordinateDiscoveryPage {
         }),
     }));
     return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+  }
+
+  async state(): Promise<CoordinatePageState> {
+    const state = await this.page.evaluate(() => {
+      const root = globalThis as typeof globalThis & { __autoDemoCoordinateDocument?: string };
+      root.__autoDemoCoordinateDocument ??= `document-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      return {
+        documentToken: root.__autoDemoCoordinateDocument,
+        url: location.href,
+        viewport: { width: innerWidth, height: innerHeight },
+        scroll: { x: scrollX, y: scrollY },
+        popup:
+          document.activeElement instanceof HTMLSelectElement
+            ? ("open" as const)
+            : ("closed" as const),
+      };
+    });
+    return { ...state, layoutIdentity: await this.layoutIdentity() };
   }
 
   async nativeUiState(): Promise<"closed" | "open"> {

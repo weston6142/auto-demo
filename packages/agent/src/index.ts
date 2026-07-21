@@ -117,6 +117,16 @@ export {
 } from "./coordinateDiscoveryContract.js";
 
 export {
+  createCoordinateDiscoverySession,
+  type CoordinateDiscoveryActResult,
+  type CoordinateDiscoveryBoundary,
+  type CoordinateDiscoveryPage,
+  type CoordinateDiscoverySession,
+  type CoordinatePageState,
+  type CoordinateTraceRecord,
+} from "./coordinateDiscoverySession.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,
