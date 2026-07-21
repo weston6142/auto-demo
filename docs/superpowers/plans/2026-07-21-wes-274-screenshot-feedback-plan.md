@@ -223,7 +223,7 @@ Expected: FAIL because the required visual decision guidance is absent.
 
 - [x] **Step 3: Update docs and map**
 
-Document the bounded API and security rules. Change the map date to 2026-07-21 and record WES-274 as In Progress with the inherited WES-273 reliability baseline. Keep WES-273 paused and WES-265 incomplete.
+Document the bounded API and security rules. Change the map date to 2026-07-21 and record WES-274 as In Progress based on the WES-273 visual-gap evidence but published independently from WES-273's paused commits. Keep WES-273 paused and WES-265 incomplete.
 
 - [x] **Step 4: Run GREEN**
 
@@ -238,19 +238,19 @@ Run the focused docs test. Expected: PASS.
 
 - [x] **Step 1: Run affected verification**
 
-Run agent, browser-profile, and capture tests/typechecks touched by the inherited and new changes, followed by issue-owned ESLint, Prettier, build, repository tests, and `git diff --check`. Use clean-checkout CI as final repository-wide authority if preserved `workflow/` artifacts remain the only local lint/format noise.
+Run affected agent tests/typechecks, followed by issue-owned ESLint, Prettier, build, repository tests, and `git diff --check`. Verify the WES-274-only commit from a clean `develop` base. Use clean-checkout CI as final repository-wide authority if preserved `workflow/` artifacts remain the only local lint/format noise.
 
 - [x] **Step 2: Request independent read-only review**
 
-Give the reviewer WES-274, both WES-274 docs, the inherited WES-273 handoff, the full `origin/develop...HEAD` diff, and verification output. Fix every verified Critical/Important finding through RED-GREEN; verify and fix low-risk Minor findings.
+Give the reviewer WES-274, both WES-274 docs, the WES-273 handoff evidence, the full `origin/develop...HEAD` diff, and verification output. Fix every verified Critical/Important finding through RED-GREEN; verify and fix low-risk Minor findings.
 
 - [x] **Step 3: Commit only issue-owned paths**
 
-Stage explicit docs and package paths. Never stage `.gitignore` or `workflow/`. Use focused commits that preserve the inherited history.
+Stage explicit docs and package paths. Never stage `.gitignore` or `workflow/`. Publish WES-274 independently from WES-273's paused implementation history.
 
-- [ ] **Step 4: Publish the PR to `develop`**
+- [x] **Step 4: Publish the PR to `develop`**
 
-Include Linear WES-274, design/plan paths, inherited handoff explanation, exact verification, review result, and preserved unrelated paths. Monitor structured checks and review threads.
+Include Linear WES-274, design/plan paths, handoff explanation, exact verification, review result, and preserved unrelated paths. Monitor structured checks and review threads.
 
 - [ ] **Step 5: Record stable pre-merge evidence and close plan omissions**
 
