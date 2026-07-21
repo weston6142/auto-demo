@@ -262,6 +262,8 @@ Update the map with exact-head CI and review evidence. Search this plan for unch
 
 After required checks and actionable threads pass, squash merge. Verify `develop` tracks the base repository remote, fetch `origin/develop`, switch safely with unrelated changes preserved, and fast-forward only.
 
+PR #63 merged, but the immediate `develop` browser run exposed one transient headed screenshot failure. Complete this step only after the scoped WES-274 follow-up adds one bounded capture retry, passes review and exact-head CI, merges, and restores green `develop`.
+
 - [ ] **Step 7: Run the completion sync gate**
 
 Add WES-274 completion evidence and move it to Done. Add a dependency-ready handoff to WES-273, advance the map pointer to WES-273, and keep WES-273 and WES-265 Backlog. If post-merge map drift requires a tracked correction, publish one scoped follow-up PR tied to WES-274.
