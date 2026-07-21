@@ -82,6 +82,7 @@ async function hostRoute(route: Route) {
       <label>Condition
         <select onpointerdown="this.dataset.pointerFocused='true'">
           <option>Any</option>
+          <option>New &amp; certified</option>
           <option>New</option>
         </select>
       </label>

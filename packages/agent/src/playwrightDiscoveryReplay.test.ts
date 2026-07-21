@@ -141,6 +141,7 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
       <label>Condition
         <select required onpointerdown="this.dataset.pointerFocused='true'">
           <option value="any-private">Any</option>
+          <option value="certified-private">New &amp; certified</option>
           <option value="new-private">New</option>
         </select>
       </label>

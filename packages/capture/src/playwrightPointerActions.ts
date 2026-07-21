@@ -26,21 +26,28 @@ export async function selectWithVisiblePointer(
   target: Locator,
   optionLabel: string,
 ): Promise<void> {
-  const matches = await target.evaluate((node, label) => {
+  const optionState = await target.evaluate((node, label) => {
     if (!(node instanceof HTMLSelectElement)) return undefined;
     const enabled = Array.from(node.options).filter((option) => !option.disabled);
-    return enabled.filter((option) => option.textContent?.replace(/\s+/g, " ").trim() === label)
-      .length;
+    const matches = enabled.filter(
+      (option) => option.textContent?.replace(/\s+/g, " ").trim() === label,
+    ).length;
+    return { matches, cycleLimit: enabled.length };
   }, optionLabel);
-  if (matches !== 1) throw new Error("option unavailable");
+  const cycleKey = Array.from(optionLabel.trim())[0];
+  if (optionState?.matches !== 1 || cycleKey === undefined) throw new Error("option unavailable");
 
   await clickWithVisiblePointer(page, target);
-  await page.keyboard.type(optionLabel);
-  await page.keyboard.press("Enter");
-  const selectedLabel = await target.evaluate((node) =>
-    node instanceof HTMLSelectElement
-      ? node.selectedOptions[0]?.textContent?.replace(/\s+/g, " ").trim()
-      : undefined,
-  );
-  if (selectedLabel !== optionLabel) throw new Error("option unavailable");
+  for (let attempt = 0; attempt < optionState.cycleLimit; attempt += 1) {
+    await page.keyboard.type(cycleKey);
+    const selectedLabel = await target.evaluate((node) =>
+      node instanceof HTMLSelectElement
+        ? node.selectedOptions[0]?.textContent?.replace(/\s+/g, " ").trim()
+        : undefined,
+    );
+    if (selectedLabel !== optionLabel) continue;
+    await page.keyboard.press("Enter");
+    return;
+  }
+  throw new Error("option unavailable");
 }
