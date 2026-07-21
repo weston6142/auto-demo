@@ -177,7 +177,13 @@ export function createDiscoveryObservationExtractorWithRegistry(
             try {
               const visualState = await dependencies.page.inspectVisualState?.();
               if (visualState?.status === "unavailable") visualStateUnavailable = true;
-              else screenshotBytes = await dependencies.page.captureViewportPng();
+              else {
+                try {
+                  screenshotBytes = await dependencies.page.captureViewportPng();
+                } catch {
+                  screenshotBytes = await dependencies.page.captureViewportPng();
+                }
+              }
             } catch {
               screenshotFailed = true;
             }

@@ -537,6 +537,26 @@ describe("createDiscoveryObservationExtractor", () => {
     expect(captures).toBe(0);
   });
 
+  it("recovers from one transient viewport capture failure", async () => {
+    const page = safePage();
+    let captures = 0;
+    page.captureViewportPng = async () => {
+      captures += 1;
+      if (captures === 1) throw new Error("transient-capture-secret");
+      return new Uint8Array([1, 2, 3]);
+    };
+    const result = await createDiscoveryObservationExtractor({
+      page,
+      artifactSink: { async write() { return { path: "artifacts/retried.png" }; } },
+    }).observe();
+    expect(result).toMatchObject({
+      ok: true,
+      observation: { artifacts: [expect.objectContaining({ path: "artifacts/retried.png" })] },
+    });
+    expect(captures).toBe(2);
+    expect(JSON.stringify(result)).not.toContain("transient-capture-secret");
+  });
+
   it("degrades capture and sink failures to screenshot diagnostics", async () => {
     const captureFailurePage = safePage();
     captureFailurePage.captureViewportPng = async () => {
