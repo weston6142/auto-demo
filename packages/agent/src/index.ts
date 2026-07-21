@@ -127,6 +127,15 @@ export {
 } from "./coordinateDiscoverySession.js";
 
 export {
+  createFileCoordinateDiscoveryStore,
+  type CoordinateDiscoveryCheckpoint,
+  type CoordinateDiscoveryPhase,
+  type CoordinateDiscoveryStore,
+  type CoordinateDiscoveryStoreError,
+  type CoordinateDiscoveryStoreErrorCode,
+} from "./coordinateDiscoveryStore.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,
