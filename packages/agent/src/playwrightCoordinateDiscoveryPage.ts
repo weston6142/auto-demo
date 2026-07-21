@@ -183,11 +183,16 @@ export class PlaywrightCoordinateDiscoveryPage {
       case "click":
         this.nativePopupOpen = await this.page.evaluate(
           ({ x, y }) => {
-            const layeredSelect = document
-              .elementsFromPoint(x, y)
+            const layers = document.elementsFromPoint(x, y);
+            const layeredSelect = layers
               .map((element) => element.closest("select"))
               .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
             if (layeredSelect !== undefined) return true;
+            const labelledSelect = layers
+              .map((element) => element.closest("label"))
+              .map((label) => (label instanceof HTMLLabelElement ? label.control : null))
+              .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
+            if (labelledSelect !== undefined) return true;
             return Array.from(document.querySelectorAll("select")).some((select) => {
               const rect = select.getBoundingClientRect();
               return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -236,30 +241,49 @@ export class PlaywrightCoordinateDiscoveryPage {
 function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence | undefined {
   const selector =
     'a[href],button,input,select,textarea,[contenteditable="true"],[role="button"],[role="link"],[role="combobox"]';
+  const formSelector = 'button,input,select,textarea,[contenteditable="true"],[role="button"],[role="combobox"]';
+  const layers = document.elementsFromPoint(point.x, point.y);
+  const layeredFormControl = layers
+    .map((candidate) => candidate.closest(formSelector))
+    .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement);
+  const labelledControl = layers
+    .map((candidate) => candidate.closest("label"))
+    .map((label) => (label instanceof HTMLLabelElement ? label.control : null))
+    .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement);
+  const containedFormControl = Array.from(document.querySelectorAll(formSelector))
+    .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+    .filter((candidate) => containsPoint(candidate, point))
+    .sort(bySmallestArea)[0];
   const element =
-    document
-      .elementsFromPoint(point.x, point.y)
+    layeredFormControl ??
+    labelledControl ??
+    containedFormControl ??
+    layers
       .map((candidate) => candidate.closest(selector))
       .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement) ??
     Array.from(document.querySelectorAll(selector))
       .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
-      .filter((candidate) => {
-        const rect = candidate.getBoundingClientRect();
-        return (
-          rect.width > 0 &&
-          rect.height > 0 &&
-          point.x >= rect.left &&
-          point.x <= rect.right &&
-          point.y >= rect.top &&
-          point.y <= rect.bottom
-        );
-      })
-      .sort((left, right) => {
-        const leftRect = left.getBoundingClientRect();
-        const rightRect = right.getBoundingClientRect();
-        return leftRect.width * leftRect.height - rightRect.width * rightRect.height;
-      })[0];
+      .filter((candidate) => containsPoint(candidate, point))
+      .sort(bySmallestArea)[0];
   if (!(element instanceof HTMLElement)) return undefined;
+
+  function containsPoint(candidate: HTMLElement, target: ScreenPoint): boolean {
+    const rect = candidate.getBoundingClientRect();
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      target.x >= rect.left &&
+      target.x <= rect.right &&
+      target.y >= rect.top &&
+      target.y <= rect.bottom
+    );
+  }
+
+  function bySmallestArea(left: HTMLElement, right: HTMLElement): number {
+    const leftRect = left.getBoundingClientRect();
+    const rightRect = right.getBoundingClientRect();
+    return leftRect.width * leftRect.height - rightRect.width * rightRect.height;
+  }
 
   const normalized = (value: string | null | undefined) => value?.replace(/\s+/g, " ").trim() ?? "";
   const roleOf = (candidate: Element): string | undefined => {

@@ -93,6 +93,19 @@ describe("Playwright coordinate discovery page", () => {
     await page.evaluate(() => {
       const select = document.querySelector("select")!;
       const box = select.getBoundingClientRect();
+      select.style.pointerEvents = "none";
+      const background = document.createElement("a");
+      background.href = "#background";
+      background.textContent = "Background promotion";
+      Object.assign(background.style, {
+        position: "fixed",
+        left: `${box.left}px`,
+        top: `${box.top}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+        zIndex: "0",
+      });
+      document.body.append(background);
       const chevron = document.createElement("span");
       chevron.textContent = "⌄";
       Object.assign(chevron.style, {
@@ -104,7 +117,7 @@ describe("Playwright coordinate discovery page", () => {
         background: "white",
         zIndex: "10",
       });
-      document.body.append(chevron);
+      select.closest("label")!.append(chevron);
     });
     const evidenceThroughChevron = await adapter.inspectPoint({
       x: Math.floor(selectBox.x + selectBox.width - 10),
@@ -145,6 +158,18 @@ describe("Playwright coordinate discovery page", () => {
     await page.evaluate(() => {
       const select = document.querySelector("select")!;
       const rect = select.getBoundingClientRect();
+      select.style.pointerEvents = "none";
+      const background = document.createElement("a");
+      background.href = "#background";
+      Object.assign(background.style, {
+        position: "fixed",
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        zIndex: "0",
+      });
+      document.body.append(background);
       const chevron = document.createElement("span");
       Object.assign(chevron.style, {
         position: "fixed",
@@ -155,7 +180,7 @@ describe("Playwright coordinate discovery page", () => {
         background: "white",
         zIndex: "10",
       });
-      document.body.append(chevron);
+      select.closest("label")!.append(chevron);
     });
     await adapter.state();
     await adapter.execute({
