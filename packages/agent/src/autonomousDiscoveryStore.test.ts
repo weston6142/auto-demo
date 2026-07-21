@@ -141,4 +141,23 @@ describe("file autonomous discovery store", () => {
       message: "Autonomous discovery artifact is invalid.",
     });
   });
+
+  it("rejects unbounded or malformed review fingerprints", async () => {
+    const root = await mkdtemp(join(tmpdir(), "autodemo-runner-store-"));
+    const store = createFileAutonomousDiscoveryStore(join(root, "run-1"));
+    await store.initialize(CHECKPOINT);
+
+    await expect(
+      store.writeReview({
+        schemaVersion: 1,
+        planFingerprint: "runtime-value",
+        approval: { eligible: true, basis: "validated" },
+        blockerCount: 0,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: "invalid_runner_artifact",
+      message: "Autonomous discovery artifact is invalid.",
+    });
+  });
 });

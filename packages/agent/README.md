@@ -316,7 +316,8 @@ policy tier/scope, then re-establishes the exact tier and launch profile
 for fresh recording, persists completed execution before project handoff, and does not open the editor
 or export. Runtime input values are passed only to the recording dependency and are never accepted by
 the runner artifact store. The checkpoint retains only the non-authorizing tier/scope selection; it
-never retains a disposable acknowledgement or another phase's authority.
+never retains a disposable acknowledgement or another phase's authority. Completion returns the same
+bounded execution and handoff summaries that are persisted, never raw dependency objects.
 
 The runner is a public model-agnostic API, not an interactive discovery CLI. Hosts may layer a
 transport over its decision-provider contract without taking ownership of browser cleanup,

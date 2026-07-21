@@ -358,6 +358,7 @@ function isReviewArtifact(value: unknown): value is AutonomousDiscoveryReviewArt
     !hasOnlyKeys(value, ["schemaVersion", "planFingerprint", "approval", "blockerCount"]) ||
     value.schemaVersion !== 1 ||
     typeof value.planFingerprint !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(value.planFingerprint) ||
     !Number.isInteger(value.blockerCount) ||
     Number(value.blockerCount) < 0 ||
     !isRecord(value.approval)

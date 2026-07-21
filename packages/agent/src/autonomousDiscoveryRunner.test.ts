@@ -643,7 +643,18 @@ describe("autonomous discovery runner", () => {
       { store: fixture.store, record, handoff },
     );
 
-    expect(result).toMatchObject({ ok: true, phase: "completed", handoff: handoffResult });
+    expect(result).toMatchObject({
+      ok: true,
+      phase: "completed",
+      execution: { schemaVersion: 1, status: "completed", stepCount: 0 },
+      handoff: {
+        schemaVersion: 1,
+        status: "completed",
+        projectDirectory: "/project",
+        projectName: "Demo project",
+        nextStepCount: 1,
+      },
+    });
     expect(record).toHaveBeenCalledWith({
       plan: approved.plan,
       policy: INPUT.policy,
@@ -659,6 +670,8 @@ describe("autonomous discovery runner", () => {
     const persisted = JSON.stringify(fixture.store.events);
     expect(persisted).not.toContain("10001");
     expect(persisted).not.toContain("inputBindings");
+    expect(JSON.stringify(result)).not.toContain("10001");
+    expect(JSON.stringify(result)).not.toContain("inputBindings");
   });
 
   it("treats changed discovery source lineage as stale approval", async () => {
@@ -736,6 +749,38 @@ describe("autonomous discovery runner", () => {
     if (!approved.ok || fixture.store.reviewValue === undefined)
       throw new Error("approval expected");
     fixture.store.reviewValue = { ...fixture.store.reviewValue, planFingerprint: "substituted" };
+    const record = vi.fn();
+
+    const result = await completeApprovedAutonomousDiscovery(
+      {
+        plan: approved.plan,
+        policy: INPUT.policy,
+        outputDir: "/capture",
+        projectDirectory: "/project",
+        projectName: "Demo project",
+      },
+      { store: fixture.store, record, handoff: vi.fn() },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "approval",
+      errors: [{ code: "approved_plan_mismatch" }],
+    });
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("rejects a freshly approved plan whose full reviewed identity changed", async () => {
+    const fixture = await runnerFixture();
+    const discovered = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
+    if (!discovered.ok || discovered.phase !== "review_required")
+      throw new Error("review expected");
+    const changed = structuredClone(discovered.plan);
+    changed.id = "changed-plan-id";
+    const approved = approveWalkthroughPlan(changed, {
+      now: () => new Date("2026-07-20T12:10:00.000Z"),
+    });
+    if (!approved.ok) throw new Error("approval expected");
     const record = vi.fn();
 
     const result = await completeApprovedAutonomousDiscovery(

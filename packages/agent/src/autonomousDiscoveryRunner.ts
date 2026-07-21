@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import {
   validateBrowserLaunchProfilePlan,
   type BrowserLaunchProfilePlanV1,
@@ -33,13 +34,13 @@ import { createPlaywrightDiscoveryBrowserLauncher } from "./playwrightDiscoveryB
 import { createPolicyEnforcedPlaywrightDiscoveryRehearsalController } from "./playwrightPolicyDiscoveryRehearsal.js";
 import { createPlaywrightDiscoveryReplayBrowserFactory } from "./playwrightDiscoveryReplay.js";
 import { replayAndRepairDiscoveryPlan } from "./discoveryReplay.js";
-import {
-  verifyWalkthroughPlanApproval,
-  walkthroughPlanFingerprint,
-} from "./walkthroughApproval.js";
+import { verifyWalkthroughPlanApproval } from "./walkthroughApproval.js";
 import type { WalkthroughExecutionResult } from "./walkthroughExecution.js";
+import { sanitizeWalkthroughPlanArtifact } from "./walkthroughValidation.js";
 import type {
   AutonomousDiscoveryArtifactKind,
+  AutonomousDiscoveryExecutionArtifact,
+  AutonomousDiscoveryHandoffArtifact,
   AutonomousDiscoveryPolicySelection,
   AutonomousDiscoveryRunCheckpoint,
   AutonomousDiscoverySessionArtifact,
@@ -247,8 +248,8 @@ export type CompleteApprovedAutonomousDiscoveryResult =
   | {
       ok: true;
       phase: "completed";
-      execution: Extract<WalkthroughExecutionResult, { ok: true }>;
-      handoff: Extract<AutonomousDiscoveryHandoffResult, { ok: true }>;
+      execution: AutonomousDiscoveryExecutionArtifact;
+      handoff: AutonomousDiscoveryHandoffArtifact;
       checkpoint: AutonomousDiscoveryRunCheckpoint;
     }
   | {
@@ -317,7 +318,7 @@ export async function completeApprovedAutonomousDiscovery(
   }
   if (
     !persistedPlan.ok ||
-    walkthroughPlanFingerprint(persistedPlan.plan) !== walkthroughPlanFingerprint(input.plan) ||
+    reviewedPlanFingerprint(persistedPlan.plan) !== reviewedPlanFingerprint(input.plan) ||
     !sameReviewArtifact(
       persistedReview.review,
       reviewArtifact(persistedPlan.ok ? persistedPlan.plan : undefined),
@@ -379,18 +380,23 @@ export async function completeApprovedAutonomousDiscovery(
       "Autonomous discovery recording failed.",
     );
   }
-  if (!execution.ok) {
+  if (
+    !execution.ok ||
+    !Array.isArray(execution.steps) ||
+    execution.steps.length > DISCOVERY_LIMITS.selectedPathAttempts
+  ) {
     return completionFailure(
       "recording",
       "recording_failed",
       "Autonomous discovery recording failed.",
     );
   }
-  const executionWrite = await dependencies.store.writeExecution({
+  const executionSummary: AutonomousDiscoveryExecutionArtifact = {
     schemaVersion: 1,
     status: "completed",
     stepCount: execution.steps.length,
-  });
+  };
+  const executionWrite = await dependencies.store.writeExecution(executionSummary);
   if (!executionWrite.ok) {
     return completionFailure("recording", "artifact_persistence_failed", executionWrite.message);
   }
@@ -410,20 +416,25 @@ export async function completeApprovedAutonomousDiscovery(
       "Autonomous discovery project handoff failed.",
     );
   }
-  if (!handoff.ok) {
+  if (
+    !handoff.ok ||
+    !Array.isArray(handoff.nextSteps) ||
+    handoff.nextSteps.length > DISCOVERY_LIMITS.selectedPathAttempts
+  ) {
     return completionFailure(
       "handoff",
       "handoff_failed",
       "Autonomous discovery project handoff failed.",
     );
   }
-  const handoffWrite = await dependencies.store.writeHandoff({
+  const handoffSummary: AutonomousDiscoveryHandoffArtifact = {
     schemaVersion: 1,
     status: "completed",
     projectDirectory: input.projectDirectory,
     projectName: input.projectName,
     nextStepCount: handoff.nextSteps.length,
-  });
+  };
+  const handoffWrite = await dependencies.store.writeHandoff(handoffSummary);
   if (!handoffWrite.ok) {
     return completionFailure("handoff", "artifact_persistence_failed", handoffWrite.message);
   }
@@ -436,8 +447,8 @@ export async function completeApprovedAutonomousDiscovery(
   return {
     ok: true,
     phase: "completed",
-    execution: structuredClone(execution),
-    handoff: structuredClone(handoff),
+    execution: structuredClone(executionSummary),
+    handoff: structuredClone(handoffSummary),
     checkpoint: structuredClone(checkpoint),
   };
 }
@@ -857,7 +868,7 @@ function reviewArtifact(plan: WalkthroughPlan | undefined) {
   if (!reviewed.ok) return undefined;
   return {
     schemaVersion: 1 as const,
-    planFingerprint: walkthroughPlanFingerprint(plan),
+    planFingerprint: reviewedPlanFingerprint(plan),
     approval: {
       eligible: reviewed.review.approval.eligible,
       ...(reviewed.review.approval.basis === undefined
@@ -907,4 +918,9 @@ function completionFailure(
 ): Extract<CompleteApprovedAutonomousDiscoveryResult, { ok: false }> {
   return { ok: false, phase, errors: [{ code, message }] };
 }
-import { randomUUID } from "node:crypto";
+function reviewedPlanFingerprint(plan: WalkthroughPlan): string {
+  const reviewed = sanitizeWalkthroughPlanArtifact(plan);
+  reviewed.state = "validated";
+  reviewed.approvals = { required: true, approved: false };
+  return `sha256:${createHash("sha256").update(JSON.stringify(reviewed)).digest("hex")}`;
+}
