@@ -6,17 +6,18 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prebuild": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
+    "prebuild": "npm run build -w @auto-demo/browser-input && npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
     "build": "tsc -p tsconfig.json",
-    "pretypecheck": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
+    "pretypecheck": "npm run build -w @auto-demo/browser-input && npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "pretest": "npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
+    "pretest": "npm run build -w @auto-demo/browser-input && npm run build -w @auto-demo/project && npm run build -w @auto-demo/polish",
     "test": "vitest run src/index.test.ts src/wrapper-docs.test.ts src/actionSafety.test.ts src/walkthroughValidation.test.ts src/playwrightValidationRunner.test.ts src/walkthroughReview.test.ts src/walkthroughApproval.test.ts src/walkthroughRefinement.test.ts src/walkthroughExecution.test.ts src/discoverySession.test.ts src/discoveryValidation.test.ts src/discoveryPlanCompiler.test.ts src/discoveryNetworkClassification.test.ts src/discoveryNetworkPolicy.test.ts src/discoveryPolicy.test.ts src/discoveryObservation.test.ts src/playwrightDiscoveryObservation.test.ts src/discoveryRehearsal.test.ts src/playwrightDiscoveryRehearsal.test.ts src/playwrightDiscoveryPolicyGuard.test.ts src/playwrightPolicyDiscoveryRehearsal.test.ts src/discoveryReplay.test.ts src/playwrightDiscoveryReplay.test.ts src/playwrightDiscoveryBrowserLauncher.test.ts src/browserLaunchProfileArtifacts.test.ts src/autonomousDiscoveryStore.test.ts src/autonomousDiscoveryRunner.test.ts",
     "test:unit": "vitest run src/index.test.ts src/actionSafety.test.ts src/walkthroughValidation.test.ts src/walkthroughReview.test.ts src/walkthroughApproval.test.ts src/walkthroughRefinement.test.ts src/walkthroughExecution.test.ts src/discoverySession.test.ts src/discoveryValidation.test.ts src/discoveryPlanCompiler.test.ts src/discoveryNetworkClassification.test.ts src/discoveryNetworkPolicy.test.ts src/discoveryPolicy.test.ts src/discoveryObservation.test.ts src/discoveryRehearsal.test.ts src/discoveryReplay.test.ts src/playwrightDiscoveryBrowserLauncher.test.ts src/browserLaunchProfileArtifacts.test.ts src/autonomousDiscoveryStore.test.ts src/autonomousDiscoveryRunner.test.ts",
     "test:docs": "vitest run src/wrapper-docs.test.ts",
     "test:browser": "vitest run src/playwrightDiscoveryObservation.test.ts src/playwrightDiscoveryRehearsal.test.ts src/playwrightDiscoveryPolicyGuard.test.ts src/playwrightPolicyDiscoveryRehearsal.test.ts src/playwrightDiscoveryReplay.test.ts src/playwrightValidationRunner.test.ts"
   },
   "dependencies": {
+    "@auto-demo/browser-input": "0.0.0",
     "@auto-demo/browser-profile": "0.0.0",
     "@auto-demo/polish": "0.0.0",
     "@auto-demo/project": "0.0.0",
