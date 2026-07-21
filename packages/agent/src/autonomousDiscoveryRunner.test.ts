@@ -5,6 +5,7 @@ import type { Page } from "playwright";
 import {
   approveWalkthroughPlan,
   compileDiscoverySessionToWalkthroughPlan,
+  DISCOVERY_LIMITS,
   reviewWalkthroughPlan,
   type DiscoveryReplayResult,
   type DiscoverySessionV1,
@@ -353,6 +354,23 @@ describe("autonomous discovery runner", () => {
 
     const result = await runAutonomousDiscoveryToReview(
       { ...INPUT, policy: { mode: "safe", allowedOrigins: [] } },
+      fixture.dependencies,
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      phase: "preflight",
+      errors: [{ code: "invalid_runner_input" }],
+    });
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized public goal before browser launch", async () => {
+    const fixture = await runnerFixture();
+    const launch = vi.spyOn(fixture.dependencies.browserLauncher, "launch");
+
+    const result = await runAutonomousDiscoveryToReview(
+      { ...INPUT, goal: "x".repeat(DISCOVERY_LIMITS.publicStringCharacters + 1) },
       fixture.dependencies,
     );
 

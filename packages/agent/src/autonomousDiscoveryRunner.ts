@@ -9,6 +9,7 @@ import type {
   DiscoverySessionV1,
   DiscoveryHostProvenance,
 } from "./discoveryContract.js";
+import { DISCOVERY_LIMITS } from "./discoveryContract.js";
 import type { DiscoveryInputResolver, DiscoveryRehearsalActionInput, DiscoveryRehearsalDiagnostic } from "./discoveryRehearsal.js";
 import type { DiscoveryPolicy } from "./discoveryPolicy.js";
 import { validateDiscoveryPolicy } from "./discoveryPolicy.js";
@@ -684,8 +685,15 @@ function prepareInput(input: AutonomousDiscoveryRunnerInput):
   if (
     !isSafeDiscoveryId(input.runId) ||
     input.goal.trim().length === 0 ||
+    input.goal.length > DISCOVERY_LIMITS.publicStringCharacters ||
+    input.targetUrl.length > DISCOVERY_LIMITS.publicStringCharacters ||
     typeof input.host?.name !== "string" ||
-    typeof input.host?.version !== "string"
+    typeof input.host?.version !== "string" ||
+    input.host.name.length > DISCOVERY_LIMITS.identifierCharacters ||
+    input.host.version.length > DISCOVERY_LIMITS.identifierCharacters ||
+    (input.host.model !== undefined &&
+      (typeof input.host.model !== "string" ||
+        input.host.model.length > DISCOVERY_LIMITS.identifierCharacters))
   ) {
     return { ok: false, message: "Autonomous discovery runner input is invalid." };
   }
