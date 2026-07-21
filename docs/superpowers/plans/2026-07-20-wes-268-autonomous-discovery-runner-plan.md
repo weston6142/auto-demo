@@ -327,7 +327,7 @@ rtk git commit -m "docs: adopt the autonomous discovery runner"
 
 - Modify only issue-owned files required by verified findings or lifecycle evidence.
 
-- [ ] **Step 1: Run the complete local verification gate**
+- [x] **Step 1: Run the complete local verification gate**
 
 Run:
 
@@ -342,11 +342,11 @@ rtk git diff --check
 
 Expected: all issue-owned checks pass. If repository-wide lint/format reaches preserved `workflow/` diagnostics, record the exact pre-existing findings and run focused issue-owned lint/format checks.
 
-- [ ] **Step 2: Request independent read-only code review**
+- [x] **Step 2: Request independent read-only code review**
 
 Review the Linear issue, design, plan, branch diff, public contracts, persistence ordering, cleanup, repair boundaries, approval proof, policy/profile parity, raw/runtime-value handling, tests, and documentation. Fix every verified Critical or Important issue through RED-GREEN-REFACTOR and re-run affected checks.
 
-- [ ] **Step 3: Record stable completion evidence in the project map**
+- [x] **Step 3: Record stable completion evidence in the project map**
 
 Add exact test counts/commands, independent review result, and WES-273 as the deterministic post-merge pointer. Search this plan with:
 
