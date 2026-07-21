@@ -90,6 +90,30 @@ describe("Playwright coordinate discovery page", () => {
       risk: { credential: false, sensitivePayment: false, upload: false },
     });
 
+    await page.evaluate(() => {
+      const select = document.querySelector("select")!;
+      const box = select.getBoundingClientRect();
+      const chevron = document.createElement("span");
+      chevron.textContent = "⌄";
+      Object.assign(chevron.style, {
+        position: "fixed",
+        left: `${box.right - 20}px`,
+        top: `${box.top}px`,
+        width: "20px",
+        height: `${box.height}px`,
+        background: "white",
+        zIndex: "10",
+      });
+      document.body.append(chevron);
+    });
+    const evidenceThroughChevron = await adapter.inspectPoint({
+      x: Math.floor(selectBox.x + selectBox.width - 10),
+      y: Math.floor(selectBox.y + selectBox.height / 2),
+    });
+    expect(evidenceThroughChevron).toMatchObject({
+      target: { label: "Make", role: "combobox" },
+    });
+
     const organic = page.getByRole("link", { name: "Organic vehicle" });
     const organicBox = await organic.boundingBox();
     if (organicBox === null) throw new Error("fixture link unavailable");
@@ -118,10 +142,25 @@ describe("Playwright coordinate discovery page", () => {
 
     const box = await page.getByLabel("Make").boundingBox();
     if (box === null) throw new Error("fixture select unavailable");
+    await page.evaluate(() => {
+      const select = document.querySelector("select")!;
+      const rect = select.getBoundingClientRect();
+      const chevron = document.createElement("span");
+      Object.assign(chevron.style, {
+        position: "fixed",
+        left: `${rect.right - 20}px`,
+        top: `${rect.top}px`,
+        width: "20px",
+        height: `${rect.height}px`,
+        background: "white",
+        zIndex: "10",
+      });
+      document.body.append(chevron);
+    });
     await adapter.state();
     await adapter.execute({
       type: "click",
-      x: Math.floor(box.x + box.width / 2),
+      x: Math.floor(box.x + box.width - 10),
       y: Math.floor(box.y + box.height / 2),
     });
     await expect(

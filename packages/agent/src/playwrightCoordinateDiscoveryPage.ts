@@ -182,7 +182,17 @@ export class PlaywrightCoordinateDiscoveryPage {
         return;
       case "click":
         this.nativePopupOpen = await this.page.evaluate(
-          ({ x, y }) => document.elementFromPoint(x, y)?.closest("select") !== null,
+          ({ x, y }) => {
+            const layeredSelect = document
+              .elementsFromPoint(x, y)
+              .map((element) => element.closest("select"))
+              .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
+            if (layeredSelect !== undefined) return true;
+            return Array.from(document.querySelectorAll("select")).some((select) => {
+              const rect = select.getBoundingClientRect();
+              return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+            });
+          },
           action,
         );
         try {
@@ -224,10 +234,31 @@ export class PlaywrightCoordinateDiscoveryPage {
 }
 
 function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence | undefined {
-  const direct = document.elementFromPoint(point.x, point.y);
-  const element = direct?.closest(
-    'a[href],button,input,select,textarea,[contenteditable="true"],[role="button"],[role="link"],[role="combobox"]',
-  );
+  const selector =
+    'a[href],button,input,select,textarea,[contenteditable="true"],[role="button"],[role="link"],[role="combobox"]';
+  const element =
+    document
+      .elementsFromPoint(point.x, point.y)
+      .map((candidate) => candidate.closest(selector))
+      .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement) ??
+    Array.from(document.querySelectorAll(selector))
+      .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+      .filter((candidate) => {
+        const rect = candidate.getBoundingClientRect();
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          point.x >= rect.left &&
+          point.x <= rect.right &&
+          point.y >= rect.top &&
+          point.y <= rect.bottom
+        );
+      })
+      .sort((left, right) => {
+        const leftRect = left.getBoundingClientRect();
+        const rightRect = right.getBoundingClientRect();
+        return leftRect.width * leftRect.height - rightRect.width * rightRect.height;
+      })[0];
   if (!(element instanceof HTMLElement)) return undefined;
 
   const normalized = (value: string | null | undefined) => value?.replace(/\s+/g, " ").trim() ?? "";
