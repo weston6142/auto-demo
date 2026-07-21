@@ -59,6 +59,25 @@ Resolve the discovery risk tier before continuing. All four tiers are
 implemented for discovery and replay. The skill must not silently downgrade,
 broaden, or approximate the selected tier.
 
+For normal use, create a durable runner store and call
+`runAutonomousDiscoveryToReview()` with
+`createPlaywrightAutonomousDiscoveryRunnerDependencies()`. Supply only the
+bounded decision provider and runtime-only input resolver; you must not
+reproduce the lifecycle in an ad hoc script. The runner requires the explicit
+risk tier before browser activity, owns fresh root and repair contexts, and
+persists every accepted session transition before requesting another decision.
+It returns `review_required` only after compilation, fresh replay, bounded
+repair, and sanitized review. Present that review and obtain explicit approval
+in a separate turn.
+
+After approval has been recorded through the existing approval contract, call
+`completeApprovedAutonomousDiscovery()`. It verifies the persisted checkpoint
+and approved plan, re-establishes the exact tier and launch profile for fresh
+recording, persists execution before project handoff, and does not open the
+editor or export. Never pass conversation text, silence, the initial request,
+or a boolean flag as approval. The runner is a model-agnostic API rather than
+an interactive discovery CLI.
+
 Safe enforcement consumes the sanitized network classification published by
 `@auto-demo/agent`: `document-navigation`, `xhr-fetch`, `beacon`,
 `service-worker`, or `other`; read, potential-side-effect, or other method;
@@ -72,9 +91,10 @@ traffic, known-origin subresource cross-origin beacon traffic, and an active
 exact-origin public form navigation. It blocks cross-origin XHR/fetch,
 unclassified methods or request classes, and idle top-level side effects.
 
-After selection and the support check, use the public `@auto-demo/agent` library
-contracts directly. There is no discovery CLI, and risk-tiered discovery is not
-legacy `best-guess` planning.
+After selection and the support check, use the repository-owned runner. Its
+decision provider uses the bounded public `@auto-demo/agent` contracts; there
+is no interactive discovery CLI, and risk-tiered discovery is not legacy
+`best-guess` planning.
 
 Before discovery navigation, declare a bounded browser launch profile plan: one
 primary plus at most two fallbacks. A profile contains only Chromium browser,
