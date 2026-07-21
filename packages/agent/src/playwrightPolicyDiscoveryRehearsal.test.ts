@@ -79,6 +79,12 @@ async function hostRoute(route: Route) {
       <label>Password <input type="password" autocomplete="current-password" /></label>
       <label>Card number <input autocomplete="cc-number" /></label>
       <label>Receipt <input type="file" /></label>
+      <label>Condition
+        <select onpointerdown="this.dataset.pointerFocused='true'">
+          <option>Any</option>
+          <option>New</option>
+        </select>
+      </label>
       <button onclick="document.querySelector('output').textContent='Previewed'">Preview</button>
       <button onclick="fetch('/mutate?view=request-value', { method: 'POST', body: 'private-body-value', headers: { 'x-private': 'private-header-value' } }).then(() => { document.querySelector('output').textContent='Saved' }).catch(() => undefined)">Check availability</button>
       <form onsubmit="event.preventDefault(); fetch('/mutate', { method: 'POST' }).then(() => { document.querySelector('output').textContent='Saved' })">
@@ -89,6 +95,11 @@ async function hostRoute(route: Route) {
       <button onclick="new WebSocket('wss://socket.example.test/private'); document.querySelector('output').textContent='Socket opened'">Open socket</button>
       <button onclick="location.href='about:blank'">Leave browser scope</button>
       <output>Idle</output>
+      <script>
+        document.addEventListener('pointermove', () => {
+          document.body.dataset.pointerMoves = String(Number(document.body.dataset.pointerMoves || '0') + 1)
+        })
+      </script>
     `,
   });
 }
@@ -114,6 +125,12 @@ const type = (targetId: string): DiscoveryRehearsalActionInput => ({
   confidence: { level: "high", bases: ["exact-accessible-target"] },
 });
 
+const select = (targetId: string, optionLabel: string): DiscoveryRehearsalActionInput => ({
+  action: { kind: "select", targetId, optionLabel },
+  expectations: [],
+  confidence: { level: "high", bases: ["exact-accessible-target"] },
+});
+
 function targetId(result: DiscoveryRehearsalResult, label: string): string {
   if (!result.ok || result.observation === undefined) throw new Error("observation missing");
   const id = result.observation.interactiveTargets.find((target) => target.label === label)?.id;
@@ -122,6 +139,30 @@ function targetId(result: DiscoveryRehearsalResult, label: string): string {
 }
 
 describe("createPolicyEnforcedPlaywrightDiscoveryRehearsalController", () => {
+  it("moves the pointer before clicking and focusing native selects", async () => {
+    const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
+      ...EXCLUSIVE_NETWORK,
+      policy: { mode: "safe", allowedOrigins: ["https://example.test"] },
+      inputResolver: {
+        async resolve() {
+          return { ok: true as const, value: "Demo Person" };
+        },
+      },
+    });
+    const started = await controller.start(SESSION_INPUT);
+
+    const previewed = await controller.perform(click(targetId(started, "Preview")));
+    const selected = await controller.perform(select(targetId(previewed, "Condition"), "New"));
+
+    expect(selected).toMatchObject({ ok: true, attempt: { status: "succeeded" } });
+    expect(Number(await page.locator("body").getAttribute("data-pointer-moves"))).toBeGreaterThan(
+      2,
+    );
+    expect(await page.getByLabel("Condition").getAttribute("data-pointer-focused")).toBe("true");
+    expect(await page.getByLabel("Condition").inputValue()).toBe("New");
+    await controller.dispose();
+  });
+
   it("allows ordinary safe interactions and blocks destructive actions", async () => {
     const controller = await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
       ...EXCLUSIVE_NETWORK,

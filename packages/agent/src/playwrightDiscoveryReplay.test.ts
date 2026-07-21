@@ -139,11 +139,24 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
   it("selects native options by public label and verifies bounded control state", async () => {
     const origin = await fixture(`<!doctype html>
       <label>Condition
-        <select required>
+        <select required onpointerdown="this.dataset.pointerFocused='true'">
           <option value="any-private">Any</option>
           <option value="new-private">New</option>
         </select>
-      </label>`);
+      </label>
+      <script>
+        document.addEventListener('pointermove', () => {
+          document.body.dataset.pointerMoves = String(Number(document.body.dataset.pointerMoves || '0') + 1)
+        })
+        document.querySelector('select').addEventListener('change', (event) => {
+          const select = event.currentTarget
+          if (Number(document.body.dataset.pointerMoves || '0') > 1 && select.dataset.pointerFocused === 'true') {
+            const heading = document.createElement('h1')
+            heading.textContent = 'Pointer selected New'
+            document.body.append(heading)
+          }
+        })
+      </script>`);
     const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
       policy: { mode: "safe", allowedOrigins: [origin] },
       attempt: 1,
@@ -158,6 +171,14 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     });
     await browser.select(matches[0]!, "New");
     await browser.waitForSettled();
+
+    await expect(
+      browser.assertVisible({
+        kind: "visible-state",
+        condition: "Pointer selected New",
+        role: "heading",
+      }),
+    ).resolves.toBeUndefined();
 
     await expect(
       browser.assertControlState({

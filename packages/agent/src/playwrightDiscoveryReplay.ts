@@ -35,6 +35,7 @@ import {
 import { classifyDiscoveryNetworkRequest } from "./discoveryNetworkClassification.js";
 import { decideDiscoveryNetworkRequest } from "./discoveryNetworkPolicy.js";
 import type { WalkthroughPlanAssertion, WalkthroughPlanTargetHint } from "./index.js";
+import { clickWithVisiblePointer, selectWithVisiblePointer } from "./playwrightPointerActions.js";
 
 const MAX_RUNTIME_MATCHES = DISCOVERY_LIMITS.interactiveTargetsPerObservation;
 
@@ -234,7 +235,11 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     const locator = this.requireLocator(match);
     const { target, risk } = await inspectTarget(locator, match);
     const permit = this.authorize({ kind: "click", targetId: target.id }, target, risk);
-    await this.guarded(permit, () => locator.click(), "action_failed");
+    await this.guarded(
+      permit,
+      () => clickWithVisiblePointer(this.requirePage(), locator),
+      "action_failed",
+    );
   }
 
   async type(match: DiscoveryReplayMatch, value: string): Promise<void> {
@@ -245,7 +250,14 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
       target,
       risk,
     );
-    await this.guarded(permit, () => locator.fill(value), "action_failed");
+    await this.guarded(
+      permit,
+      async () => {
+        await clickWithVisiblePointer(this.requirePage(), locator);
+        await locator.fill(value);
+      },
+      "action_failed",
+    );
   }
 
   async select(match: DiscoveryReplayMatch, optionLabel: string): Promise<void> {
@@ -259,19 +271,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     await this.guarded(
       permit,
       async () => {
-        const matches = await locator
-          .locator("option")
-          .evaluateAll(
-            (options, label) =>
-              options.filter(
-                (option) =>
-                  option.textContent?.replace(/\s+/g, " ").trim() === label &&
-                  !(option as HTMLOptionElement).disabled,
-              ).length,
-            optionLabel,
-          );
-        if (matches !== 1) throw new DiscoveryReplayBrowserError("action_failed");
-        await locator.selectOption({ label: optionLabel });
+        await selectWithVisiblePointer(this.requirePage(), locator, optionLabel);
       },
       "action_failed",
     );

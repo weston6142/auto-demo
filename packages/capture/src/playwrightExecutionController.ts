@@ -6,6 +6,7 @@ import type {
   BrowserExecutionTarget,
   BrowserNavigationExpectation,
 } from "./index.js";
+import { clickWithVisiblePointer, selectWithVisiblePointer } from "./playwrightPointerActions.js";
 
 export type PlaywrightExecutionControllerOptions = {
   timeoutMs?: number;
@@ -45,7 +46,7 @@ export function createPlaywrightExecutionController(
     async click(target) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
-        await locator.click({ timeout: timeoutMs });
+        await clickWithVisiblePointer(page, locator);
       } catch (error) {
         throw new PlaywrightExecutionControllerError(
           isPlaywrightTimeout(error) ? "execution_timeout" : "action_failed",
@@ -55,6 +56,7 @@ export function createPlaywrightExecutionController(
     async type(target, value, typeOptions) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
+        await clickWithVisiblePointer(page, locator);
         await locator.fill("", { timeout: timeoutMs });
         await locator.pressSequentially(value, {
           delay: typeOptions.delayMs,
@@ -69,19 +71,7 @@ export function createPlaywrightExecutionController(
     async select(target, optionLabel) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
-        const matches = await locator
-          .locator("option")
-          .evaluateAll(
-            (options, label) =>
-              options.filter(
-                (option) =>
-                  option.textContent?.replace(/\s+/g, " ").trim() === label &&
-                  !(option as HTMLOptionElement).disabled,
-              ).length,
-            optionLabel,
-          );
-        if (matches !== 1) throw new PlaywrightExecutionControllerError("action_failed");
-        await locator.selectOption({ label: optionLabel });
+        await selectWithVisiblePointer(page, locator, optionLabel);
       } catch (error) {
         if (error instanceof PlaywrightExecutionControllerError) throw error;
         throw new PlaywrightExecutionControllerError(

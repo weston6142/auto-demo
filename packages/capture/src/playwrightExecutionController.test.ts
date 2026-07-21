@@ -60,6 +60,11 @@ describe("createPlaywrightExecutionController", () => {
       <button onclick="this.dataset.clicked='true'">Get started</button>
       <label>Search <input /></label>
       <h2>Results</h2>
+      <script>
+        document.addEventListener('pointermove', () => {
+          document.body.dataset.pointerMoves = String(Number(document.body.dataset.pointerMoves || '0') + 1)
+        })
+      </script>
     `);
     const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
 
@@ -69,12 +74,15 @@ describe("createPlaywrightExecutionController", () => {
 
     expect(await page.locator("button").getAttribute("data-clicked")).toBe("true");
     expect(await page.getByLabel("Search").inputValue()).toBe("launch demo");
+    expect(Number(await page.locator("body").getAttribute("data-pointer-moves"))).toBeGreaterThan(
+      2,
+    );
   });
 
   it("selects a native option and verifies public control state", async () => {
     await page.setContent(`
       <label>Condition
-        <select required>
+        <select required onpointerdown="this.dataset.pointerFocused='true'">
           <option value="any-private">Any</option>
           <option value="new-private">New</option>
         </select>
@@ -89,6 +97,7 @@ describe("createPlaywrightExecutionController", () => {
     });
 
     expect(await page.getByLabel("Condition").inputValue()).toBe("new-private");
+    expect(await page.getByLabel("Condition").getAttribute("data-pointer-focused")).toBe("true");
   });
 
   it("uses structural position authoritatively for recording actions and assertions", async () => {
