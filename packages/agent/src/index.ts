@@ -199,6 +199,7 @@ export {
   type AutonomousDiscoveryRunnerError,
   type AutonomousDiscoveryRunnerInput,
   type AutonomousDiscoveryToReviewResult,
+  type AutonomousDiscoveryVisualFeedback,
   type CompleteApprovedAutonomousDiscoveryDependencies,
   type CompleteApprovedAutonomousDiscoveryInput,
   type CompleteApprovedAutonomousDiscoveryResult,

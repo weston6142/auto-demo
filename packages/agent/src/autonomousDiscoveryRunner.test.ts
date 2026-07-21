@@ -52,6 +52,20 @@ class MemoryStore implements AutonomousDiscoveryStore {
   reviewValue?: AutonomousDiscoveryReviewArtifact;
   failSessionWriteAt?: number;
   private sessionWrites = 0;
+  readonly visualBytes = new Map<string, Uint8Array>();
+
+  async writeVisualArtifact(input: { id: string; bytes: Uint8Array }) {
+    const path = `visuals/${input.id}.png`;
+    this.visualBytes.set(path, input.bytes);
+    return { ok: true, path } as const;
+  }
+
+  async loadVisualArtifact(artifact: { path: string }) {
+    const bytes = this.visualBytes.get(artifact.path);
+    return bytes === undefined
+      ? ({ ok: false, code: "invalid_runner_artifact", message: "invalid" } as const)
+      : ({ ok: true, bytes } as const);
+  }
 
   async initialize(checkpoint: AutonomousDiscoveryRunCheckpoint) {
     this.checkpoint = structuredClone(checkpoint);
@@ -211,12 +225,31 @@ async function runnerFixture(store = new MemoryStore()) {
     selectedPath: undefined,
     terminal: undefined,
   };
+  const visualBytes = new Uint8Array([137, 80, 78, 71]);
+  initial.observations[0]!.artifacts = [
+    {
+      id: "artifact-visual",
+      kind: "screenshot",
+      path: "visuals/artifact-visual.png",
+      mediaType: "image/png",
+    },
+  ];
+  store.visualBytes.set("visuals/artifact-visual.png", visualBytes);
   const acted: DiscoverySessionV1 = {
     ...completed,
     status: "active",
     selectedPath: undefined,
     terminal: undefined,
   };
+  acted.observations.at(-1)!.artifacts = [
+    {
+      id: "artifact-after-action",
+      kind: "screenshot",
+      path: "visuals/artifact-after-action.png",
+      mediaType: "image/png",
+    },
+  ];
+  store.visualBytes.set("visuals/artifact-after-action.png", new Uint8Array([137, 80, 78, 72]));
   const browser = { page: {} as Page, profile: PROFILE, closed: false };
   const controller = {
     start: vi.fn(async () => ({
@@ -300,6 +333,106 @@ async function runnerFixture(store = new MemoryStore()) {
 }
 
 describe("autonomous discovery runner", () => {
+  it("uses the headed autonomous profile plan when the caller does not explicitly choose one", async () => {
+    const fixture = await runnerFixture();
+    const launch = vi.spyOn(fixture.dependencies.browserLauncher, "launch");
+    const inputWithoutProfile = { ...INPUT, launchProfilePlan: undefined };
+
+    await runAutonomousDiscoveryToReview(inputWithoutProfile, fixture.dependencies);
+
+    expect(launch).toHaveBeenCalledWith({
+      url: INPUT.targetUrl,
+      profilePlan: {
+        schemaVersion: 1,
+        primary: expect.objectContaining({ channel: "chrome", headless: false }),
+        fallbacks: [expect.objectContaining({ channel: "bundled", headless: false })],
+      },
+    });
+  });
+
+  it("can change the next decision from image content absent from the text observation", async () => {
+    const visible = await runnerFixture();
+    const unavailable = await runnerFixture();
+    unavailable.store.visualBytes.set(
+      "visuals/artifact-visual.png",
+      new Uint8Array([0, 80, 78, 71]),
+    );
+    const imageAwareProvider = (fixture: Awaited<ReturnType<typeof runnerFixture>>) => {
+      let calls = 0;
+      fixture.dependencies.decisionProvider.decide = vi.fn(async ({ visual }) => {
+        calls += 1;
+        if (calls === 1 && visual.status === "available" && visual.bytes[0] === 137) {
+          return {
+            kind: "act" as const,
+            input: {
+              action: {
+                kind: "click" as const,
+                targetId: fixture.completed.observations[0]!.interactiveTargets[0]!.id,
+              },
+              expectations: [],
+              confidence: { level: "high" as const, bases: ["host-inference" as const] },
+            },
+          };
+        }
+        if (calls > 1) {
+          return {
+            kind: "complete" as const,
+            attemptIds: fixture.completed.selectedPath!.attemptIds,
+            source: "host-agent" as const,
+          };
+        }
+        return {
+          kind: "abandon" as const,
+          reason: { code: "visible_state_missing", summary: "Visible state is missing." },
+        };
+      });
+    };
+    imageAwareProvider(visible);
+    imageAwareProvider(unavailable);
+
+    const visibleResult = await runAutonomousDiscoveryToReview(INPUT, visible.dependencies);
+    const unavailableResult = await runAutonomousDiscoveryToReview(INPUT, unavailable.dependencies);
+
+    expect(visibleResult).toMatchObject({ ok: true, phase: "review_required" });
+    expect(unavailableResult).toMatchObject({ ok: true, phase: "abandoned" });
+    expect(visible.controller.perform).toHaveBeenCalledTimes(1);
+    expect(unavailable.controller.perform).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes a failed capture from a missing visual artifact", async () => {
+    const fixture = await runnerFixture();
+    fixture.controller.start.mockImplementationOnce(
+      async () =>
+        ({
+          ok: true,
+          session: fixture.completed,
+          observation: fixture.completed.observations[0],
+          diagnostics: [
+            {
+              code: "screenshot_unavailable" as const,
+              message: "The optional viewport screenshot is unavailable.",
+            },
+          ],
+        }) as never,
+    );
+    fixture.dependencies.decisionProvider.decide = vi.fn(async () => ({
+      kind: "abandon" as const,
+      reason: { code: "visual_unavailable", summary: "Visual state is unavailable." },
+    }));
+
+    await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
+
+    expect(fixture.dependencies.decisionProvider.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        visual: {
+          status: "unavailable",
+          code: "visual_state_unavailable",
+          reason: "capture_failed",
+        },
+      }),
+    );
+  });
+
   it("persists each transition before producing a replay-validated review checkpoint", async () => {
     const fixture = await runnerFixture();
     const result = await runAutonomousDiscoveryToReview(INPUT, fixture.dependencies);
@@ -318,6 +451,24 @@ describe("autonomous discovery runner", () => {
       "checkpoint",
     ]);
     expect(fixture.decisionProvider.decide).toHaveBeenCalledTimes(2);
+    expect(fixture.decisionProvider.decide).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        visual: expect.objectContaining({
+          status: "available",
+          bytes: new Uint8Array([137, 80, 78, 71]),
+        }),
+      }),
+    );
+    expect(fixture.decisionProvider.decide).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        visual: expect.objectContaining({
+          status: "available",
+          bytes: new Uint8Array([137, 80, 78, 72]),
+        }),
+      }),
+    );
     expect(fixture.controller.perform).toHaveBeenCalledTimes(1);
     expect(fixture.browser.closed).toBe(true);
   });

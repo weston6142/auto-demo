@@ -1,11 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  DEFAULT_AUTONOMOUS_BROWSER_LAUNCH_PROFILE_PLAN,
   validateBrowserLaunchProfilePlan,
   type BrowserLaunchProfilePlanV1,
   type BrowserLaunchProfileV1,
 } from "@auto-demo/browser-profile";
 import type { Page } from "playwright";
 import type {
+  DiscoveryArtifactReference,
   DiscoveryObservation,
   DiscoverySessionV1,
   DiscoveryHostProvenance,
@@ -16,6 +18,7 @@ import type {
   DiscoveryRehearsalActionInput,
   DiscoveryRehearsalDiagnostic,
 } from "./discoveryRehearsal.js";
+import type { DiscoveryObservationArtifactSink } from "./discoveryObservation.js";
 import type { DiscoveryPolicy, ValidatedDiscoveryPolicy } from "./discoveryPolicy.js";
 import { validateDiscoveryPolicy } from "./discoveryPolicy.js";
 import type {
@@ -61,9 +64,56 @@ export type AutonomousDiscoveryDecisionProvider = {
     session: DiscoverySessionV1;
     observation: DiscoveryObservation;
     diagnostics: DiscoveryRehearsalDiagnostic[];
+    visual: AutonomousDiscoveryVisualFeedback;
     repair?: { number: 1 | 2; failure: DiscoveryReplayFailureEvidence };
   }): Promise<AutonomousDiscoveryDecision>;
 };
+
+export type AutonomousDiscoveryVisualFeedback =
+  | { status: "available"; artifact: DiscoveryArtifactReference; bytes: Uint8Array }
+  | {
+      status: "unavailable";
+      code: "visual_state_unavailable";
+      reason:
+        "artifact_missing" | "artifact_invalid" | "native_ui_not_representable" | "capture_failed";
+    };
+
+async function loadDecisionVisual(
+  observation: DiscoveryObservation,
+  store: AutonomousDiscoveryStore,
+  diagnostics: DiscoveryRehearsalDiagnostic[],
+): Promise<AutonomousDiscoveryVisualFeedback> {
+  const nativeUnavailable = diagnostics.some(
+    (item) => "code" in item && item.code === "visual_state_unavailable",
+  );
+  if (nativeUnavailable)
+    return {
+      status: "unavailable",
+      code: "visual_state_unavailable",
+      reason: "native_ui_not_representable",
+    };
+  if (diagnostics.some((item) => "code" in item && item.code === "screenshot_unavailable"))
+    return { status: "unavailable", code: "visual_state_unavailable", reason: "capture_failed" };
+  const artifact = observation.artifacts.find(
+    (candidate) => candidate.kind === "screenshot" && candidate.mediaType === "image/png",
+  );
+  if (artifact === undefined)
+    return { status: "unavailable", code: "visual_state_unavailable", reason: "artifact_missing" };
+  const loaded = await store.loadVisualArtifact(artifact);
+  return loaded.ok
+    ? { status: "available", artifact: structuredClone(artifact), bytes: loaded.bytes }
+    : { status: "unavailable", code: "visual_state_unavailable", reason: "artifact_invalid" };
+}
+
+function visualArtifactSink(store: AutonomousDiscoveryStore): DiscoveryObservationArtifactSink {
+  return {
+    async write(input) {
+      const stored = await store.writeVisualArtifact(input);
+      if (!stored.ok) throw new Error("visual artifact unavailable");
+      return { path: stored.path };
+    },
+  };
+}
 
 export type AutonomousDiscoveryRunnerInput = {
   runId: string;
@@ -71,7 +121,7 @@ export type AutonomousDiscoveryRunnerInput = {
   goal: string;
   host: DiscoveryHostProvenance;
   policy: DiscoveryPolicy;
-  launchProfilePlan: BrowserLaunchProfilePlanV1;
+  launchProfilePlan?: BrowserLaunchProfilePlanV1;
   inputBindings?: Record<string, unknown>;
 };
 
@@ -115,6 +165,7 @@ export type AutonomousDiscoveryRunnerDependencies = {
     page: Page;
     policy: DiscoveryPolicy;
     inputResolver: DiscoveryInputResolver;
+    artifactSink: DiscoveryObservationArtifactSink;
   }): Promise<AutonomousDiscoveryRunnerController>;
   compile(session: DiscoverySessionV1): CompileDiscoverySessionResult;
   replay(input: {
@@ -147,11 +198,12 @@ export function createPlaywrightAutonomousDiscoveryRunnerDependencies(
     decisionProvider: input.decisionProvider,
     inputResolver: input.inputResolver,
     browserLauncher: createPlaywrightDiscoveryBrowserLauncher(),
-    async createController({ page, policy, inputResolver }) {
+    async createController({ page, policy, inputResolver, artifactSink }) {
       return await createPolicyEnforcedPlaywrightDiscoveryRehearsalController(page, {
         chromiumNetworkInstrumentation: "exclusive",
         policy,
         inputResolver,
+        artifactSink,
         clock: () => now().toISOString(),
       });
     },
@@ -499,6 +551,7 @@ export async function runAutonomousDiscoveryToReview(
         page: launched.page,
         policy: input.policy,
         inputResolver: dependencies.inputResolver,
+        artifactSink: visualArtifactSink(dependencies.store),
       });
       const started = await controller.start({
         id: dependencies.idGenerator("session"),
@@ -527,6 +580,11 @@ export async function runAutonomousDiscoveryToReview(
             session: structuredClone(current.session),
             observation: structuredClone(current.observation!),
             diagnostics: structuredClone(current.diagnostics),
+            visual: await loadDecisionVisual(
+              current.observation!,
+              dependencies.store,
+              current.diagnostics,
+            ),
           });
         } catch {
           return runnerFailure(
@@ -729,6 +787,7 @@ async function runRepairSession(input: {
         page: launched.page,
         policy: input.input.policy,
         inputResolver: input.dependencies.inputResolver,
+        artifactSink: visualArtifactSink(input.dependencies.store),
       });
       const started = await controller.start({
         id: input.dependencies.idGenerator("repair-session"),
@@ -754,6 +813,11 @@ async function runRepairSession(input: {
           session: structuredClone(current.session),
           observation: structuredClone(current.observation!),
           diagnostics: structuredClone(current.diagnostics),
+          visual: await loadDecisionVisual(
+            current.observation!,
+            input.dependencies.store,
+            current.diagnostics,
+          ),
           repair: { number: input.repairNumber, failure: structuredClone(input.failure) },
         });
         if (decision.kind === "act") {
@@ -835,7 +899,9 @@ function prepareInput(
   ) {
     return { ok: false, message: "Autonomous discovery runner input is invalid." };
   }
-  const profiles = validateBrowserLaunchProfilePlan(input.launchProfilePlan);
+  const profiles = validateBrowserLaunchProfilePlan(
+    input.launchProfilePlan ?? DEFAULT_AUTONOMOUS_BROWSER_LAUNCH_PROFILE_PLAN,
+  );
   const policy = validateDiscoveryPolicy(input.policy, input.targetUrl);
   if (!profiles.ok || !policy.ok) {
     return { ok: false, message: "Autonomous discovery runner input is invalid." };

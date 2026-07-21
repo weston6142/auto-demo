@@ -175,6 +175,20 @@ describe("agent wrapper documentation", () => {
     }
   });
 
+  it("documents runtime-only autonomous visual feedback and honest native UI limits", async () => {
+    const readme = normalizeWhitespace(await readAgentDoc("README.md"));
+    const skill = normalizeWhitespace(await readAgentDoc("skills/codex-auto-demo/SKILL.md"));
+    const combined = `${readme} ${skill}`;
+    for (const expected of [
+      "runtime-only visual channel",
+      "visual_state_unavailable",
+      "native browser UI",
+      "never enter durable session, checkpoint, review, or text-prompt JSON",
+    ]) {
+      expect(combined).toContain(expected);
+    }
+  });
+
   it("documents bounded ranking and authoritative structural positional intent", async () => {
     const readme = normalizeWhitespace(await readAgentDoc("README.md"));
     const skill = normalizeWhitespace(await readAgentDoc("skills/codex-auto-demo/SKILL.md"));

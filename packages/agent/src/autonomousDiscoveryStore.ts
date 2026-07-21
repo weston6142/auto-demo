@@ -1,12 +1,20 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   validateBrowserLaunchProfile,
   type BrowserLaunchProfileV1,
 } from "@auto-demo/browser-profile";
-import { DISCOVERY_LIMITS, type DiscoverySessionV1 } from "./discoveryContract.js";
-import { isSafeDiscoveryId, validateDiscoverySession } from "./discoveryValidation.js";
+import {
+  DISCOVERY_LIMITS,
+  type DiscoveryArtifactReference,
+  type DiscoverySessionV1,
+} from "./discoveryContract.js";
+import {
+  isSafeArtifactPath,
+  isSafeDiscoveryId,
+  validateDiscoverySession,
+} from "./discoveryValidation.js";
 import type { WalkthroughPlan } from "./index.js";
 import { isWalkthroughPlan } from "./walkthroughValidation.js";
 
@@ -92,6 +100,15 @@ export type AutonomousDiscoverySessionArtifact = "root" | "repair-1" | "repair-2
 export type AutonomousDiscoveryPlanArtifact = "draft" | "replay-validated" | "approved";
 
 export type AutonomousDiscoveryStore = {
+  writeVisualArtifact(input: {
+    id: string;
+    bytes: Uint8Array;
+    mediaType: "image/png";
+    sha256: string;
+  }): Promise<AutonomousDiscoveryStoreWriteResult>;
+  loadVisualArtifact(
+    artifact: DiscoveryArtifactReference,
+  ): Promise<{ ok: true; bytes: Uint8Array } | AutonomousDiscoveryStoreError>;
   initialize(
     checkpoint: AutonomousDiscoveryRunCheckpoint,
   ): Promise<{ ok: true } | AutonomousDiscoveryStoreError>;
@@ -179,6 +196,52 @@ export function createFileAutonomousDiscoveryStore(directory: string): Autonomou
   };
 
   return {
+    async writeVisualArtifact(input) {
+      if (
+        !isSafeDiscoveryId(input.id) ||
+        input.mediaType !== "image/png" ||
+        input.bytes.byteLength > 8 * 1024 * 1024 ||
+        !/^[a-f0-9]{64}$/.test(input.sha256) ||
+        createHash("sha256").update(input.bytes).digest("hex") !== input.sha256
+      )
+        return invalidArtifact();
+      const relativePath = `visuals/${input.id}.png`;
+      try {
+        const path = join(directory, relativePath);
+        await mkdir(dirname(path), { recursive: true });
+        const temporaryPath = `${path}.tmp-${randomUUID()}`;
+        await writeFile(temporaryPath, input.bytes, { flag: "wx" });
+        await rename(temporaryPath, path);
+        return { ok: true, path: relativePath };
+      } catch {
+        return storeError(
+          "runner_artifact_write_failed",
+          "Autonomous discovery artifact could not be persisted.",
+        );
+      }
+    },
+    async loadVisualArtifact(artifact) {
+      if (
+        artifact.kind !== "screenshot" ||
+        artifact.mediaType !== "image/png" ||
+        !isSafeDiscoveryId(artifact.id) ||
+        !isSafeArtifactPath(artifact.path) ||
+        artifact.path !== `visuals/${artifact.id}.png`
+      )
+        return invalidArtifact();
+      try {
+        const bytes = new Uint8Array(await readFile(join(directory, artifact.path)));
+        if (
+          bytes.byteLength > 8 * 1024 * 1024 ||
+          (artifact.sha256 !== undefined &&
+            createHash("sha256").update(bytes).digest("hex") !== artifact.sha256)
+        )
+          return invalidArtifact();
+        return { ok: true, bytes };
+      } catch {
+        return invalidArtifact();
+      }
+    },
     async initialize(checkpoint) {
       if (!isCheckpoint(checkpoint)) {
         return storeError(

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -40,6 +41,57 @@ function session() {
 }
 
 describe("file autonomous discovery store", () => {
+  it("writes and reloads bounded PNGs without serializing bytes into JSON artifacts", async () => {
+    const root = await mkdtemp(join(tmpdir(), "autodemo-runner-store-"));
+    const directory = join(root, "run-1");
+    const store = createFileAutonomousDiscoveryStore(directory);
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    await store.initialize(CHECKPOINT);
+
+    await expect(
+      store.writeVisualArtifact({ id: "artifact-1", bytes, mediaType: "image/png", sha256 }),
+    ).resolves.toEqual({ ok: true, path: "visuals/artifact-1.png" });
+    await expect(
+      store.loadVisualArtifact({
+        id: "artifact-1",
+        kind: "screenshot",
+        path: "visuals/artifact-1.png",
+        mediaType: "image/png",
+        sha256,
+      }),
+    ).resolves.toEqual({ ok: true, bytes });
+    expect(await readFile(join(directory, "visuals/artifact-1.png"))).toEqual(Buffer.from(bytes));
+    expect(await readFile(join(directory, "run.json"), "utf8")).not.toContain("137,80,78,71");
+  });
+
+  it("rejects unsafe or mismatched visual artifact references", async () => {
+    const root = await mkdtemp(join(tmpdir(), "autodemo-runner-store-"));
+    const store = createFileAutonomousDiscoveryStore(join(root, "run-1"));
+    const bytes = new Uint8Array([1, 2, 3]);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    await store.initialize(CHECKPOINT);
+    await store.writeVisualArtifact({ id: "artifact-1", bytes, mediaType: "image/png", sha256 });
+
+    await expect(
+      store.loadVisualArtifact({
+        id: "artifact-1",
+        kind: "screenshot",
+        path: "../artifact-1.png",
+        mediaType: "image/png",
+        sha256,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: "invalid_runner_artifact" });
+    await expect(
+      store.loadVisualArtifact({
+        id: "artifact-1",
+        kind: "screenshot",
+        path: "visuals/artifact-1.png",
+        mediaType: "image/png",
+        sha256: "0".repeat(64),
+      }),
+    ).resolves.toMatchObject({ ok: false, code: "invalid_runner_artifact" });
+  });
   it("initializes an empty workflow and atomically persists typed artifacts", async () => {
     const root = await mkdtemp(join(tmpdir(), "autodemo-runner-store-"));
     const directory = join(root, "run-1");

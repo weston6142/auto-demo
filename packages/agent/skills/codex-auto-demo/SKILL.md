@@ -66,6 +66,12 @@ bounded decision provider and runtime-only input resolver; you must not
 reproduce the lifecycle in an ad hoc script. The runner requires the explicit
 risk tier before browser activity, owns fresh root and repair contexts, and
 persists every accepted session transition before requesting another decision.
+For every decision, consume the sanitized observation and the image supplied by
+the runtime-only visual channel together. Image bytes never enter durable
+session, checkpoint, review, or text-prompt JSON. If expanded native browser UI
+cannot be captured without changing focus, the runner reports
+`visual_state_unavailable`; do not pretend a page-only screenshot represents
+that native browser UI.
 It returns `review_required` only after compilation, fresh replay, bounded
 repair, and sanitized review. Present that review and obtain explicit approval
 in a separate turn.
@@ -104,6 +110,10 @@ isolated browser and context. Discovery is the only phase that may advance to a
 fallback. Persist the selected profile in `DiscoverySessionV1`; compilation and
 approval bind it into the plan. Treat `anti_bot_challenge` as distinct from a
 policy denial and report only its bounded provider and profile identifier.
+
+For ordinary autonomous public-site discovery, omit `launchProfilePlan` to use
+the headed Chrome primary and headed bundled-Chromium fallback. Use headless
+mode only when the user explicitly requests it by supplying a profile plan.
 
 1. For `safe` and `public-browse`, declare exact allowed top-level origins. For
    `disposable`, obtain a fresh `environment-is-disposable` acknowledgement and

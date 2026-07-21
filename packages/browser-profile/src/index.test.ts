@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_AUTONOMOUS_BROWSER_LAUNCH_PROFILE_PLAN,
   DEFAULT_BROWSER_LAUNCH_PROFILE,
   browserLaunchProfileId,
   classifyBrowserChallenge,
@@ -16,6 +17,28 @@ const chromeHeadful = {
 } as const;
 
 describe("browser launch profile contract", () => {
+  it("defaults autonomous public browsing to headed Chrome without a headless fallback", () => {
+    expect(DEFAULT_AUTONOMOUS_BROWSER_LAUNCH_PROFILE_PLAN).toEqual({
+      schemaVersion: 1,
+      primary: {
+        schemaVersion: 1,
+        browser: "chromium",
+        channel: "chrome",
+        headless: false,
+        viewport: { width: 1280, height: 720 },
+      },
+      fallbacks: [
+        {
+          schemaVersion: 1,
+          browser: "chromium",
+          channel: "bundled",
+          headless: false,
+          viewport: { width: 1280, height: 720 },
+        },
+      ],
+    });
+  });
+
   it("normalizes one supported public launch profile", () => {
     expect(validateBrowserLaunchProfile(chromeHeadful)).toEqual({
       ok: true,

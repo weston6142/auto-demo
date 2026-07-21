@@ -375,6 +375,10 @@ Persistent contexts, executable paths, arbitrary launch arguments, cookies, stor
 authenticated browser state are outside the contract. Existing plans without a profile retain the
 bundled headless Chromium 1280x720 default.
 
+New autonomous discovery runs that omit `launchProfilePlan` start with headed installed Chrome and
+fall back only to headed bundled Chromium. Headless discovery remains available through an explicit
+profile plan, but is not an automatic fallback for ordinary public-site browsing.
+
 ## Structured Browser Observation Snapshots
 
 `createPlaywrightDiscoveryObservationExtractor()` inspects an existing Playwright page and
@@ -409,6 +413,13 @@ Screenshots are opt-in. Successful observations contain only their safe relative
 type, and SHA-256 hash; screenshot bytes stay behind the sink boundary. Target IDs remain stable
 while the same DOM element stays attached to the current main document. Use `hasLiveTarget()`
 before acting on a retained ID; navigation, removal, or element replacement invalidates it.
+
+The autonomous runner connects that sink to its durable store and reloads the current PNG through
+a runtime-only visual channel for each decision. The provider receives image bytes alongside the
+sanitized observation, but those bytes never enter durable session, checkpoint, review, or
+text-prompt JSON. Page screenshots do not reliably contain expanded native browser UI. When that
+state cannot be represented honestly, the decision receives `visual_state_unavailable` instead
+of a misleading page-only image; capture does not click, refocus, or move the pointer.
 
 Collection covers the main document and open shadow roots, excludes iframe contents, prioritizes
 accessible semantic controls, and reports bounded fallback targets and truncation through

@@ -34,6 +34,26 @@ export const DEFAULT_BROWSER_LAUNCH_PROFILE: BrowserLaunchProfileV1 = {
   viewport: { width: 1280, height: 720 },
 };
 
+export const DEFAULT_AUTONOMOUS_BROWSER_LAUNCH_PROFILE_PLAN: BrowserLaunchProfilePlanV1 = {
+  schemaVersion: BROWSER_LAUNCH_PROFILE_SCHEMA_VERSION,
+  primary: {
+    schemaVersion: BROWSER_LAUNCH_PROFILE_SCHEMA_VERSION,
+    browser: "chromium",
+    channel: "chrome",
+    headless: false,
+    viewport: { width: 1280, height: 720 },
+  },
+  fallbacks: [
+    {
+      schemaVersion: BROWSER_LAUNCH_PROFILE_SCHEMA_VERSION,
+      browser: "chromium",
+      channel: "bundled",
+      headless: false,
+      viewport: { width: 1280, height: 720 },
+    },
+  ],
+};
+
 const INVALID_PROFILE: BrowserLaunchProfileError = {
   code: "invalid_browser_launch_profile",
   message: "Browser launch profile is invalid.",
