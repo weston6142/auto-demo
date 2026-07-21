@@ -360,15 +360,15 @@ Only publication/completion steps whose prerequisites have not occurred may rema
 
 Stage only WES-268 paths, push `wes-268-autonomous-discovery-runner`, and create a PR targeting `develop` with the Linear issue, design/plan links, and exact verification. Triage review threads and failed checks before changing code; push scoped fixes and re-monitor exact-head status.
 
-- [ ] **Step 5: Squash merge and synchronize**
+- [x] **Step 5: Squash merge and synchronize**
 
 After required checks and reviews pass, squash merge. Switch to `develop`, verify its upstream is the base repository, fetch `origin develop`, and run `rtk git pull --ff-only origin develop`. Confirm the squash commit is present locally while preserving `.gitignore` and `workflow/` unchanged.
 
-- [ ] **Step 6: Run the completion sync gate**
+- [x] **Step 6: Run the completion sync gate**
 
 Verify the merged PR, squash commit, CI, local verification, design, plan, and map. Add the Linear completion comment, move WES-268 to Done, add the dependency-ready handoff to WES-273, update WES-265 progress, and reconcile the map next pointer to WES-273. If a tracked map correction remains after merge, publish it through a scoped follow-up PR.
 
-- [ ] **Step 7: Require no unfinished in-scope plan items**
+- [x] **Step 7: Require no unfinished in-scope plan items**
 
 Repeat the unchecked-item search. Every item must be checked or carry an explicit transferred/excluded disposition before reporting completion.
 
