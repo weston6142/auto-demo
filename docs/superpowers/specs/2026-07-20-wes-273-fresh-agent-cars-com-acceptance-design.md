@@ -21,9 +21,9 @@ Repeated acceptance also proved that ordinary autonomous public-site discovery s
 
 ### Clean Clone And Fresh Context-Isolated Agent (Selected)
 
-Create a temporary clean clone at the exact `origin/develop` baseline and dispatch a fresh agent with no conversation history. Give it only the exact WES-273 test prompt, the clean checkout path, and the instruction to follow normal committed repository guidance. This prevents the acceptance agent from seeing the current checkout's preserved untracked `workflow/cars-kia-sorento/` diagnostics.
+Create a temporary clean clone at the exact reconciled WES-273 branch head and dispatch a fresh agent with no conversation history. Give it only the exact WES-273 test prompt, the clean checkout path, and the instruction to follow normal committed repository guidance. This prevents the acceptance agent from seeing the current checkout's preserved untracked `workflow/cars-kia-sorento/` diagnostics while including WES-274's visual decision channel and the previously verified WES-273 corrections.
 
-The agent owns discovery decisions through the repository-owned runner. It returns only transcript-safe review evidence when the runner reaches `review_required`. After the user explicitly approves that displayed walkthrough, the same isolated agent resumes the persisted checkpoint, records in a fresh phase with safe policy re-established, and hands off the project.
+The agent owns discovery decisions through the repository-owned runner. It returns only transcript-safe review evidence when the runner reaches `review_required`. After the user explicitly approves that displayed walkthrough, the same isolated agent resumes the persisted checkpoint, freshly establishes YOLO for recording, and hands off the project.
 
 ### Current Checkout With A Fresh Agent
 
@@ -44,8 +44,8 @@ The main agent already knows prior Cars.com failure modes and milestone history.
 
 ## Acceptance Flow
 
-1. Verify the project binding and dependency-ready WES-273 state, then create the WES-273 branch while preserving unrelated dirty files.
-2. Create a clean clone at the exact accepted `develop` baseline and dispatch a fresh context-isolated agent with the recorded prompt only.
+1. Verify the project binding and dependency-ready WES-273 state, then resume the existing WES-273 branch while preserving unrelated dirty files.
+2. Reconcile the branch onto current `develop`, including WES-274's focus-preserving visual decision channel, then create a clean clone at the exact reconciled branch head and dispatch a fresh context-isolated agent with the recorded prompt only.
 3. The fresh agent follows the repository skill, uses `yolo` mode while keeping browser actions on Cars.com, and drives discovery through `runAutonomousDiscoveryToReview()` rather than an ad hoc lifecycle.
 4. Discovery, replay, and recording use pointer-first interactions. Repeated `action_no_observable_effect` results on the same target are not treated as progress.
 5. If Cars.com requires a ZIP code and none is available, the agent pauses and asks the user. No ZIP is invented.
@@ -68,7 +68,7 @@ The main agent already knows prior Cars.com failure modes and milestone history.
 
 ## Verification Strategy
 
-- Confirm the clean acceptance checkout is at the intended `origin/develop` commit and has no untracked files before dispatch.
+- Confirm the clean acceptance checkout is at the intended reconciled WES-273 branch commit and has no untracked files before dispatch.
 - Preserve the exact prompt used and the fresh-agent identity in bounded evidence.
 - Verify phase one returned `review_required`, a replay-validated plan, a blocker-free sanitized review, and no recording or handoff artifacts.
 - Verify explicit approval was captured through the supported approval contract.
@@ -91,6 +91,6 @@ The main agent already knows prior Cars.com failure modes and milestone history.
 ## Self-Review
 
 - Placeholder scan: no unfinished marker or deferred acceptance decision remains.
-- Consistency: the clean-agent boundary, prompt-only rule, explicit approval pause, safe policy, and post-approval recording flow agree throughout.
+- Consistency: the clean-agent boundary, prompt-only rule, explicit approval pause, phase-scoped YOLO selection, and post-approval recording flow agree throughout.
 - Scope: the design covers one final acceptance issue and permits only defects necessary to make that acceptance truthful.
 - Ambiguity: transient retry, missing ZIP, hidden-guidance failure, output ownership, and milestone closure rules are explicit.
