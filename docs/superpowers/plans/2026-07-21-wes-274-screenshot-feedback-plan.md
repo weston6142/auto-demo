@@ -254,7 +254,7 @@ Stage explicit docs and package paths. Never stage `.gitignore` or `workflow/`. 
 
 Include Linear WES-274, design/plan paths, handoff explanation, exact verification, review result, and preserved unrelated paths. Monitor structured checks and review threads.
 
-- [ ] **Step 5: Record stable pre-merge evidence and close plan omissions**
+- [x] **Step 5: Record stable pre-merge evidence and close plan omissions**
 
 Update the map with exact-head CI and review evidence. Search this plan for unchecked implementation items; only merge/sync steps may remain.
 
