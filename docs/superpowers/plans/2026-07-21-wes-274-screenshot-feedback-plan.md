@@ -258,17 +258,17 @@ Include Linear WES-274, design/plan paths, handoff explanation, exact verificati
 
 Update the map with exact-head CI and review evidence. Search this plan for unchecked implementation items; only merge/sync steps may remain.
 
-- [ ] **Step 6: Squash merge and synchronize `develop`**
+- [x] **Step 6: Squash merge and synchronize `develop`**
 
 After required checks and actionable threads pass, squash merge. Verify `develop` tracks the base repository remote, fetch `origin/develop`, switch safely with unrelated changes preserved, and fast-forward only.
 
 PR #63 merged, but the immediate `develop` browser run exposed one transient headed screenshot failure. Complete this step only after the scoped WES-274 follow-up adds one bounded capture retry, passes review and exact-head CI, merges, and restores green `develop`.
 
-- [ ] **Step 7: Run the completion sync gate**
+- [x] **Step 7: Run the completion sync gate**
 
 Add WES-274 completion evidence and move it to Done. Add a dependency-ready handoff to WES-273, advance the map pointer to WES-273, and keep WES-273 and WES-265 Backlog. If post-merge map drift requires a tracked correction, publish one scoped follow-up PR tied to WES-274.
 
-- [ ] **Step 8: Confirm no unfinished WES-274 plan items**
+- [x] **Step 8: Confirm no unfinished WES-274 plan items**
 
 Search:
 
