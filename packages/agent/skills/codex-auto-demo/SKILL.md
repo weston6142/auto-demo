@@ -110,6 +110,9 @@ isolated browser and context. Discovery is the only phase that may advance to a
 fallback. Persist the selected profile in `DiscoverySessionV1`; compilation and
 approval bind it into the plan. Treat `anti_bot_challenge` as distinct from a
 policy denial and report only its bounded provider and profile identifier.
+For ordinary autonomous public-site discovery, omit `launchProfilePlan` to use
+the headed Chrome primary and headed bundled-Chromium fallback. Use headless
+mode only when the user explicitly requests it by supplying a profile plan.
 
 For ordinary autonomous public-site discovery, omit `launchProfilePlan` to use
 the headed Chrome primary and headed bundled-Chromium fallback. Use headless

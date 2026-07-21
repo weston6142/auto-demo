@@ -35,7 +35,9 @@ export async function selectWithVisiblePointer(
     return { matches, cycleLimit: enabled.length };
   }, optionLabel);
   const cycleKey = Array.from(optionLabel.trim())[0];
-  if (optionState?.matches !== 1 || cycleKey === undefined) throw new Error("option unavailable");
+  if (optionState === undefined || optionState.matches < 1 || cycleKey === undefined) {
+    throw new Error("option unavailable");
+  }
 
   await clickWithVisiblePointer(page, target);
   for (let attempt = 0; attempt < optionState.cycleLimit; attempt += 1) {

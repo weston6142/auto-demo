@@ -86,6 +86,7 @@ describe("createPlaywrightExecutionController", () => {
           <option value="any-private">Any</option>
           <option value="certified-private">New &amp; certified</option>
           <option value="new-private">New</option>
+          <option value="second-new-private">New</option>
         </select>
       </label>
     `);
@@ -184,7 +185,7 @@ describe("createPlaywrightExecutionController", () => {
     );
   });
 
-  it("rejects missing, disabled, and ambiguous public option labels", async () => {
+  it("rejects missing and disabled public option labels", async () => {
     await page.setContent(`
       <label>Condition
         <select>
@@ -196,11 +197,14 @@ describe("createPlaywrightExecutionController", () => {
     `);
     const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
 
-    for (const label of ["Missing", "Used", "New"]) {
+    for (const label of ["Missing", "Used"]) {
       await expect(
         controller.select({ label: "Condition", role: "combobox" }, label),
       ).rejects.toMatchObject({ code: "action_failed" });
     }
+    await expect(
+      controller.select({ label: "Condition", role: "combobox" }, "New"),
+    ).resolves.toBeUndefined();
   });
 
   it("fails rather than guessing when targets are missing or ambiguous", async () => {

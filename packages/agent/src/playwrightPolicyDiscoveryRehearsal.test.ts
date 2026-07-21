@@ -84,6 +84,7 @@ async function hostRoute(route: Route) {
           <option>Any</option>
           <option>New &amp; certified</option>
           <option>New</option>
+          <option>New</option>
         </select>
       </label>
       <button onclick="document.querySelector('output').textContent='Previewed'">Preview</button>

@@ -143,6 +143,7 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
           <option value="any-private">Any</option>
           <option value="certified-private">New &amp; certified</option>
           <option value="new-private">New</option>
+          <option value="second-new-private">New</option>
         </select>
       </label>
       <script>
@@ -190,7 +191,7 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("rejects missing, disabled, and ambiguous public option labels", async () => {
+  it("rejects missing and disabled public option labels", async () => {
     const origin = await fixture(`<!doctype html>
       <label>Condition
         <select>
@@ -211,11 +212,12 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
       role: "combobox",
     });
 
-    for (const label of ["Missing", "Used", "New"]) {
+    for (const label of ["Missing", "Used"]) {
       await expect(browser.select(matches[0]!, label)).rejects.toMatchObject({
         code: "action_failed",
       });
     }
+    await expect(browser.select(matches[0]!, "New")).resolves.toBeUndefined();
   });
 
   it("blocks replay from typing credential fields", async () => {
