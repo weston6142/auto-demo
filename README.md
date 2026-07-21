@@ -10,7 +10,7 @@ Auto Demo is Mac-first for the initial audience, but browser-first for the initi
 
 This repository is in early capture-to-project setup. The package structure supports browser capture, project import and persistence, deterministic polish generation, local browser editing, and MP4 export. `@auto-demo/agent` publishes the bounded `DiscoverySessionV1` evidence contract, structured Playwright observations, authorized rehearsal actions, and risk-tiered safe, public-browse, disposable, and YOLO discovery. `compileDiscoverySessionToWalkthroughPlan()` turns a completed selected path into a deterministic draft plan, while `replayAndRepairDiscoveryPlan()` and `createPlaywrightDiscoveryReplayBrowserFactory()` verify it in a fresh isolated browser context with runtime-only input bindings and at most two repair sessions.
 
-The repository-owned skill provides Codex-hosted risk-tiered discovery from a natural-language goal through structured rehearsal, bounded repair, explicit approval, and the existing deterministic execute and handoff path. It resolves `safe`, `public-browse`, `disposable`, or `yolo` before browser or network activity; all four modes are implemented for discovery and replay. Codex selects the same tier again for fresh discovery, fresh replay, and fresh recording contexts. Review and explicit approval remain mandatory, and the repository does not expose a discovery CLI.
+The repository-owned skill provides Codex-hosted risk-tiered discovery from a natural-language goal through structured rehearsal, bounded repair, explicit approval, and the existing deterministic execute and handoff path. It resolves `safe`, `public-browse`, `disposable`, or `yolo` before browser or network activity; all four modes are implemented for discovery and replay. Codex selects the same tier again for fresh discovery, fresh replay, and fresh recording contexts. The provider-neutral screenshot-coordinate discovery CLI exchanges only PNG plus JSON and never embeds or calls a model. Review and explicit approval remain mandatory.
 
 Discovery also resolves one sanitized browser launch profile: Chromium with the bundled browser,
 Chrome, or Edge channel; headless mode; and a bounded viewport. A primary profile may declare at
@@ -91,6 +91,12 @@ Run the logical `autodemo` subcommands below through the repo-root wrapper:
 ```bash
 autodemo init
 autodemo capture
+autodemo discover start --url <url> --goal <goal> --risk <safe|public-browse|disposable|yolo> --json
+autodemo discover observe --session <session-id> --json
+autodemo discover act --session <session-id> --actions-file <actions.json> --json
+autodemo discover status --session <session-id> --json
+autodemo discover finish --session <session-id> --json
+autodemo discover abandon --session <session-id> --json
 autodemo generate --project <project-dir-or-manifest> --dry-run --json [--styles baseline] [--source-variant baseline-polish]
 autodemo generate --project <project-dir-or-manifest> --json --save <variant-id|all> [--styles baseline] [--source-variant <source-variant-id>]
 autodemo agent run --project <project-dir-or-manifest> --json [--variant <variant-id>]
@@ -103,6 +109,11 @@ autodemo export --project <project-dir-or-manifest> --json [--variant baseline-p
 autodemo open --project <project-dir-or-manifest> [--host 127.0.0.1] [--port 0] [--no-browser]
 autodemo validate <capture-dir-or-manifest>
 ```
+
+See [Screenshot-Coordinate Discovery](docs/guides/screenshot-coordinate-discovery.md)
+for the persistent headed session, frame invalidation, dropdown scrolling,
+native-window capture, semantic replay, repair, and review workflow. Run every
+listed command through the repo-root `npm run autodemo --` wrapper.
 
 `autodemo capture` is the first partially implemented command:
 
@@ -182,7 +193,7 @@ cross-page evidence, stale-target direct-child repair, fresh replay, explicit
 approval, real viewport capture, failed-bundle preservation, and project
 handoff with `baseline-polish`. A separate exact-origin fixture proves that
 mutation remains blocked in safe mode and succeeds only with a fresh disposable
-acknowledgement. This verification adds no discovery CLI or embedded model;
+acknowledgement. The screenshot-coordinate discovery CLI adds no embedded model;
 public read-only smoke remains optional.
 
 Persist a successful execution result and create its final project with:

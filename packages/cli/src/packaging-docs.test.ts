@@ -113,4 +113,18 @@ describe("CLI packaging decision documentation", () => {
     expect(result.stdout).toContain("Usage: autodemo export");
     expect(result.stdout).toContain("--preset mp4-demo");
   }, 20_000);
+
+  it("links the complete screenshot-coordinate CLI lifecycle", async () => {
+    const rootReadme = normalizeWhitespace(await readRootDoc("README.md"));
+    const guide = normalizeWhitespace(
+      await readRootDoc("docs/guides/screenshot-coordinate-discovery.md"),
+    );
+
+    expect(rootReadme).toContain("docs/guides/screenshot-coordinate-discovery.md");
+    for (const command of ["start", "observe", "act", "status", "finish", "abandon"]) {
+      expect(guide).toContain(`npm run autodemo -- discover ${command}`);
+    }
+    expect(guide).toContain("screen recording permission");
+    expect(guide).toContain("native_window_capture_unavailable");
+  });
 });

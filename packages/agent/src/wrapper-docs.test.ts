@@ -136,7 +136,7 @@ describe("agent wrapper documentation", () => {
     ]) {
       expect(combined).toContain(required);
     }
-    expect(combined).toContain("does not yet expose a discovery CLI");
+    expect(combined).toContain("does not embed a model");
     expect(combined).not.toContain("autodemo agent discover");
   });
 
@@ -465,8 +465,49 @@ describe("agent wrapper documentation", () => {
       expect(combined).toContain(required);
     }
 
-    expect(combined).toContain("does not expose a discovery CLI");
+    expect(combined).toContain("screenshot-coordinate discovery CLI");
     expect(combined).not.toContain("autodemo agent discover");
+  });
+
+  it("publishes provider-neutral screenshot-coordinate discovery instructions", async () => {
+    const guide = normalizeWhitespace(
+      await readRootDoc("docs/guides/screenshot-coordinate-discovery.md"),
+    );
+    const skill = normalizeWhitespace(
+      section(
+        await readAgentDoc("skills/codex-auto-demo/SKILL.md"),
+        "## Screenshot Coordinate Discovery CLI",
+      ),
+    );
+    const combined = `${guide} ${skill}`;
+
+    for (const required of [
+      "npm run autodemo -- discover start",
+      "npm run autodemo -- discover observe",
+      "npm run autodemo -- discover act",
+      "npm run autodemo -- discover status",
+      "npm run autodemo -- discover finish",
+      "npm run autodemo -- discover abandon",
+      "frame.screenshotPath",
+      "png plus json",
+      "fresh frame",
+      "dropdown",
+      "review_required",
+      "explicit approval",
+      "coordinates never enter replay",
+      "auto demo never calls a model api",
+    ]) {
+      expect(combined.toLowerCase()).toContain(required.toLowerCase());
+    }
+    for (const forbidden of [
+      "openai api",
+      "anthropic api",
+      "mcp transport",
+      "playwright selector",
+      "provider response schema",
+    ]) {
+      expect(combined.toLowerCase()).not.toContain(forbidden);
+    }
   });
 
   it("publishes Codex instructions for the WES-160 workflow contract", async () => {
