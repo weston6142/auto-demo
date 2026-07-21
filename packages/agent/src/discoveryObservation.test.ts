@@ -547,7 +547,11 @@ describe("createDiscoveryObservationExtractor", () => {
     };
     const result = await createDiscoveryObservationExtractor({
       page,
-      artifactSink: { async write() { return { path: "artifacts/retried.png" }; } },
+      artifactSink: {
+        async write() {
+          return { path: "artifacts/retried.png" };
+        },
+      },
     }).observe();
     expect(result).toMatchObject({
       ok: true,
