@@ -69,6 +69,10 @@ export type CoordinateDiscoverySession = {
     | { ok: true; frame: CapturedCoordinateFrame }
     | { ok: false; code: "frame_unavailable"; message: string }
   >;
+  observe(): Promise<
+    | { ok: true; frame: CapturedCoordinateFrame }
+    | { ok: false; code: "frame_unavailable"; message: string }
+  >;
   act(value: unknown): Promise<CoordinateDiscoveryActResult>;
   durableTrace(): CoordinateTraceRecord[];
   runtimeBindings(): Record<string, string>;
@@ -100,6 +104,18 @@ export function createCoordinateDiscoverySession(input: {
   return {
     async start() {
       if (activeFrame !== undefined) return { ok: true, frame: activeFrame };
+      try {
+        return { ok: true, frame: await capture() };
+      } catch {
+        return {
+          ok: false,
+          code: "frame_unavailable",
+          message: "Coordinate discovery frame is unavailable.",
+        };
+      }
+    },
+
+    async observe() {
       try {
         return { ok: true, frame: await capture() };
       } catch {

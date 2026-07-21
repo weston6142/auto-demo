@@ -332,6 +332,52 @@ describe("runCliAsync export", () => {
   });
 });
 
+describe("runCliAsync discover", () => {
+  it("routes screenshot-coordinate lifecycle commands through the discover backend", async () => {
+    const calls: unknown[] = [];
+    const result = await runCliAsync(
+      [
+        "discover",
+        "start",
+        "--url",
+        "https://example.test/",
+        "--goal",
+        "Open the first organic result",
+        "--risk",
+        "yolo",
+        "--json",
+      ],
+      {
+        ...testDependencies(),
+        discoverCommandBackend: {
+          async start(input) {
+            calls.push(input);
+            return { ok: true, sessionId: "discovery-123" };
+          },
+          async request() {
+            throw new Error("not used");
+          },
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: `${JSON.stringify({ ok: true, sessionId: "discovery-123" }, null, 2)}\n`,
+      stderr: "",
+    });
+    expect(calls).toEqual([
+      {
+        url: "https://example.test/",
+        goal: "Open the first organic result",
+        risk: "yolo",
+        allowedOrigins: [],
+        grid: false,
+      },
+    ]);
+  });
+});
+
 describe("runCliAsync open", () => {
   it("starts the local editor and prints its URL", async () => {
     const projectDir = await createValidProject();

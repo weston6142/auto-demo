@@ -110,6 +110,21 @@ async function started(page = new FakeCoordinatePage()) {
 }
 
 describe("coordinate discovery session", () => {
+  it("observes a fresh frame and invalidates the prior frame", async () => {
+    const { page, session, frame } = await started();
+    const observed = await session.observe();
+    if (!observed.ok) throw new Error("fresh observation missing");
+
+    expect(observed.frame.id).toBe("frame-2");
+    expect(
+      await session.act({
+        frameId: frame.id,
+        actions: [{ type: "move", x: 10, y: 10 }],
+      }),
+    ).toMatchObject({ ok: false, code: "stale_frame", executedActions: 0 });
+    expect(page.executed).toHaveLength(0);
+  });
+
   it("executes multiple actions while the coordinate frame remains unchanged", async () => {
     const { page, session, frame } = await started();
     const result = await session.act({

@@ -144,6 +144,14 @@ export {
 } from "./coordinateDiscoveryFinalize.js";
 
 export {
+  PlaywrightCoordinateDiscoveryPage,
+  type BrowserWindowCapture,
+  type CapturedCoordinateFrame,
+  type CoordinateTargetEvidence,
+  type PlaywrightCoordinateDiscoveryPageOptions,
+} from "./playwrightCoordinateDiscoveryPage.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,
