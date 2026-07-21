@@ -6,7 +6,11 @@ import type {
   BrowserExecutionTarget,
   BrowserNavigationExpectation,
 } from "./index.js";
-import { clickWithVisiblePointer, selectWithVisiblePointer } from "./playwrightPointerActions.js";
+import {
+  clickWithVisiblePointer,
+  selectWithVisiblePointer,
+  typeWithVisiblePointer,
+} from "./playwrightPointerActions.js";
 
 export type PlaywrightExecutionControllerOptions = {
   timeoutMs?: number;
@@ -56,12 +60,7 @@ export function createPlaywrightExecutionController(
     async type(target, value, typeOptions) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
-        await clickWithVisiblePointer(page, locator);
-        await locator.fill("", { timeout: timeoutMs });
-        await locator.pressSequentially(value, {
-          delay: typeOptions.delayMs,
-          timeout: timeoutMs,
-        });
+        await typeWithVisiblePointer(page, locator, value, { delayMs: typeOptions.delayMs });
       } catch (error) {
         throw new PlaywrightExecutionControllerError(
           isPlaywrightTimeout(error) ? "execution_timeout" : "action_failed",

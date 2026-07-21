@@ -35,7 +35,11 @@ import {
 import { classifyDiscoveryNetworkRequest } from "./discoveryNetworkClassification.js";
 import { decideDiscoveryNetworkRequest } from "./discoveryNetworkPolicy.js";
 import type { WalkthroughPlanAssertion, WalkthroughPlanTargetHint } from "./index.js";
-import { clickWithVisiblePointer, selectWithVisiblePointer } from "./playwrightPointerActions.js";
+import {
+  clickWithVisiblePointer,
+  selectWithVisiblePointer,
+  typeWithVisiblePointer,
+} from "./playwrightPointerActions.js";
 
 const MAX_RUNTIME_MATCHES = DISCOVERY_LIMITS.interactiveTargetsPerObservation;
 
@@ -252,10 +256,7 @@ class PlaywrightDiscoveryReplayBrowser implements DiscoveryReplayBrowser {
     );
     await this.guarded(
       permit,
-      async () => {
-        await clickWithVisiblePointer(this.requirePage(), locator);
-        await locator.fill(value);
-      },
+      () => typeWithVisiblePointer(this.requirePage(), locator, value),
       "action_failed",
     );
   }

@@ -9,7 +9,11 @@ import type {
   DiscoveryObservationRawTarget,
   DiscoveryObservationRawVisibleState,
 } from "./discoveryObservation.js";
-import { clickWithVisiblePointer, selectWithVisiblePointer } from "./playwrightPointerActions.js";
+import {
+  clickWithVisiblePointer,
+  selectWithVisiblePointer,
+  typeWithVisiblePointer,
+} from "./playwrightPointerActions.js";
 
 type BrowserCollection = DiscoveryObservationPageSnapshot;
 
@@ -117,8 +121,7 @@ export class PlaywrightDiscoveryObservationPage implements DiscoveryObservationP
         try {
           if (input.action.kind === "click") await clickWithVisiblePointer(this.page, element);
           else if (input.action.kind === "type") {
-            await clickWithVisiblePointer(this.page, element);
-            await element.fill(input.resolvedValue ?? "");
+            await typeWithVisiblePointer(this.page, element, input.resolvedValue ?? "");
           } else {
             await selectWithVisiblePointer(this.page, element, input.action.optionLabel);
           }

@@ -63,6 +63,11 @@ describe("createPlaywrightExecutionController", () => {
       <script>
         document.addEventListener('pointermove', () => {
           document.body.dataset.pointerMoves = String(Number(document.body.dataset.pointerMoves || '0') + 1)
+          document.body.dataset.lastPointerMove = String(performance.now())
+        })
+        document.addEventListener('pointerdown', () => {
+          const movedAt = Number(document.body.dataset.lastPointerMove || '0')
+          document.body.dataset.pointerSettle = String(performance.now() - movedAt)
         })
       </script>
     `);
@@ -77,6 +82,9 @@ describe("createPlaywrightExecutionController", () => {
     expect(Number(await page.locator("body").getAttribute("data-pointer-moves"))).toBeGreaterThan(
       2,
     );
+    expect(
+      Number(await page.locator("body").getAttribute("data-pointer-settle")),
+    ).toBeGreaterThanOrEqual(25);
   });
 
   it("selects a native option and verifies public control state", async () => {

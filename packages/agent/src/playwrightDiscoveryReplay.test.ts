@@ -101,7 +101,24 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
   it("matches accessible targets and replays safe actions in an isolated page", async () => {
     const origin = await fixture(`<!doctype html>
       <label>Name <input aria-label="Demo name"></label>
-      <a href="/next">Continue</a>`);
+      <a href="/next" onclick="if (Number(document.body.dataset.pointerSettle || '0') < 25) event.preventDefault()">Continue</a>
+      <script>
+        document.addEventListener('keydown', () => {
+          document.body.dataset.keydowns = String(Number(document.body.dataset.keydowns || '0') + 1)
+          if (Number(document.body.dataset.keydowns) >= 3 && !document.querySelector('output')) {
+            const output = document.createElement('output')
+            output.textContent = 'Keyboard typed'
+            document.body.append(output)
+          }
+        })
+        document.addEventListener('pointermove', () => {
+          document.body.dataset.lastPointerMove = String(performance.now())
+        })
+        document.addEventListener('pointerdown', () => {
+          const movedAt = Number(document.body.dataset.lastPointerMove || '0')
+          document.body.dataset.pointerSettle = String(performance.now() - movedAt)
+        })
+      </script>`);
     const browser = await createPlaywrightDiscoveryReplayBrowserFactory().create({
       policy: { mode: "safe", allowedOrigins: [origin] },
       attempt: 1,
@@ -112,6 +129,16 @@ describe("createPlaywrightDiscoveryReplayBrowserFactory", () => {
     const input = await browser.findMatches({ kind: "accessible", label: "Demo name" });
     expect(input).toHaveLength(1);
     await browser.type(input[0]!, "Ada");
+    await expect(
+      browser.assertControlState({
+        kind: "control-state",
+        target: { kind: "accessible", label: "Demo name" },
+        state: { hasValue: true },
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      browser.assertVisible({ kind: "visible-state", condition: "Keyboard typed" }),
+    ).resolves.toBeUndefined();
     const link = await browser.findMatches({
       kind: "accessible",
       label: "Continue",
