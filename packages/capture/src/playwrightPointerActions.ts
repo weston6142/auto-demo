@@ -64,30 +64,42 @@ export async function selectWithVisiblePointer(
   target: Locator,
   optionLabel: string,
 ): Promise<void> {
-  const optionState = await target.evaluate((node, label) => {
+  const optionState = await target.evaluate((node) => {
     if (!(node instanceof HTMLSelectElement)) return undefined;
     const enabled = Array.from(node.options).filter((option) => !option.disabled);
-    const matches = enabled.filter(
-      (option) => option.textContent?.replace(/\s+/g, " ").trim() === label,
-    ).length;
-    return { matches, cycleLimit: enabled.length };
-  }, optionLabel);
+    const labels = enabled.map((option) => option.textContent?.replace(/\s+/g, " ").trim() ?? "");
+    return {
+      labels,
+      selectedLabel: node.selectedOptions[0]?.textContent?.replace(/\s+/g, " ").trim(),
+    };
+  });
   const cycleKey = Array.from(optionLabel.trim())[0];
-  if (optionState === undefined || optionState.matches < 1 || cycleKey === undefined) {
+  if (optionState === undefined || cycleKey === undefined) {
     throw new Error("option unavailable");
   }
+  const candidates = optionState.labels.filter((label) =>
+    label.toLocaleLowerCase().startsWith(cycleKey.toLocaleLowerCase()),
+  );
+  const targetIndex = candidates.indexOf(optionLabel);
+  if (targetIndex < 0) throw new Error("option unavailable");
+  const selectedIndex = candidates.indexOf(optionState.selectedLabel ?? "");
+  const presses =
+    optionState.selectedLabel === optionLabel
+      ? 0
+      : selectedIndex < 0
+        ? targetIndex + 1
+        : (targetIndex - selectedIndex + candidates.length) % candidates.length ||
+          candidates.length;
 
   await clickWithVisiblePointer(page, target);
-  for (let attempt = 0; attempt < optionState.cycleLimit; attempt += 1) {
+  for (let index = 0; index < presses; index += 1) {
     await naturalInput(page).keypress([cycleKey]);
-    const selectedLabel = await target.evaluate((node) =>
-      node instanceof HTMLSelectElement
-        ? node.selectedOptions[0]?.textContent?.replace(/\s+/g, " ").trim()
-        : undefined,
-    );
-    if (selectedLabel !== optionLabel) continue;
-    await naturalInput(page).keypress(["Enter"]);
-    return;
   }
-  throw new Error("option unavailable");
+  await naturalInput(page).keypress(["Enter"]);
+  const selectedLabel = await target.evaluate((node) =>
+    node instanceof HTMLSelectElement
+      ? node.selectedOptions[0]?.textContent?.replace(/\s+/g, " ").trim()
+      : undefined,
+  );
+  if (selectedLabel !== optionLabel) throw new Error("option unavailable");
 }
