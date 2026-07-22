@@ -1,6 +1,6 @@
 # WES-273 Fresh-Agent Cars.com Acceptance Design
 
-Date: 2026-07-20  
+Date: 2026-07-20
 Issue: WES-273, "Pass fresh-agent Cars.com Kia Sorento acceptance"
 
 ## Goal
