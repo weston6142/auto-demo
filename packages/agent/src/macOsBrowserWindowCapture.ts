@@ -1,21 +1,11 @@
-import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { PNG } from "pngjs";
 import type { Page } from "playwright";
+import type { MacOsCaptureHelperClient } from "./macOsCaptureHelperClient.js";
 import type { BrowserWindowCapture } from "./playwrightCoordinateDiscoveryPage.js";
-
-type CaptureRegion = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
 
 export type MacOsBrowserWindowCaptureOptions = {
   platform?: NodeJS.Platform;
-  captureRegion?: (region: CaptureRegion) => Promise<Uint8Array | undefined>;
+  client?: MacOsCaptureHelperClient;
 };
 
 export async function createMacOsBrowserWindowCapture(
@@ -23,6 +13,7 @@ export async function createMacOsBrowserWindowCapture(
   options: MacOsBrowserWindowCaptureOptions = {},
 ): Promise<BrowserWindowCapture | undefined> {
   if ((options.platform ?? process.platform) !== "darwin") return undefined;
+  if (options.client === undefined) return undefined;
   const geometry = await page.evaluate(() => {
     const horizontalChrome = Math.max(0, outerWidth - innerWidth);
     const verticalChrome = Math.max(0, outerHeight - innerHeight);
@@ -36,10 +27,9 @@ export async function createMacOsBrowserWindowCapture(
       viewport: { width: innerWidth, height: innerHeight },
     };
   });
-  const captureRegion = options.captureRegion ?? captureMacOsRegion;
   return {
     async capture() {
-      const bytes = await captureRegion(geometry.region);
+      const bytes = await options.client!.capture(geometry.region);
       if (bytes === undefined) return undefined;
       try {
         return normalizePng(bytes, geometry.viewport);
@@ -47,30 +37,10 @@ export async function createMacOsBrowserWindowCapture(
         return undefined;
       }
     },
+    async close() {
+      await options.client!.close();
+    },
   };
-}
-
-async function captureMacOsRegion(region: CaptureRegion): Promise<Uint8Array | undefined> {
-  const directory = await mkdtemp(join(tmpdir(), "autodemo-window-capture-"));
-  const path = join(directory, "viewport.png");
-  try {
-    await runScreencapture(region, path);
-    return await readFile(path);
-  } catch {
-    return undefined;
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-}
-
-function runScreencapture(region: CaptureRegion, path: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      "/usr/sbin/screencapture",
-      ["-x", "-t", "png", "-R", `${region.x},${region.y},${region.width},${region.height}`, path],
-      (error) => (error === null ? resolve() : reject(error)),
-    );
-  });
 }
 
 function normalizePng(bytes: Uint8Array, viewport: { width: number; height: number }): Uint8Array {

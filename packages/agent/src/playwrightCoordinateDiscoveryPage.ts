@@ -20,6 +20,7 @@ import type { CoordinatePageState } from "./coordinateDiscoverySession.js";
 
 export type BrowserWindowCapture = {
   capture(): Promise<Uint8Array | undefined>;
+  close?(): Promise<void>;
 };
 
 export type CapturedCoordinateFrame = {
@@ -248,7 +249,7 @@ export class PlaywrightCoordinateDiscoveryPage {
   }
 
   async close(): Promise<void> {
-    await this.page.context().close();
+    await Promise.allSettled([this.options.windowCapture?.close?.(), this.page.context().close()]);
   }
 }
 

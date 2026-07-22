@@ -2,12 +2,14 @@ import { lstat, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import {
   PlaywrightCoordinateDiscoveryPage,
+  createMacOsCaptureHelperClient,
   createMacOsBrowserWindowCapture,
   createCoordinateDiscoverySession,
   createFileCoordinateDiscoveryStore,
   createPlaywrightDiscoveryBrowserLauncher,
   createPlaywrightDiscoveryReplayBrowserFactory,
   finalizeCoordinateDiscovery,
+  preflightMacOsCaptureHelper,
   replayAndRepairDiscoveryPlan,
   reviewWalkthroughPlan,
   type CapturedCoordinateFrame,
@@ -15,7 +17,10 @@ import {
   type CoordinateDiscoveryCheckpoint,
   type CoordinateDiscoverySession,
   type DiscoveryBrowserLaunchHandle,
+  type DiscoveryBrowserLauncher,
   type DiscoveryPolicy,
+  type MacOsCaptureHelperClient,
+  type MacOsCaptureHelperPreflightResult,
 } from "@auto-demo/agent";
 import type { Page } from "playwright";
 import type { DiscoverHostBootstrap } from "./discoverBackend.js";
@@ -28,14 +33,27 @@ export type PlaywrightDiscoverRuntimeResult = {
 
 export type PlaywrightDiscoverRuntimeOptions = {
   createWindowCapture?: (page: Page) => Promise<BrowserWindowCapture | undefined>;
+  platform?: NodeJS.Platform;
+  preflightCaptureHelper?: () => Promise<MacOsCaptureHelperPreflightResult>;
+  createCaptureHelperClient?: typeof createMacOsCaptureHelperClient;
+  launchBrowser?: DiscoveryBrowserLauncher["launch"];
 };
 
 export async function createPlaywrightDiscoverRuntime(
   bootstrap: DiscoverHostBootstrap,
   options: PlaywrightDiscoverRuntimeOptions = {},
 ): Promise<PlaywrightDiscoverRuntimeResult> {
+  const platform = options.platform ?? process.platform;
+  let helperPreflight: Extract<MacOsCaptureHelperPreflightResult, { ok: true }> | undefined;
+  if (platform === "darwin" && options.createWindowCapture === undefined) {
+    const preflight = await (options.preflightCaptureHelper ?? preflightMacOsCaptureHelper)();
+    if (!preflight.ok) {
+      return { runtime: failedRuntime(), initialResponse: preflight };
+    }
+    helperPreflight = preflight;
+  }
   const launcher = createPlaywrightDiscoveryBrowserLauncher();
-  const launched = await launcher.launch({
+  const launched = await (options.launchBrowser ?? launcher.launch.bind(launcher))({
     url: bootstrap.start.url,
     profilePlan: {
       schemaVersion: 1,
@@ -68,9 +86,33 @@ export async function createPlaywrightDiscoverRuntime(
     };
   }
 
-  const windowCapture = await (options.createWindowCapture ?? createMacOsBrowserWindowCapture)(
-    launched.page,
-  );
+  let helperClient: MacOsCaptureHelperClient | undefined;
+  let windowCapture: BrowserWindowCapture | undefined;
+  try {
+    if (options.createWindowCapture !== undefined) {
+      windowCapture = await options.createWindowCapture(launched.page);
+    } else if (helperPreflight !== undefined) {
+      helperClient = await (options.createCaptureHelperClient ?? createMacOsCaptureHelperClient)({
+        sessionDirectory: bootstrap.sessionDirectory,
+        installPath: helperPreflight.installPath,
+      });
+      windowCapture = await createMacOsBrowserWindowCapture(launched.page, {
+        platform,
+        client: helperClient,
+      });
+    }
+  } catch {
+    await Promise.allSettled([helperClient?.close(), launched.close()]);
+    return {
+      runtime: failedRuntime(),
+      initialResponse: {
+        ok: false,
+        code: "capture_helper_unavailable",
+        message: "Auto Demo Capture could not start.",
+        setupCommand: "npm run autodemo -- setup capture-helper --json",
+      },
+    };
+  }
   const adapter = new PlaywrightCoordinateDiscoveryPage(
     launched.page,
     { ...(windowCapture === undefined ? {} : { windowCapture }) },
@@ -80,13 +122,13 @@ export async function createPlaywrightDiscoverRuntime(
   const store = createFileCoordinateDiscoveryStore(bootstrap.sessionDirectory);
   const started = await session.start();
   if (!started.ok) {
-    await launched.close();
+    await Promise.allSettled([windowCapture?.close?.(), launched.close()]);
     return { runtime: failedRuntime(), initialResponse: started };
   }
-  const state = createRuntimeState(bootstrap, launched, session, store);
+  const state = createRuntimeState(bootstrap, launched, session, store, windowCapture);
   const frame = await state.persistFrame(started.frame);
   if (!frame.ok) {
-    await launched.close();
+    await Promise.allSettled([windowCapture?.close?.(), launched.close()]);
     return { runtime: failedRuntime(), initialResponse: frame };
   }
   await state.persistCheckpoint("discovering", started.frame.id);
@@ -101,6 +143,7 @@ function createRuntimeState(
   launched: DiscoveryBrowserLaunchHandle,
   session: CoordinateDiscoverySession,
   store: ReturnType<typeof createFileCoordinateDiscoveryStore>,
+  windowCapture?: BrowserWindowCapture,
 ) {
   let phase: CoordinateDiscoveryCheckpoint["phase"] = "discovering";
   let currentFrame: Record<string, unknown> | undefined;
@@ -153,7 +196,7 @@ function createRuntimeState(
     async close() {
       if (closed) return;
       closed = true;
-      await launched.close();
+      await Promise.allSettled([windowCapture?.close?.(), launched.close()]);
     },
   };
 }
