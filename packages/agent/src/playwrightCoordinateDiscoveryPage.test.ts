@@ -217,7 +217,11 @@ describe("Playwright coordinate discovery page", () => {
   it("resolves a native form control through nested open shadow roots", async () => {
     await shadowSelectFixture();
     const adapter = new PlaywrightCoordinateDiscoveryPage(page, {
-      windowCapture: { async capture() { return undefined; } },
+      windowCapture: {
+        async capture() {
+          return undefined;
+        },
+      },
     });
     const point = { x: 150, y: 70 };
 

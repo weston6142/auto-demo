@@ -12,6 +12,7 @@ import type {
 import {
   clickWithVisiblePointer,
   selectWithVisiblePointer,
+  settleAfterPhysicalClick,
   typeWithVisiblePointer,
 } from "./playwrightPointerActions.js";
 
@@ -119,8 +120,10 @@ export class PlaywrightDiscoveryObservationPage implements DiscoveryObservationP
           throw new Error("target unavailable");
         }
         try {
-          if (input.action.kind === "click") await clickWithVisiblePointer(this.page, element);
-          else if (input.action.kind === "type") {
+          if (input.action.kind === "click") {
+            await clickWithVisiblePointer(this.page, element);
+            await settleAfterPhysicalClick(this.page);
+          } else if (input.action.kind === "type") {
             await typeWithVisiblePointer(this.page, element, input.resolvedValue ?? "");
           } else {
             await selectWithVisiblePointer(this.page, element, input.action.optionLabel);

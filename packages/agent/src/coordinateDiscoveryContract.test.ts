@@ -83,7 +83,9 @@ describe("coordinate discovery action contract", () => {
       },
       {
         frameId: "frame-1",
-        actions: [{ type: "type", text: "x".repeat(COORDINATE_DISCOVERY_LIMITS.typeCharacters + 1) }],
+        actions: [
+          { type: "type", text: "x".repeat(COORDINATE_DISCOVERY_LIMITS.typeCharacters + 1) },
+        ],
       },
     ];
 

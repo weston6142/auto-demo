@@ -1781,12 +1781,16 @@ describe("runCliAsync setup capture-helper", () => {
     expect(inputs).toEqual([{ adHoc: true, json: true }]);
     expect(result).toEqual({
       exitCode: 0,
-      stdout: `${JSON.stringify({
-        ok: true,
-        code: "capture_helper_ready",
-        installPath: "/Users/example/Applications/Auto Demo Capture.app",
-        signature: "ad-hoc",
-      }, null, 2)}\n`,
+      stdout: `${JSON.stringify(
+        {
+          ok: true,
+          code: "capture_helper_ready",
+          installPath: "/Users/example/Applications/Auto Demo Capture.app",
+          signature: "ad-hoc",
+        },
+        null,
+        2,
+      )}\n`,
       stderr: "",
     });
   });
@@ -1794,14 +1798,7 @@ describe("runCliAsync setup capture-helper", () => {
   it("rejects conflicting signing arguments before setup", async () => {
     let called = false;
     const result = await runCliAsync(
-      [
-        "setup",
-        "capture-helper",
-        "--ad-hoc",
-        "--signing-identity",
-        "A".repeat(40),
-        "--json",
-      ],
+      ["setup", "capture-helper", "--ad-hoc", "--signing-identity", "A".repeat(40), "--json"],
       {
         ...testDependencies(),
         async setupCaptureHelper() {

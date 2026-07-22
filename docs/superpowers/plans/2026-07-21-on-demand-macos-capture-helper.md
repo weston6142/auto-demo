@@ -327,8 +327,25 @@ Export only the command runner and public result:
 
 ```ts
 export type CaptureHelperSetupResult =
-  | { ok: true; code: "capture_helper_ready"; installPath: string; signature: "development" | "ad-hoc" }
-  | { ok: false; code: "unsupported_platform" | "signing_identity_required" | "invalid_signing_identity" | "capture_helper_build_failed" | "capture_helper_install_failed" | "capture_helper_signature_invalid" | "capture_helper_permission_required"; message: string; choices?: Array<{ fingerprint: string; label: string }> };
+  | {
+      ok: true;
+      code: "capture_helper_ready";
+      installPath: string;
+      signature: "development" | "ad-hoc";
+    }
+  | {
+      ok: false;
+      code:
+        | "unsupported_platform"
+        | "signing_identity_required"
+        | "invalid_signing_identity"
+        | "capture_helper_build_failed"
+        | "capture_helper_install_failed"
+        | "capture_helper_signature_invalid"
+        | "capture_helper_permission_required";
+      message: string;
+      choices?: Array<{ fingerprint: string; label: string }>;
+    };
 
 export type CaptureHelperSetupInput = {
   signingIdentity?: string;
@@ -477,7 +494,16 @@ export type MacOsCaptureHelperClient = {
 
 export type MacOsCaptureHelperPreflightResult =
   | { ok: true; installPath: string; protocolVersion: 1 }
-  | { ok: false; code: "capture_helper_not_installed" | "capture_helper_signature_invalid" | "capture_helper_protocol_mismatch" | "capture_helper_permission_required"; message: string; setupCommand: "npm run autodemo -- setup capture-helper --json" };
+  | {
+      ok: false;
+      code:
+        | "capture_helper_not_installed"
+        | "capture_helper_signature_invalid"
+        | "capture_helper_protocol_mismatch"
+        | "capture_helper_permission_required";
+      message: string;
+      setupCommand: "npm run autodemo -- setup capture-helper --json";
+    };
 ```
 
 Resolve the default install only as `join(homedir(), "Applications", "Auto Demo Capture.app")`. Preflight rejects symlinks, requires a regular executable at `Contents/MacOS/AutoDemoCaptureHelper`, runs `codesign --verify --strict`, then calls `--version-json` and `--preflight-json` with 2-second timeouts. Do not include child stderr in public errors.

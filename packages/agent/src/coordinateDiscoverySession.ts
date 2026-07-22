@@ -231,12 +231,7 @@ export function createCoordinateDiscoverySession(input: {
             };
           } catch (error) {
             const captureFailure = frameFailure(error);
-            return failure(
-              captureFailure.code,
-              executedActions,
-              captureFailure.message,
-              index,
-            );
+            return failure(captureFailure.code, executedActions, captureFailure.message, index);
           }
         }
         activeState = after;
@@ -276,9 +271,7 @@ export function createCoordinateDiscoverySession(input: {
   }
 }
 
-type CoordinateFrameFailureCode =
-  | "frame_unavailable"
-  | "native_window_capture_unavailable";
+type CoordinateFrameFailureCode = "frame_unavailable" | "native_window_capture_unavailable";
 
 function frameFailure(error: unknown): {
   ok: false;

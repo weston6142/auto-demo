@@ -9,6 +9,7 @@ import type {
 import {
   clickWithVisiblePointer,
   selectWithVisiblePointer,
+  settleAfterPhysicalClick,
   typeWithVisiblePointer,
 } from "./playwrightPointerActions.js";
 
@@ -51,6 +52,7 @@ export function createPlaywrightExecutionController(
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
         await clickWithVisiblePointer(page, locator);
+        await settleAfterPhysicalClick(page);
       } catch (error) {
         throw new PlaywrightExecutionControllerError(
           isPlaywrightTimeout(error) ? "execution_timeout" : "action_failed",

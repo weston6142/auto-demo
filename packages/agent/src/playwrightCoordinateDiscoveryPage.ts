@@ -182,39 +182,36 @@ export class PlaywrightCoordinateDiscoveryPage {
         await this.input.move(action);
         return;
       case "click":
-        this.nativePopupOpen = await this.page.evaluate(
-          ({ x, y }) => {
-            const layers: Element[] = [];
-            const seen = new Set<Element>();
-            const seenRoots = new Set<Document | ShadowRoot>();
-            const visit = (root: Document | ShadowRoot) => {
-              if (seenRoots.has(root)) return;
-              seenRoots.add(root);
-              for (const element of root.elementsFromPoint(x, y)) {
-                if (!seen.has(element)) {
-                  seen.add(element);
-                  layers.push(element);
-                }
-                if (element.shadowRoot !== null) visit(element.shadowRoot);
+        this.nativePopupOpen = await this.page.evaluate(({ x, y }) => {
+          const layers: Element[] = [];
+          const seen = new Set<Element>();
+          const seenRoots = new Set<Document | ShadowRoot>();
+          const visit = (root: Document | ShadowRoot) => {
+            if (seenRoots.has(root)) return;
+            seenRoots.add(root);
+            for (const element of root.elementsFromPoint(x, y)) {
+              if (!seen.has(element)) {
+                seen.add(element);
+                layers.push(element);
               }
-            };
-            visit(document);
-            const layeredSelect = layers
-              .map((element) => element.closest("select"))
-              .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
-            if (layeredSelect !== undefined) return true;
-            const labelledSelect = layers
-              .map((element) => element.closest("label"))
-              .map((label) => (label instanceof HTMLLabelElement ? label.control : null))
-              .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
-            if (labelledSelect !== undefined) return true;
-            return Array.from(document.querySelectorAll("select")).some((select) => {
-              const rect = select.getBoundingClientRect();
-              return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-            });
-          },
-          action,
-        );
+              if (element.shadowRoot !== null) visit(element.shadowRoot);
+            }
+          };
+          visit(document);
+          const layeredSelect = layers
+            .map((element) => element.closest("select"))
+            .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
+          if (layeredSelect !== undefined) return true;
+          const labelledSelect = layers
+            .map((element) => element.closest("label"))
+            .map((label) => (label instanceof HTMLLabelElement ? label.control : null))
+            .find((element): element is HTMLSelectElement => element instanceof HTMLSelectElement);
+          if (labelledSelect !== undefined) return true;
+          return Array.from(document.querySelectorAll("select")).some((select) => {
+            const rect = select.getBoundingClientRect();
+            return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+          });
+        }, action);
         try {
           await this.input.click(action);
           if (!this.nativePopupOpen) {
@@ -256,7 +253,8 @@ export class PlaywrightCoordinateDiscoveryPage {
 function inspectCoordinateTarget(point: ScreenPoint): CoordinateTargetEvidence | undefined {
   const selector =
     'a[href],button,input,select,textarea,[contenteditable="true"],[role="button"],[role="link"],[role="combobox"]';
-  const formSelector = 'button,input,select,textarea,[contenteditable="true"],[role="button"],[role="combobox"]';
+  const formSelector =
+    'button,input,select,textarea,[contenteditable="true"],[role="button"],[role="combobox"]';
   const layers = deepElementsFromPoint(document, point);
   const layeredFormControl = layers
     .map((candidate) => candidate.closest(formSelector))

@@ -1563,22 +1563,18 @@ function defaultDependencies(): CliDependencies {
     setupCaptureHelper: async (input) =>
       await runMacOsCaptureHelperSetup(
         input,
-        defaultCaptureHelperSetupDependencies(
-          fileURLToPath(new URL("../../..", import.meta.url)),
-        ),
+        defaultCaptureHelperSetupDependencies(fileURLToPath(new URL("../../..", import.meta.url))),
       ),
   };
 }
 
-async function runSetupCommand(
-  args: string[],
-  dependencies: CliDependencies,
-): Promise<CliResult> {
+async function runSetupCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
   if (args[0] !== "capture-helper") {
     return {
       exitCode: 1,
       stdout: "",
-      stderr: "Usage: autodemo setup capture-helper [--signing-identity <fingerprint> | --ad-hoc] --json\n",
+      stderr:
+        "Usage: autodemo setup capture-helper [--signing-identity <fingerprint> | --ad-hoc] --json\n",
     };
   }
   let adHoc = false;
@@ -1628,9 +1624,7 @@ async function runSetupCommand(
     (async (input: CaptureHelperSetupInput) =>
       await runMacOsCaptureHelperSetup(
         input,
-        defaultCaptureHelperSetupDependencies(
-          fileURLToPath(new URL("../../..", import.meta.url)),
-        ),
+        defaultCaptureHelperSetupDependencies(fileURLToPath(new URL("../../..", import.meta.url))),
       ));
   const result = await runner({
     adHoc,
