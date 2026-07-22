@@ -35,6 +35,12 @@ export async function clickWithVisiblePointer(page: Page, target: PointerTarget)
     y: box.y + box.height / 2,
   };
   await naturalInput(page).click(center);
+  await settlePhysicalClick(page);
+}
+
+async function settlePhysicalClick(page: Page): Promise<void> {
+  await page.waitForTimeout(50);
+  await page.waitForLoadState("domcontentloaded", { timeout: 2_000 }).catch(() => undefined);
 }
 
 export async function typeWithVisiblePointer(

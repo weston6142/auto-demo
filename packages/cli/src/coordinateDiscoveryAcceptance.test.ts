@@ -110,44 +110,55 @@ describe("coordinate discovery CLI acceptance", () => {
 
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 780, y: 110 }]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [
         { type: "keypress", keys: ["n", "n", "ENTER"] },
       ]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 470, y: 180 }]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [
         { type: "scroll", x: 470, y: 240, deltaY: 180 },
       ]),
+      frameId,
     );
     frameId = frame(
-      await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 470, y: 255 }]),
+      await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 470, y: 270 }]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 780, y: 220 }]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [
         { type: "keypress", keys: ["s", "ENTER"] },
       ]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 470, y: 290 }]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [
         { type: "keypress", keys: ["a", "ENTER"] },
       ]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 640, y: 370 }]),
+      frameId,
     );
     frameId = frame(
       await act(workflowDirectory, dependencies, frameId, [{ type: "click", x: 500, y: 205 }]),
+      frameId,
     );
 
     const status = await command(
@@ -219,8 +230,16 @@ async function act(
   return result;
 }
 
-function frame(result: Record<string, unknown>): string {
+function frame(result: Record<string, unknown>, unchangedFrameId?: string): string {
   const value = (result.frame as Record<string, unknown> | undefined)?.id;
+  if (
+    value === undefined &&
+    result.ok === true &&
+    result.boundary === "unchanged" &&
+    unchangedFrameId !== undefined
+  ) {
+    return unchangedFrameId;
+  }
   if (typeof value !== "string") throw new Error(`fresh frame missing: ${JSON.stringify(result)}`);
   return value;
 }
