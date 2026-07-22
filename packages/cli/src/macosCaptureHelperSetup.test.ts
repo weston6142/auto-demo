@@ -104,6 +104,22 @@ describe("macOS capture helper setup", () => {
     );
   });
 
+  it("does not request permission when the supervised preflight is unavailable", async () => {
+    const fixture = await setupFixture({ permissionUnavailable: true });
+
+    const result = await runMacOsCaptureHelperSetup(
+      { adHoc: true, json: true },
+      fixture.dependencies,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      code: "capture_helper_unavailable",
+      message: "Auto Demo Capture could not complete its permission check.",
+    });
+    expect(fixture.probes.map(({ mode }) => mode)).toEqual(["version", "permission-preflight"]);
+  });
+
   it("does not rebuild an installed current helper", async () => {
     const fixture = await setupFixture({ identities: [identity("A")] });
     expect(
@@ -139,6 +155,7 @@ describe("macOS capture helper setup", () => {
 type FixtureOptions = {
   identities?: Array<{ fingerprint: string; label: string }>;
   permissionGranted?: boolean;
+  permissionUnavailable?: boolean;
 };
 
 async function setupFixture(options: FixtureOptions = {}) {
@@ -196,6 +213,7 @@ async function setupFixture(options: FixtureOptions = {}) {
           },
         };
       }
+      if (options.permissionUnavailable === true) return undefined;
       return permissionGranted
         ? {
             ok: true,

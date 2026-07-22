@@ -34,7 +34,7 @@ it.runIf(process.platform === "darwin" && process.env.AUTODEMO_REAL_CAPTURE_HELP
       await client.close();
       client = undefined;
       expect(await readdir(sessionDirectory)).toEqual([]);
-      expect(await runningCaptureHelperProcesses()).toEqual([]);
+      expect(await runningCaptureProcesses()).toEqual([]);
     } finally {
       await client?.close();
       await rm(sessionDirectory, { recursive: true, force: true });
@@ -43,17 +43,25 @@ it.runIf(process.platform === "darwin" && process.env.AUTODEMO_REAL_CAPTURE_HELP
   5_000,
 );
 
-function runningCaptureHelperProcesses(): Promise<string[]> {
-  const executable = join(
+async function runningCaptureProcesses(): Promise<string[]> {
+  const executableDirectory = join(
     homedir(),
     "Applications",
     "Auto Demo Capture.app",
     "Contents",
     "MacOS",
-    "AutoDemoCaptureHelper",
   );
+  const results = await Promise.all(
+    ["AutoDemoCaptureHelper", "AutoDemoCaptureSupervisor"].map((name) =>
+      matchingProcesses(`^${join(executableDirectory, name)}( |$)`),
+    ),
+  );
+  return results.flat();
+}
+
+function matchingProcesses(pattern: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
-    execFile("pgrep", ["-f", `^${executable} --supervised-request `], (error, stdout) => {
+    execFile("pgrep", ["-f", pattern], (error, stdout) => {
       if (error !== null && error.code !== 1) {
         reject(error);
         return;

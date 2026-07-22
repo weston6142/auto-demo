@@ -121,6 +121,47 @@ describe("macOS capture helper client", () => {
     expect(await client.capture({ x: 0, y: 0, width: 320, height: 240 })).toBeUndefined();
     await client.close();
   });
+
+  it("rejects a supervisor spawn error without an unhandled child-process error", async () => {
+    const fixture = await helperFixture();
+    const child = new FakeChildProcess();
+
+    await expect(
+      createMacOsCaptureHelperClient({
+        sessionDirectory: fixture.sessionDirectory,
+        installPath: fixture.installPath,
+        dependencies: {
+          ...fixture.dependencies,
+          launch() {
+            queueMicrotask(() => child.emit("error", new Error("spawn failed")));
+            return child;
+          },
+        },
+      }),
+    ).rejects.toThrow("capture helper");
+  });
+
+  it("rejects close when forced supervisor exit cannot be confirmed", async () => {
+    const fixture = await helperFixture();
+    const png = Buffer.from([137, 80, 78, 71]);
+    const child = new NonExitingChildProcess();
+    const client = await createMacOsCaptureHelperClient({
+      sessionDirectory: fixture.sessionDirectory,
+      installPath: fixture.installPath,
+      dependencies: {
+        ...fixture.dependencies,
+        terminationTimeoutMs: 5,
+        forceTerminationTimeoutMs: 5,
+        launch(_executable, args) {
+          void startProtocolServerFromLaunchRequest(args[1]!, png, child, () => undefined);
+          return child;
+        },
+      },
+    });
+
+    await expect(client.close()).rejects.toThrow("did not exit");
+    expect(child.killSignals).toEqual(["SIGTERM", "SIGKILL"]);
+  });
 });
 
 async function helperFixture(
@@ -202,10 +243,22 @@ class FakeChildProcess extends EventEmitter implements CaptureHelperChildProcess
   }
 }
 
+class NonExitingChildProcess extends EventEmitter implements CaptureHelperChildProcess {
+  exitCode: number | null = null;
+  killSignals: NodeJS.Signals[] = [];
+  onKill: (() => void) | undefined;
+
+  kill(signal: NodeJS.Signals): boolean {
+    this.killSignals.push(signal);
+    this.onKill?.();
+    return true;
+  }
+}
+
 async function startProtocolServerFromLaunchRequest(
   launchRequestPath: string,
   png: Buffer,
-  child: FakeChildProcess,
+  child: { onKill: (() => void) | undefined },
   observeToken: (token: string) => void,
 ) {
   const launchRequest = JSON.parse(await readFile(launchRequestPath, "utf8")) as {

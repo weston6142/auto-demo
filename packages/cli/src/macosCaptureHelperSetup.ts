@@ -41,7 +41,8 @@ export type CaptureHelperSetupResult =
         | "capture_helper_build_failed"
         | "capture_helper_install_failed"
         | "capture_helper_signature_invalid"
-        | "capture_helper_permission_required";
+        | "capture_helper_permission_required"
+        | "capture_helper_unavailable";
       message: string;
       choices?: CodeSigningIdentity[];
     };
@@ -318,15 +319,31 @@ async function permissionResult(
   if (preflight?.ok === true && preflight.code === "capture_helper_permission_granted") {
     return { ok: true, code: "capture_helper_ready", installPath, signature };
   }
+  if (
+    preflight === undefined ||
+    preflight.ok ||
+    preflight.code !== "capture_helper_permission_required"
+  ) {
+    return failure(
+      "capture_helper_unavailable",
+      "Auto Demo Capture could not complete its permission check.",
+    );
+  }
   const requested = await dependencies.probeHelper({
     installPath,
     mode: "permission-request",
   });
-  return requested?.ok === true && requested.code === "capture_helper_permission_granted"
-    ? { ok: true, code: "capture_helper_ready", installPath, signature }
-    : failure(
+  if (requested?.ok === true && requested.code === "capture_helper_permission_granted") {
+    return { ok: true, code: "capture_helper_ready", installPath, signature };
+  }
+  return requested?.ok === false && requested.code === "capture_helper_permission_required"
+    ? failure(
         "capture_helper_permission_required",
         "Auto Demo Capture needs Screen Recording permission.",
+      )
+    : failure(
+        "capture_helper_unavailable",
+        "Auto Demo Capture could not complete its permission check.",
       );
 }
 

@@ -53,6 +53,8 @@ export type MacOsCaptureHelperDependencies = {
     args: string[],
   ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   launch(executable: string, args: string[]): CaptureHelperChildProcess;
+  terminationTimeoutMs?: number;
+  forceTerminationTimeoutMs?: number;
 };
 
 export type CreateMacOsCaptureHelperClientInput = {
@@ -212,13 +214,14 @@ export async function createMacOsCaptureHelperClient(
     { flag: "wx", mode: 0o600 },
   );
   const child = dependencies.launch(supervisor, ["--launch-request", launchRequestPath]);
+  const childObservation = observeChild(child);
   let closed = false;
   try {
-    await waitForSocket(socketPath, child);
-  } catch (error) {
-    await stopChild(child);
+    await waitForSocket(socketPath, child, childObservation);
+  } catch {
+    await stopChild(child, childObservation, dependencies).catch(() => undefined);
     await cleanup(bootstrapPath, socketDirectory);
-    throw error;
+    throw new Error("capture helper unavailable");
   }
 
   return {
@@ -234,8 +237,11 @@ export async function createMacOsCaptureHelperClient(
     async close() {
       if (closed) return;
       closed = true;
-      await stopChild(child);
-      await cleanup(bootstrapPath, socketDirectory);
+      try {
+        await stopChild(child, childObservation, dependencies);
+      } finally {
+        await cleanup(bootstrapPath, socketDirectory);
+      }
     },
   };
 }
@@ -312,9 +318,14 @@ function preflightFailure(
   return { ok: false, code, message, setupCommand: SETUP_COMMAND };
 }
 
-async function waitForSocket(socketPath: string, child: CaptureHelperChildProcess): Promise<void> {
+async function waitForSocket(
+  socketPath: string,
+  child: CaptureHelperChildProcess,
+  observation: CaptureHelperChildObservation,
+): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (child.exitCode !== null) throw new Error("capture helper exited");
+    if (observation.error !== undefined) throw new Error("capture helper failed to start");
+    if (observation.exited || child.exitCode !== null) throw new Error("capture helper exited");
     try {
       const metadata = await lstat(socketPath);
       if (metadata.isSocket()) return;
@@ -403,18 +414,61 @@ function validRegion(region: MacOsCaptureRegion): boolean {
   );
 }
 
-async function stopChild(child: CaptureHelperChildProcess): Promise<void> {
-  if (child.exitCode !== null) return;
-  const exited = new Promise<boolean>((resolve) => {
-    child.once("exit", () => resolve(true));
-    child.once("error", () => resolve(true));
-  });
+async function stopChild(
+  child: CaptureHelperChildProcess,
+  observation: CaptureHelperChildObservation,
+  dependencies: MacOsCaptureHelperDependencies,
+): Promise<void> {
+  if (observation.settled || child.exitCode !== null) return;
   child.kill("SIGTERM");
-  const stopped = await Promise.race([
-    exited,
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
-  ]);
-  if (!stopped && child.exitCode === null) child.kill("SIGKILL");
+  if (await observation.wait(dependencies.terminationTimeoutMs ?? 5_000)) return;
+  if (child.exitCode !== null) return;
+  child.kill("SIGKILL");
+  if (await observation.wait(dependencies.forceTerminationTimeoutMs ?? 2_000)) return;
+  throw new Error("capture helper supervisor did not exit");
+}
+
+type CaptureHelperChildObservation = {
+  readonly error: Error | undefined;
+  readonly exited: boolean;
+  readonly settled: boolean;
+  wait(timeoutMs: number): Promise<boolean>;
+};
+
+function observeChild(child: CaptureHelperChildProcess): CaptureHelperChildObservation {
+  let error: Error | undefined;
+  let exited = child.exitCode !== null;
+  let resolveSettled!: () => void;
+  const settled = new Promise<void>((resolve) => {
+    resolveSettled = resolve;
+  });
+  if (exited) resolveSettled();
+  child.once("exit", () => {
+    exited = true;
+    resolveSettled();
+  });
+  child.once("error", (value) => {
+    error = value;
+    resolveSettled();
+  });
+  return {
+    get error() {
+      return error;
+    },
+    get exited() {
+      return exited;
+    },
+    get settled() {
+      return exited || error !== undefined;
+    },
+    async wait(timeoutMs) {
+      if (exited || error !== undefined) return true;
+      return await Promise.race([
+        settled.then(() => true),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+      ]);
+    },
+  };
 }
 
 async function cleanup(bootstrapPath: string, socketDirectory: string): Promise<void> {
