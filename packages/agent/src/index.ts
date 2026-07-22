@@ -107,6 +107,68 @@ export {
 } from "./discoveryContract.js";
 
 export {
+  COORDINATE_DISCOVERY_LIMITS,
+  parseCoordinateActionBatch,
+  type CoordinateActionBatch,
+  type CoordinateActionBatchResult,
+  type CoordinateDiscoveryAction,
+  type CoordinateDiscoveryContractError,
+  type CoordinateFrame,
+} from "./coordinateDiscoveryContract.js";
+
+export {
+  createCoordinateDiscoverySession,
+  type CoordinateDiscoveryActResult,
+  type CoordinateDiscoveryBoundary,
+  type CoordinateDiscoveryPage,
+  type CoordinateDiscoverySession,
+  type CoordinatePageState,
+  type CoordinateTraceRecord,
+} from "./coordinateDiscoverySession.js";
+
+export {
+  createFileCoordinateDiscoveryStore,
+  type CoordinateDiscoveryCheckpoint,
+  type CoordinateDiscoveryPhase,
+  type CoordinateDiscoveryStore,
+  type CoordinateDiscoveryStoreError,
+  type CoordinateDiscoveryStoreErrorCode,
+} from "./coordinateDiscoveryStore.js";
+
+export {
+  finalizeCoordinateDiscovery,
+  type CoordinateDiscoveryFinalizeDependencies,
+  type CoordinateDiscoveryFinalizeInput,
+  type CoordinateDiscoveryFinalizeResult,
+  type CoordinateReplayResult,
+} from "./coordinateDiscoveryFinalize.js";
+
+export {
+  PlaywrightCoordinateDiscoveryPage,
+  type BrowserWindowCapture,
+  type CapturedCoordinateFrame,
+  type CoordinateTargetEvidence,
+  type PlaywrightCoordinateDiscoveryPageOptions,
+} from "./playwrightCoordinateDiscoveryPage.js";
+
+export {
+  createMacOsBrowserWindowCapture,
+  type MacOsBrowserWindowCaptureOptions,
+} from "./macOsBrowserWindowCapture.js";
+
+export {
+  createMacOsCaptureHelperClient,
+  defaultMacOsCaptureHelperDependencies,
+  preflightMacOsCaptureHelper,
+  type CaptureHelperChildProcess,
+  type CreateMacOsCaptureHelperClientInput,
+  type MacOsCaptureHelperClient,
+  type MacOsCaptureHelperDependencies,
+  type MacOsCaptureHelperPreflightResult,
+  type MacOsCaptureRegion,
+} from "./macOsCaptureHelperClient.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,

@@ -6,6 +6,12 @@ import type {
   BrowserExecutionTarget,
   BrowserNavigationExpectation,
 } from "./index.js";
+import {
+  clickWithVisiblePointer,
+  selectWithVisiblePointer,
+  settleAfterPhysicalClick,
+  typeWithVisiblePointer,
+} from "./playwrightPointerActions.js";
 
 export type PlaywrightExecutionControllerOptions = {
   timeoutMs?: number;
@@ -45,7 +51,8 @@ export function createPlaywrightExecutionController(
     async click(target) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
-        await locator.click({ timeout: timeoutMs });
+        await clickWithVisiblePointer(page, locator);
+        await settleAfterPhysicalClick(page);
       } catch (error) {
         throw new PlaywrightExecutionControllerError(
           isPlaywrightTimeout(error) ? "execution_timeout" : "action_failed",
@@ -55,11 +62,7 @@ export function createPlaywrightExecutionController(
     async type(target, value, typeOptions) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
-        await locator.fill("", { timeout: timeoutMs });
-        await locator.pressSequentially(value, {
-          delay: typeOptions.delayMs,
-          timeout: timeoutMs,
-        });
+        await typeWithVisiblePointer(page, locator, value, { delayMs: typeOptions.delayMs });
       } catch (error) {
         throw new PlaywrightExecutionControllerError(
           isPlaywrightTimeout(error) ? "execution_timeout" : "action_failed",
@@ -69,19 +72,7 @@ export function createPlaywrightExecutionController(
     async select(target, optionLabel) {
       const locator = await requireOneVisibleTarget(page, target, timeoutMs);
       try {
-        const matches = await locator
-          .locator("option")
-          .evaluateAll(
-            (options, label) =>
-              options.filter(
-                (option) =>
-                  option.textContent?.replace(/\s+/g, " ").trim() === label &&
-                  !(option as HTMLOptionElement).disabled,
-              ).length,
-            optionLabel,
-          );
-        if (matches !== 1) throw new PlaywrightExecutionControllerError("action_failed");
-        await locator.selectOption({ label: optionLabel });
+        await selectWithVisiblePointer(page, locator, optionLabel);
       } catch (error) {
         if (error instanceof PlaywrightExecutionControllerError) throw error;
         throw new PlaywrightExecutionControllerError(

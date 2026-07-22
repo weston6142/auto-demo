@@ -2,6 +2,8 @@
 
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import {
   createPlaywrightValidationRunner,
   isWalkthroughPlan,
@@ -44,6 +46,15 @@ import {
 import { runAgentReviewCommand } from "./agentReviewCommands.js";
 import { runAgentExecuteCommand } from "./agentExecuteCommand.js";
 import { runAgentHandoffCommand } from "./agentHandoffCommand.js";
+import { runDiscoverCommand, type DiscoverCommandBackend } from "./discoverCommand.js";
+import { createFileDiscoverCommandBackend, launchDetachedDiscoverHost } from "./discoverBackend.js";
+import { runDiscoverHostProcess } from "./discoverHostProcess.js";
+import {
+  defaultCaptureHelperSetupDependencies,
+  runMacOsCaptureHelperSetup,
+  type CaptureHelperSetupInput,
+  type CaptureHelperSetupResult,
+} from "./macosCaptureHelperSetup.js";
 
 export type CliResult = {
   exitCode: number;
@@ -62,6 +73,8 @@ export type CliDependencies = {
   runChildCommand: (command: CaptureChildCommand) => Promise<ChildCommandResult>;
   startEditorServer?: (options: StartEditorServerOptions) => Promise<EditorServer>;
   renderSavedVariant?: (input: RenderSavedVariantInput) => Promise<RenderSavedVariantResult>;
+  discoverCommandBackend?: DiscoverCommandBackend;
+  setupCaptureHelper?: (input: CaptureHelperSetupInput) => Promise<CaptureHelperSetupResult>;
 };
 
 export type ChildCommandResult = {
@@ -240,6 +253,14 @@ export function runCli(args: string[]): CliResult {
     };
   }
 
+  if (command === "setup") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "autodemo setup requires async execution.\n",
+    };
+  }
+
   if (plannedCommands.has(command)) {
     return {
       exitCode: 1,
@@ -280,6 +301,21 @@ export async function runCliAsync(
 
   if (command === "export") {
     return await runExportCommand(rest, dependencies);
+  }
+
+  if (command === "discover") {
+    return await runDiscoverCommand(
+      rest,
+      dependencies.discoverCommandBackend ??
+        createFileDiscoverCommandBackend({
+          workflowDirectory: join(process.cwd(), "workflow"),
+          launch: launchDetachedDiscoverHost,
+        }),
+    );
+  }
+
+  if (command === "setup") {
+    return await runSetupCommand(rest, dependencies);
   }
 
   if (command !== "capture") {
@@ -1524,6 +1560,81 @@ function defaultDependencies(): CliDependencies {
     runChildCommand: runChildCommandWithInheritedStdio,
     startEditorServer,
     renderSavedVariant: renderSavedVariantDefault,
+    setupCaptureHelper: async (input) =>
+      await runMacOsCaptureHelperSetup(
+        input,
+        defaultCaptureHelperSetupDependencies(fileURLToPath(new URL("../../..", import.meta.url))),
+      ),
+  };
+}
+
+async function runSetupCommand(args: string[], dependencies: CliDependencies): Promise<CliResult> {
+  if (args[0] !== "capture-helper") {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        "Usage: autodemo setup capture-helper [--signing-identity <fingerprint> | --ad-hoc] --json\n",
+    };
+  }
+  let adHoc = false;
+  let json = false;
+  let signingIdentity: string | undefined;
+  for (let index = 1; index < args.length; index += 1) {
+    const argument = args[index]!;
+    if (argument === "--ad-hoc") {
+      adHoc = true;
+      continue;
+    }
+    if (argument === "--json") {
+      json = true;
+      continue;
+    }
+    if (argument === "--signing-identity") {
+      const value = args[index + 1];
+      if (value === undefined || !/^[A-F0-9]{40}$/u.test(value)) {
+        return {
+          exitCode: 1,
+          stdout: "",
+          stderr: "--signing-identity requires a 40-character hexadecimal fingerprint.\n",
+        };
+      }
+      signingIdentity = value;
+      index += 1;
+      continue;
+    }
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `Unknown setup argument: ${argument}\n`,
+    };
+  }
+  if (!json) {
+    return { exitCode: 1, stdout: "", stderr: "autodemo setup capture-helper requires --json.\n" };
+  }
+  if (adHoc && signingIdentity !== undefined) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "Choose either --signing-identity or --ad-hoc, not both.\n",
+    };
+  }
+  const runner =
+    dependencies.setupCaptureHelper ??
+    (async (input: CaptureHelperSetupInput) =>
+      await runMacOsCaptureHelperSetup(
+        input,
+        defaultCaptureHelperSetupDependencies(fileURLToPath(new URL("../../..", import.meta.url))),
+      ));
+  const result = await runner({
+    adHoc,
+    json: true,
+    ...(signingIdentity === undefined ? {} : { signingIdentity }),
+  });
+  return {
+    exitCode: result.ok ? 0 : 1,
+    stdout: `${JSON.stringify(result, null, 2)}\n`,
+    stderr: "",
   };
 }
 
@@ -1570,6 +1681,8 @@ function helpText(): string {
     "  export     Render selected variants",
     "  open       Open the local editor",
     "  validate   Validate a capture bundle",
+    "  setup      Install local platform helpers",
+    "  discover   Discover a walkthrough from screenshots and coordinate actions",
     "",
     "Agent walkthrough validation:",
     "  autodemo agent validate --plan <plan-json-file> --json",
@@ -1578,6 +1691,15 @@ function helpText(): string {
     "  autodemo agent approve --plan <plan-json-file> --json",
     "  autodemo agent execute --plan <approved-plan-json-file> [--inputs <runtime-inputs-json-file>] --out <capture-directory> [--viewport <width>x<height>] --json",
     "  autodemo agent handoff --execution <execution-result-json-file> --project <new-project-directory> --name <project-name> --json",
+    "",
+    "Screenshot-coordinate discovery:",
+    "  autodemo setup capture-helper [--signing-identity <fingerprint> | --ad-hoc] --json",
+    "  autodemo discover start --url <https-url> --goal <text> --risk <safe|public-browse|disposable|yolo> --json",
+    "  autodemo discover observe --session <id> --json",
+    "  autodemo discover act --session <id> --actions-file <json-file> --json",
+    "  autodemo discover status --session <id> --json",
+    "  autodemo discover finish --session <id> --json",
+    "  autodemo discover abandon --session <id> --json",
     "",
   ].join("\n");
 }
@@ -1647,8 +1769,13 @@ function captureHelpText(): string {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const result = await runCliAsync(process.argv.slice(2));
-  process.stdout.write(result.stdout);
-  process.stderr.write(result.stderr);
-  process.exitCode = result.exitCode;
+  const processArgs = process.argv.slice(2);
+  if (processArgs[0] === "__discover-host" && processArgs[1] === "--bootstrap" && processArgs[2]) {
+    await runDiscoverHostProcess(processArgs[2]);
+  } else {
+    const result = await runCliAsync(processArgs);
+    process.stdout.write(result.stdout);
+    process.stderr.write(result.stderr);
+    process.exitCode = result.exitCode;
+  }
 }

@@ -62,6 +62,35 @@ describe("createPlaywrightDiscoveryObservationExtractor", () => {
     expect(JSON.stringify(result)).not.toContain("Inert action");
   });
 
+  it("uses the public value of native button inputs as their accessible label", async () => {
+    await openHtml(`
+      <title>Vehicle search</title>
+      <form>
+        <input type="submit" value="Show 10,000+ matches">
+        <input type="button" value="Clear filters">
+        <label>ZIP <input type="text" value="19138-private-value"></label>
+      </form>
+    `);
+
+    const result = await createPlaywrightDiscoveryObservationExtractor(page).observe();
+
+    expect(result).toMatchObject({
+      ok: true,
+      observation: {
+        interactiveTargets: expect.arrayContaining([
+          expect.objectContaining({
+            label: "Show 10,000+ matches",
+            role: "button",
+            actionRisk: "potentially-mutating",
+          }),
+          expect.objectContaining({ label: "Clear filters", role: "button" }),
+          expect.objectContaining({ label: "ZIP", role: "textbox" }),
+        ]),
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("19138-private-value");
+  });
+
   it("keeps ids attached to duplicate elements across reorder and replacement", async () => {
     await openHtml(`
       <title>Duplicates</title>

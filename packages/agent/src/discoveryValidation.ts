@@ -653,7 +653,8 @@ function sanitizeAction(
     if (
       !targetExists(value.targetId) ||
       optionLabel === undefined ||
-      matchingOptions?.length !== 1
+      matchingOptions === undefined ||
+      matchingOptions.length < 1
     ) {
       errors.push(
         discoveryError("invalid_discovery_input", "Select action is invalid.", { path: "action" }),

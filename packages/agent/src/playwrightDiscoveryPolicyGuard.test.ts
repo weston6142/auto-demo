@@ -524,13 +524,13 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
     await guard.dispose();
   });
 
-  it("reports credential-bearing subresource requests as sanitized violations", async () => {
+  it("reports credential-bearing top-level navigation as a sanitized violation", async () => {
     const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
     const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
     guard.arm(permit(policy));
 
     const rawUrl = "https://example.test/private?token=do-not-record-this-value";
-    await page.evaluate((url) => fetch(url).catch(() => undefined), rawUrl);
+    await page.goto(rawUrl).catch(() => undefined);
 
     const violation = await guard.finishAction();
     expect(violation).toEqual({
@@ -538,6 +538,20 @@ describe("installPlaywrightDiscoveryPolicyGuard", () => {
       summary: "Discovery blocked unsafe navigation.",
     });
     expect(JSON.stringify(violation)).not.toContain(rawUrl);
+    await guard.dispose();
+  });
+
+  it("allows read-only background requests with ordinary opaque query values", async () => {
+    const policy = validatedPolicy({ mode: "safe", allowedOrigins: ["https://example.test"] });
+    const guard = await installPlaywrightDiscoveryPolicyGuard(page, policy);
+    guard.arm(permit(policy));
+
+    const requestUrl =
+      "https://example.test/inventory?tracking_id=vehicle-request-1234567890abcdef";
+    await page.evaluate((url) => fetch(url).catch(() => undefined), requestUrl);
+
+    expect(await guard.finishAction()).toBeUndefined();
+    expect(hostRequestUrls).toContain(requestUrl);
     await guard.dispose();
   });
 

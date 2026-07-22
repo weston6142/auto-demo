@@ -60,6 +60,16 @@ describe("createPlaywrightExecutionController", () => {
       <button onclick="this.dataset.clicked='true'">Get started</button>
       <label>Search <input /></label>
       <h2>Results</h2>
+      <script>
+        document.addEventListener('pointermove', () => {
+          document.body.dataset.pointerMoves = String(Number(document.body.dataset.pointerMoves || '0') + 1)
+          document.body.dataset.lastPointerMove = String(performance.now())
+        })
+        document.addEventListener('pointerdown', () => {
+          const movedAt = Number(document.body.dataset.lastPointerMove || '0')
+          document.body.dataset.pointerSettle = String(performance.now() - movedAt)
+        })
+      </script>
     `);
     const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
 
@@ -69,14 +79,22 @@ describe("createPlaywrightExecutionController", () => {
 
     expect(await page.locator("button").getAttribute("data-clicked")).toBe("true");
     expect(await page.getByLabel("Search").inputValue()).toBe("launch demo");
+    expect(Number(await page.locator("body").getAttribute("data-pointer-moves"))).toBeGreaterThan(
+      2,
+    );
+    expect(
+      Number(await page.locator("body").getAttribute("data-pointer-settle")),
+    ).toBeGreaterThanOrEqual(25);
   });
 
   it("selects a native option and verifies public control state", async () => {
     await page.setContent(`
       <label>Condition
-        <select required>
+        <select required onpointerdown="this.dataset.pointerFocused='true'">
           <option value="any-private">Any</option>
+          <option value="certified-private">New &amp; certified</option>
           <option value="new-private">New</option>
+          <option value="second-new-private">New</option>
         </select>
       </label>
     `);
@@ -89,6 +107,7 @@ describe("createPlaywrightExecutionController", () => {
     });
 
     expect(await page.getByLabel("Condition").inputValue()).toBe("new-private");
+    expect(await page.getByLabel("Condition").getAttribute("data-pointer-focused")).toBe("true");
   });
 
   it("uses structural position authoritatively for recording actions and assertions", async () => {
@@ -174,7 +193,7 @@ describe("createPlaywrightExecutionController", () => {
     );
   });
 
-  it("rejects missing, disabled, and ambiguous public option labels", async () => {
+  it("rejects missing and disabled public option labels", async () => {
     await page.setContent(`
       <label>Condition
         <select>
@@ -186,11 +205,14 @@ describe("createPlaywrightExecutionController", () => {
     `);
     const controller = createPlaywrightExecutionController(page, { timeoutMs: 1_000 });
 
-    for (const label of ["Missing", "Used", "New"]) {
+    for (const label of ["Missing", "Used"]) {
       await expect(
         controller.select({ label: "Condition", role: "combobox" }, label),
       ).rejects.toMatchObject({ code: "action_failed" });
     }
+    await expect(
+      controller.select({ label: "Condition", role: "combobox" }, "New"),
+    ).resolves.toBeUndefined();
   });
 
   it("fails rather than guessing when targets are missing or ambiguous", async () => {

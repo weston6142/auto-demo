@@ -37,6 +37,43 @@ The command validates the project, selects a saved variant, and prints one JSON
 handoff summary for agent logs. Parse the JSON result and report the selected
 variant id, variant path, project manifest path, warnings, and next-step hints.
 
+## Screenshot Coordinate Discovery CLI
+
+Use this provider-neutral headed workflow when the agent can read screenshots.
+Auto Demo never calls a model API; the boundary is PNG plus JSON, and coordinates
+never enter replay. Follow the complete repository guide at
+`docs/guides/screenshot-coordinate-discovery.md`.
+
+On macOS, first run the one-time helper setup and resolve any returned bounded
+capability error before discovery. `capture_helper_permission_required` means
+the installed helper needs Screen Recording permission; the browser is not
+opened first.
+
+```bash
+npm run autodemo -- setup capture-helper --json
+```
+
+Start only after selecting the explicit risk tier, then read
+`frame.screenshotPath` from every returned fresh frame:
+
+```bash
+npm run autodemo -- discover start --url <url> --goal <goal> --risk <safe|public-browse|disposable|yolo> --json
+npm run autodemo -- discover observe --session <session-id> --json
+npm run autodemo -- discover act --session <session-id> --actions-file <actions.json> --json
+npm run autodemo -- discover status --session <session-id> --json
+npm run autodemo -- discover finish --session <session-id> --json
+npm run autodemo -- discover abandon --session <session-id> --json
+```
+
+A navigation, page scroll, dropdown opening or scroll, viewport change, or layout
+shift invalidates the cached screenshot. Stop at the boundary, read the fresh
+PNG, and submit only its frame id. Scroll a long dropdown with the pointer inside
+the menu. Native browser UI requires an honest window frame and fails closed when
+that frame is unavailable. `finish` must reach `review_required`; present the
+entire review and obtain explicit approval before agent execution or handoff.
+If it returns `repairing`, call `discover observe`, read that fresh frame, make
+the bounded correction, and finish again.
+
 ## Goal-Driven Risk-Tiered Discovery
 
 When the user supplies a target URL plus a natural-language goal, resolve the
@@ -81,8 +118,9 @@ After approval has been recorded through the existing approval contract, call
 and approved plan, re-establishes the exact tier and launch profile for fresh
 recording, persists execution before project handoff, and does not open the
 editor or export. Never pass conversation text, silence, the initial request,
-or a boolean flag as approval. The runner is a model-agnostic API rather than
-an interactive discovery CLI.
+or a boolean flag as approval. The runner is the model-agnostic programmatic
+API; the separate screenshot-coordinate discovery CLI uses the same durable
+review and approval boundary.
 
 Safe enforcement consumes the sanitized network classification published by
 `@auto-demo/agent`: `document-navigation`, `xhr-fetch`, `beacon`,
@@ -97,9 +135,9 @@ traffic, known-origin subresource cross-origin beacon traffic, and an active
 exact-origin public form navigation. It blocks cross-origin XHR/fetch,
 unclassified methods or request classes, and idle top-level side effects.
 
-After selection and the support check, use the repository-owned runner. Its
-decision provider uses the bounded public `@auto-demo/agent` contracts; there
-is no interactive discovery CLI, and risk-tiered discovery is not legacy
+After selection and the support check, use either the repository-owned runner
+or the screenshot-coordinate discovery CLI. Both use the bounded public
+`@auto-demo/agent` contracts, and risk-tiered discovery is not legacy
 `best-guess` planning.
 
 Before discovery navigation, declare a bounded browser launch profile plan: one
@@ -110,6 +148,9 @@ isolated browser and context. Discovery is the only phase that may advance to a
 fallback. Persist the selected profile in `DiscoverySessionV1`; compilation and
 approval bind it into the plan. Treat `anti_bot_challenge` as distinct from a
 policy denial and report only its bounded provider and profile identifier.
+For ordinary autonomous public-site discovery, omit `launchProfilePlan` to use
+the headed Chrome primary and headed bundled-Chromium fallback. Use headless
+mode only when the user explicitly requests it by supplying a profile plan.
 
 For ordinary autonomous public-site discovery, omit `launchProfilePlan` to use
 the headed Chrome primary and headed bundled-Chromium fallback. Use headless
