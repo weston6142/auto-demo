@@ -42,6 +42,7 @@ export type CaptureHelperChildProcess = {
     listener: (code: number | null, signal: NodeJS.Signals | null) => void,
   ): unknown;
   once(event: "error", listener: (error: Error) => void): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
 };
 
 export type MacOsCaptureHelperDependencies = {
@@ -219,7 +220,9 @@ export async function createMacOsCaptureHelperClient(
   try {
     await waitForSocket(socketPath, child, childObservation);
   } catch {
-    await stopChild(child, childObservation, dependencies).catch(() => undefined);
+    if (childObservation.error === undefined) {
+      await stopChild(child, childObservation, dependencies).catch(() => undefined);
+    }
     await cleanup(bootstrapPath, socketDirectory);
     throw new Error("capture helper unavailable");
   }
@@ -419,7 +422,7 @@ async function stopChild(
   observation: CaptureHelperChildObservation,
   dependencies: MacOsCaptureHelperDependencies,
 ): Promise<void> {
-  if (observation.settled || child.exitCode !== null) return;
+  if (observation.exited || child.exitCode !== null) return;
   child.kill("SIGTERM");
   if (await observation.wait(dependencies.terminationTimeoutMs ?? 5_000)) return;
   if (child.exitCode !== null) return;
@@ -431,7 +434,6 @@ async function stopChild(
 type CaptureHelperChildObservation = {
   readonly error: Error | undefined;
   readonly exited: boolean;
-  readonly settled: boolean;
   wait(timeoutMs: number): Promise<boolean>;
 };
 
@@ -439,7 +441,7 @@ function observeChild(child: CaptureHelperChildProcess): CaptureHelperChildObser
   let error: Error | undefined;
   let exited = child.exitCode !== null;
   let resolveSettled!: () => void;
-  const settled = new Promise<void>((resolve) => {
+  const exitedPromise = new Promise<void>((resolve) => {
     resolveSettled = resolve;
   });
   if (exited) resolveSettled();
@@ -447,9 +449,8 @@ function observeChild(child: CaptureHelperChildProcess): CaptureHelperChildObser
     exited = true;
     resolveSettled();
   });
-  child.once("error", (value) => {
+  child.on("error", (value) => {
     error = value;
-    resolveSettled();
   });
   return {
     get error() {
@@ -458,13 +459,10 @@ function observeChild(child: CaptureHelperChildProcess): CaptureHelperChildObser
     get exited() {
       return exited;
     },
-    get settled() {
-      return exited || error !== undefined;
-    },
     async wait(timeoutMs) {
-      if (exited || error !== undefined) return true;
+      if (exited) return true;
       return await Promise.race([
-        settled.then(() => true),
+        exitedPromise.then(() => true),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
       ]);
     },

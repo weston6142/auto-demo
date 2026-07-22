@@ -162,6 +162,28 @@ describe("macOS capture helper client", () => {
     await expect(client.close()).rejects.toThrow("did not exit");
     expect(child.killSignals).toEqual(["SIGTERM", "SIGKILL"]);
   });
+
+  it("does not treat a child error during termination as confirmed exit", async () => {
+    const fixture = await helperFixture();
+    const png = Buffer.from([137, 80, 78, 71]);
+    const child = new ErroringKillChildProcess();
+    const client = await createMacOsCaptureHelperClient({
+      sessionDirectory: fixture.sessionDirectory,
+      installPath: fixture.installPath,
+      dependencies: {
+        ...fixture.dependencies,
+        terminationTimeoutMs: 5,
+        forceTerminationTimeoutMs: 5,
+        launch(_executable, args) {
+          void startProtocolServerFromLaunchRequest(args[1]!, png, child, () => undefined);
+          return child;
+        },
+      },
+    });
+
+    await expect(client.close()).rejects.toThrow("did not exit");
+    expect(child.killSignals).toEqual(["SIGTERM", "SIGKILL"]);
+  });
 });
 
 async function helperFixture(
@@ -252,6 +274,15 @@ class NonExitingChildProcess extends EventEmitter implements CaptureHelperChildP
     this.killSignals.push(signal);
     this.onKill?.();
     return true;
+  }
+}
+
+class ErroringKillChildProcess extends NonExitingChildProcess {
+  override kill(signal: NodeJS.Signals): boolean {
+    this.killSignals.push(signal);
+    this.onKill?.();
+    queueMicrotask(() => this.emit("error", new Error("signal failed")));
+    return false;
   }
 }
 
