@@ -44,6 +44,15 @@ Auto Demo never calls a model API; the boundary is PNG plus JSON, and coordinate
 never enter replay. Follow the complete repository guide at
 `docs/guides/screenshot-coordinate-discovery.md`.
 
+On macOS, first run the one-time helper setup and resolve any returned bounded
+capability error before discovery. `capture_helper_permission_required` means
+the installed helper needs Screen Recording permission; the browser is not
+opened first.
+
+```bash
+npm run autodemo -- setup capture-helper --json
+```
+
 Start only after selecting the explicit risk tier, then read
 `frame.screenshotPath` from every returned fresh frame:
 

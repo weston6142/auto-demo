@@ -124,7 +124,10 @@ describe("CLI packaging decision documentation", () => {
     for (const command of ["start", "observe", "act", "status", "finish", "abandon"]) {
       expect(guide).toContain(`npm run autodemo -- discover ${command}`);
     }
+    expect(guide).toContain("npm run autodemo -- setup capture-helper --json");
+    expect(guide).toContain("~/applications/auto demo capture.app");
+    expect(guide).toContain("capture_helper_permission_required");
     expect(guide).toContain("screen recording permission");
-    expect(guide).toContain("native_window_capture_unavailable");
+    expect(guide).toContain("browser is not opened");
   });
 });

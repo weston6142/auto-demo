@@ -91,6 +91,7 @@ Run the logical `autodemo` subcommands below through the repo-root wrapper:
 ```bash
 autodemo init
 autodemo capture
+autodemo setup capture-helper --json
 autodemo discover start --url <url> --goal <goal> --risk <safe|public-browse|disposable|yolo> --json
 autodemo discover observe --session <session-id> --json
 autodemo discover act --session <session-id> --actions-file <actions.json> --json
@@ -114,6 +115,9 @@ See [Screenshot-Coordinate Discovery](docs/guides/screenshot-coordinate-discover
 for the persistent headed session, frame invalidation, dropdown scrolling,
 native-window capture, semantic replay, repair, and review workflow. Run every
 listed command through the repo-root `npm run autodemo --` wrapper.
+On macOS, run `npm run autodemo -- setup capture-helper --json` once before
+screenshot-coordinate discovery so native dropdowns can be captured without
+granting Screen Recording permission separately to each model host.
 
 `autodemo capture` is the first partially implemented command:
 

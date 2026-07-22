@@ -7,6 +7,29 @@ receives semantic replay and review artifacts without a provider adapter.
 
 Run every command from the repository root. Build first with `npm run build`.
 
+## One-time macOS capture setup
+
+Native browser dropdowns are outside the page screenshot. On macOS, install the
+locally built capture helper before starting discovery:
+
+```bash
+npm run autodemo -- setup capture-helper --json
+```
+
+The command installs `~/Applications/Auto Demo Capture.app`, signs it with an
+eligible local Apple Development identity when exactly one is available, and
+asks macOS for Screen Recording permission. If multiple identities are
+available, rerun with the returned fingerprint as
+`--signing-identity <fingerprint>`. Use `--ad-hoc` only as an explicit fallback;
+macOS may ask for permission again after an ad-hoc rebuild. Certificates and
+private keys stay in Keychain, and the signed app is never committed.
+
+Run the setup command again after granting permission to confirm the preflight.
+Discovery reports `capture_helper_not_installed`,
+`capture_helper_signature_invalid`, `capture_helper_protocol_mismatch`, or
+`capture_helper_permission_required` with the recovery command when setup is
+incomplete. The browser is not opened first.
+
 ## Start
 
 Choose `safe`, `public-browse`, `disposable`, or `yolo` before browser activity,
@@ -73,9 +96,10 @@ For a long custom dropdown, put the pointer inside its visible menu and send a
 targeted `scroll` action. Read the resulting fresh frame before selecting an
 option. For a native dropdown, click it first, read the fresh browser-window
 frame, then use bounded `keypress` actions such as `ARROWDOWN`, a public-label
-character, `ENTER`, or `ESCAPE`. On macOS, native browser-window frames require
-Screen Recording permission. If that capture cannot be made honestly, the
-command fails closed with `native_window_capture_unavailable`.
+character, `ENTER`, or `ESCAPE`. The on-demand helper captures that native
+browser-window frame under its Screen Recording permission and exits with the
+discovery session. If the frame cannot be captured honestly, the session fails
+closed with a bounded capture-helper capability error.
 
 Request a fresh frame explicitly when the current view needs to be re-read:
 

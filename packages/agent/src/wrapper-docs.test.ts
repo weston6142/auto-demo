@@ -488,6 +488,7 @@ describe("agent wrapper documentation", () => {
       "npm run autodemo -- discover status",
       "npm run autodemo -- discover finish",
       "npm run autodemo -- discover abandon",
+      "npm run autodemo -- setup capture-helper --json",
       "frame.screenshotPath",
       "png plus json",
       "fresh frame",
@@ -496,6 +497,7 @@ describe("agent wrapper documentation", () => {
       "explicit approval",
       "coordinates never enter replay",
       "auto demo never calls a model api",
+      "capture_helper_permission_required",
       '{ "type": "keypress", "keys": ["k", "enter"] }',
       '{ "type": "scroll", "x": 420, "y": 245, "deltay": 400 }',
     ]) {

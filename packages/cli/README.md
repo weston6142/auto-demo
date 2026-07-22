@@ -24,6 +24,7 @@ Expected repo-root setup flow:
 npm install
 npm run build
 npm run setup:browser
+npm run autodemo -- setup capture-helper --json
 ```
 
 The current clean-checkout operator and agent contract is:
@@ -44,12 +45,20 @@ npm --workspace @auto-demo/cli run autodemo -- <subcommand...>
 The logical `autodemo` subcommands stay the same:
 
 - `capture`
+- `setup capture-helper`
+- `discover start|observe|act|status|finish|abandon`
 - `generate`
 - `open`
 - `agent run`
 - `agent validate`
 - `export`
 - `validate`
+
+On macOS, `setup capture-helper` builds and installs the locally signed
+`~/Applications/Auto Demo Capture.app`. The signing certificate and private key
+remain in Keychain, and neither signing data nor the built app belongs in the
+repository. Discovery preflights the helper signature, protocol, and Screen
+Recording permission before opening the browser.
 
 ## Agent Plan Intake
 
