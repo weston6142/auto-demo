@@ -160,11 +160,14 @@ export {
   createMacOsCaptureHelperClient,
   defaultMacOsCaptureHelperDependencies,
   preflightMacOsCaptureHelper,
+  runMacOsCaptureHelperProbe,
   type CaptureHelperChildProcess,
   type CreateMacOsCaptureHelperClientInput,
   type MacOsCaptureHelperClient,
   type MacOsCaptureHelperDependencies,
   type MacOsCaptureHelperPreflightResult,
+  type MacOsCaptureHelperProbeMode,
+  type MacOsCaptureHelperProbeResult,
   type MacOsCaptureRegion,
 } from "./macOsCaptureHelperClient.js";
 

@@ -1,3 +1,8 @@
+import {
+  runMacOsCaptureHelperProbe,
+  type MacOsCaptureHelperProbeMode,
+  type MacOsCaptureHelperProbeResult,
+} from "@auto-demo/agent";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -17,6 +22,7 @@ import { dirname, join, relative } from "node:path";
 
 const HELPER_APP_NAME = "Auto Demo Capture.app";
 const HELPER_EXECUTABLE_NAME = "AutoDemoCaptureHelper";
+const SUPERVISOR_EXECUTABLE_NAME = "AutoDemoCaptureSupervisor";
 const HELPER_BUNDLE_IDENTIFIER = "com.autodemo.capture-helper";
 
 export type CaptureHelperSetupResult =
@@ -56,6 +62,10 @@ export type CaptureHelperSetupDependencies = {
   repositoryRoot: string;
   homeDirectory: string;
   runCommand(command: string, args: string[]): Promise<{ exitCode: number; stdout: string }>;
+  probeHelper(input: {
+    installPath: string;
+    mode: MacOsCaptureHelperProbeMode;
+  }): Promise<MacOsCaptureHelperProbeResult | undefined>;
 };
 
 export function defaultCaptureHelperSetupDependencies(
@@ -66,6 +76,7 @@ export function defaultCaptureHelperSetupDependencies(
     repositoryRoot,
     homeDirectory: homedir(),
     runCommand,
+    probeHelper: runMacOsCaptureHelperProbe,
   };
 }
 
@@ -224,9 +235,11 @@ async function createAppBundle(input: {
   await mkdir(executableDirectory, { recursive: true });
   await mkdir(resources, { recursive: true });
   await copyFile(join(input.nativeRoot, "Resources/Info.plist"), join(contents, "Info.plist"));
-  const executable = join(executableDirectory, HELPER_EXECUTABLE_NAME);
-  await copyFile(join(input.scratchPath, "release", HELPER_EXECUTABLE_NAME), executable);
-  await chmod(executable, 0o755);
+  for (const executableName of [HELPER_EXECUTABLE_NAME, SUPERVISOR_EXECUTABLE_NAME]) {
+    const executable = join(executableDirectory, executableName);
+    await copyFile(join(input.scratchPath, "release", executableName), executable);
+    await chmod(executable, 0o755);
+  }
   await writeFile(join(resources, "source-hash"), `${input.sourceHash}\n`, { mode: 0o644 });
   await writeFile(join(resources, "signature-kind"), `${input.signature}\n`, { mode: 0o644 });
 }
@@ -274,19 +287,23 @@ async function verifyInstalledHelper(
   appPath: string,
   dependencies: CaptureHelperSetupDependencies,
 ): Promise<boolean> {
-  const executable = join(appPath, "Contents/MacOS", HELPER_EXECUTABLE_NAME);
-  const result = await dependencies.runCommand(executable, ["--version-json"]);
-  if (result.exitCode !== 0) return false;
-  try {
-    const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
-    return (
-      parsed.ok === true &&
-      parsed.protocolVersion === 1 &&
-      parsed.bundleIdentifier === HELPER_BUNDLE_IDENTIFIER
-    );
-  } catch {
-    return false;
+  for (const executableName of [HELPER_EXECUTABLE_NAME, SUPERVISOR_EXECUTABLE_NAME]) {
+    try {
+      const metadata = await lstat(join(appPath, "Contents/MacOS", executableName));
+      if (!metadata.isFile() || metadata.isSymbolicLink() || (metadata.mode & 0o111) === 0) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
   }
+  const result = await dependencies.probeHelper({ installPath: appPath, mode: "version" });
+  return (
+    result?.ok === true &&
+    result.code === "capture_helper_version" &&
+    result.values.protocolVersion === 1 &&
+    result.values.bundleIdentifier === HELPER_BUNDLE_IDENTIFIER
+  );
 }
 
 async function permissionResult(
@@ -294,26 +311,23 @@ async function permissionResult(
   signature: "development" | "ad-hoc",
   dependencies: CaptureHelperSetupDependencies,
 ): Promise<CaptureHelperSetupResult> {
-  const executable = join(installPath, "Contents/MacOS", HELPER_EXECUTABLE_NAME);
-  const preflight = await dependencies.runCommand(executable, ["--preflight-json"]);
-  if (preflight.exitCode === 0 && jsonOk(preflight.stdout)) {
+  const preflight = await dependencies.probeHelper({
+    installPath,
+    mode: "permission-preflight",
+  });
+  if (preflight?.ok === true && preflight.code === "capture_helper_permission_granted") {
     return { ok: true, code: "capture_helper_ready", installPath, signature };
   }
-  const requested = await dependencies.runCommand(executable, ["--request-permission-json"]);
-  return requested.exitCode === 0 && jsonOk(requested.stdout)
+  const requested = await dependencies.probeHelper({
+    installPath,
+    mode: "permission-request",
+  });
+  return requested?.ok === true && requested.code === "capture_helper_permission_granted"
     ? { ok: true, code: "capture_helper_ready", installPath, signature }
     : failure(
         "capture_helper_permission_required",
         "Auto Demo Capture needs Screen Recording permission.",
       );
-}
-
-function jsonOk(value: string): boolean {
-  try {
-    return (JSON.parse(value) as Record<string, unknown>).ok === true;
-  } catch {
-    return false;
-  }
 }
 
 async function hashSourceTree(root: string): Promise<string> {

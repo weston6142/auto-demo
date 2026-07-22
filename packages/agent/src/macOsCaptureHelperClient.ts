@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmod, lstat, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,8 +8,10 @@ import { join } from "node:path";
 const SETUP_COMMAND = "npm run autodemo -- setup capture-helper --json" as const;
 const HELPER_APP_NAME = "Auto Demo Capture.app";
 const HELPER_EXECUTABLE = "Contents/MacOS/AutoDemoCaptureHelper";
+const SUPERVISOR_EXECUTABLE = "Contents/MacOS/AutoDemoCaptureSupervisor";
 const MAXIMUM_RESPONSE_BYTES = 32 * 1_024 * 1_024;
 const MAXIMUM_HEADER_BYTES = 8 * 1_024;
+const MAXIMUM_PROBE_BYTES = 16 * 1_024;
 
 export type MacOsCaptureRegion = { x: number; y: number; width: number; height: number };
 
@@ -26,7 +28,8 @@ export type MacOsCaptureHelperPreflightResult =
         | "capture_helper_not_installed"
         | "capture_helper_signature_invalid"
         | "capture_helper_protocol_mismatch"
-        | "capture_helper_permission_required";
+        | "capture_helper_permission_required"
+        | "capture_helper_unavailable";
       message: string;
       setupCommand: typeof SETUP_COMMAND;
     };
@@ -59,6 +62,15 @@ export type CreateMacOsCaptureHelperClientInput = {
   dependencies?: MacOsCaptureHelperDependencies;
 };
 
+export type MacOsCaptureHelperProbeMode = "version" | "permission-preflight" | "permission-request";
+
+export type MacOsCaptureHelperProbeResult = {
+  ok: boolean;
+  code: string;
+  message?: string;
+  values: Record<string, string | number>;
+};
+
 export function defaultMacOsCaptureHelperDependencies(): MacOsCaptureHelperDependencies {
   return {
     platform: process.platform,
@@ -75,11 +87,10 @@ export async function preflightMacOsCaptureHelper(
   dependencies: MacOsCaptureHelperDependencies = defaultMacOsCaptureHelperDependencies(),
 ): Promise<MacOsCaptureHelperPreflightResult> {
   const installPath = join(dependencies.homeDirectory, "Applications", HELPER_APP_NAME);
-  const executable = join(installPath, HELPER_EXECUTABLE);
-  try {
-    const metadata = await lstat(executable);
-    if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("invalid helper");
-  } catch {
+  if (
+    !(await isRegularBundledExecutable(join(installPath, HELPER_EXECUTABLE))) ||
+    !(await isRegularBundledExecutable(join(installPath, SUPERVISOR_EXECUTABLE)))
+  ) {
     return preflightFailure("capture_helper_not_installed", "Auto Demo Capture is not installed.");
   }
   const signature = await dependencies.runCommand("codesign", [
@@ -94,15 +105,29 @@ export async function preflightMacOsCaptureHelper(
       "Auto Demo Capture signature validation failed.",
     );
   }
-  const version = await dependencies.runCommand(executable, ["--version-json"]);
+  const version = await runMacOsCaptureHelperProbe({
+    installPath,
+    mode: "version",
+    dependencies,
+  });
   if (!validVersion(version)) {
     return preflightFailure(
       "capture_helper_protocol_mismatch",
       "Auto Demo Capture protocol is incompatible.",
     );
   }
-  const permission = await dependencies.runCommand(executable, ["--preflight-json"]);
-  if (permission.exitCode !== 0 || !jsonOk(permission.stdout)) {
+  const permission = await runMacOsCaptureHelperProbe({
+    installPath,
+    mode: "permission-preflight",
+    dependencies,
+  });
+  if (permission === undefined) {
+    return preflightFailure(
+      "capture_helper_unavailable",
+      "Auto Demo Capture could not complete its permission check.",
+    );
+  }
+  if (!permission.ok || permission.code !== "capture_helper_permission_granted") {
     return preflightFailure(
       "capture_helper_permission_required",
       "Auto Demo Capture needs Screen Recording permission.",
@@ -111,11 +136,53 @@ export async function preflightMacOsCaptureHelper(
   return { ok: true, installPath, protocolVersion: 1 };
 }
 
+export async function runMacOsCaptureHelperProbe(input: {
+  installPath: string;
+  mode: MacOsCaptureHelperProbeMode;
+  dependencies?: MacOsCaptureHelperDependencies;
+}): Promise<MacOsCaptureHelperProbeResult | undefined> {
+  const dependencies = input.dependencies ?? defaultMacOsCaptureHelperDependencies();
+  const supervisor = join(input.installPath, SUPERVISOR_EXECUTABLE);
+  if (!(await isRegularBundledExecutable(supervisor))) return undefined;
+  const directory = await mkdtemp(join(dependencies.temporaryDirectory, "adc-probe-"));
+  await chmod(directory, 0o700);
+  const requestPath = join(directory, "request.json");
+  const responsePath = join(directory, "response.json");
+  try {
+    await writeFile(
+      requestPath,
+      `${JSON.stringify({
+        protocolVersion: 1,
+        mode: input.mode,
+        responsePath,
+      })}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    const launched = await dependencies.runCommand(supervisor, ["--launch-request", requestPath]);
+    if (launched.exitCode !== 0) return undefined;
+    const metadata = await lstat(responsePath);
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      (metadata.mode & 0o077) !== 0 ||
+      metadata.size < 1 ||
+      metadata.size > MAXIMUM_PROBE_BYTES
+    ) {
+      return undefined;
+    }
+    return parseProbeResult(await readFile(responsePath, "utf8"));
+  } catch {
+    return undefined;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
 export async function createMacOsCaptureHelperClient(
   input: CreateMacOsCaptureHelperClientInput,
 ): Promise<MacOsCaptureHelperClient> {
   const dependencies = input.dependencies ?? defaultMacOsCaptureHelperDependencies();
-  const executable = join(input.installPath, HELPER_EXECUTABLE);
+  const supervisor = join(input.installPath, SUPERVISOR_EXECUTABLE);
   const token = randomBytes(32).toString("hex");
   const socketDirectory = await mkdtemp(join(dependencies.temporaryDirectory, "adc-"));
   await chmod(socketDirectory, 0o700);
@@ -134,7 +201,17 @@ export async function createMacOsCaptureHelperClient(
     })}\n`,
     { flag: "wx", mode: 0o600 },
   );
-  const child = dependencies.launch(executable, ["--serve-bootstrap", bootstrapPath]);
+  const launchRequestPath = join(socketDirectory, "launch-request.json");
+  await writeFile(
+    launchRequestPath,
+    `${JSON.stringify({
+      protocolVersion: 1,
+      mode: "service",
+      bootstrapPath,
+    })}\n`,
+    { flag: "wx", mode: 0o600 },
+  );
+  const child = dependencies.launch(supervisor, ["--launch-request", launchRequestPath]);
   let closed = false;
   try {
     await waitForSocket(socketPath, child);
@@ -163,23 +240,66 @@ export async function createMacOsCaptureHelperClient(
   };
 }
 
-function validVersion(result: { exitCode: number; stdout: string }): boolean {
-  if (result.exitCode !== 0) return false;
+function validVersion(result: MacOsCaptureHelperProbeResult | undefined): boolean {
+  return (
+    result?.ok === true &&
+    result.code === "capture_helper_version" &&
+    result.values.protocolVersion === 1 &&
+    result.values.bundleIdentifier === "com.autodemo.capture-helper"
+  );
+}
+
+function parseProbeResult(value: string): MacOsCaptureHelperProbeResult | undefined {
   try {
-    const value = JSON.parse(result.stdout) as Record<string, unknown>;
-    return (
-      value.ok === true &&
-      value.protocolVersion === 1 &&
-      value.bundleIdentifier === "com.autodemo.capture-helper"
-    );
+    const parsed = JSON.parse(value) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+    const record = parsed as Record<string, unknown>;
+    if (Object.keys(record).some((key) => !["ok", "code", "message", "values"].includes(key))) {
+      return undefined;
+    }
+    if (
+      typeof record.ok !== "boolean" ||
+      typeof record.code !== "string" ||
+      record.code.length < 1 ||
+      record.code.length > 128 ||
+      (record.message !== undefined &&
+        (typeof record.message !== "string" || record.message.length > 512)) ||
+      typeof record.values !== "object" ||
+      record.values === null ||
+      Array.isArray(record.values)
+    ) {
+      return undefined;
+    }
+    const values = record.values as Record<string, unknown>;
+    if (
+      Object.keys(values).length > 16 ||
+      Object.entries(values).some(
+        ([key, item]) =>
+          key.length < 1 ||
+          key.length > 64 ||
+          !(
+            (typeof item === "string" && item.length <= 512) ||
+            (typeof item === "number" && Number.isSafeInteger(item))
+          ),
+      )
+    ) {
+      return undefined;
+    }
+    return {
+      ok: record.ok,
+      code: record.code,
+      ...(record.message === undefined ? {} : { message: record.message as string }),
+      values: values as Record<string, string | number>,
+    };
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-function jsonOk(value: string): boolean {
+async function isRegularBundledExecutable(path: string): Promise<boolean> {
   try {
-    return (JSON.parse(value) as Record<string, unknown>).ok === true;
+    const metadata = await lstat(path);
+    return metadata.isFile() && !metadata.isSymbolicLink();
   } catch {
     return false;
   }
@@ -312,7 +432,7 @@ function runCommand(
     execFile(
       command,
       args,
-      { encoding: "utf8", maxBuffer: 64_000, timeout: 2_000 },
+      { encoding: "utf8", maxBuffer: 64_000, timeout: 10_000 },
       (error, stdout, stderr) => {
         resolve({
           exitCode: error === null ? 0 : typeof error.code === "number" ? error.code : 1,
