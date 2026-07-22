@@ -17,6 +17,7 @@ const packages = [
 ];
 
 const expectedBrowserTests = new Set([
+  "agent/src/playwrightCoordinateDiscoveryPage.test.ts",
   "agent/src/playwrightDiscoveryObservation.test.ts",
   "agent/src/playwrightDiscoveryPolicyGuard.test.ts",
   "agent/src/playwrightDiscoveryRehearsal.test.ts",
@@ -27,6 +28,7 @@ const expectedBrowserTests = new Set([
   "capture/src/playwrightMetadataRecorder.test.ts",
   "cli/src/agentExecuteCommand.smoke.test.ts",
   "cli/src/agenticDiscoveryAcceptance.test.ts",
+  "cli/src/coordinateDiscoveryAcceptance.test.ts",
 ]);
 
 const expectedDocsTests = new Set([

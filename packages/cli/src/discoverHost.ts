@@ -23,15 +23,8 @@ export async function createDiscoverSessionHost(input: {
   sessionId: string;
   runtime: DiscoverHostRuntime;
 }): Promise<DiscoverSessionHost> {
-  let server: DiscoverHostServer;
   let closed = false;
-  const close = async () => {
-    if (closed) return;
-    closed = true;
-    await server.close();
-    await input.runtime.close();
-  };
-  server = await createDiscoverHostServer({
+  const server: DiscoverHostServer = await createDiscoverHostServer({
     socketPath: input.socketPath,
     token: input.token,
     async handle(request) {
@@ -73,6 +66,12 @@ export async function createDiscoverSessionHost(input: {
       }
     },
   });
+  const close = async () => {
+    if (closed) return;
+    closed = true;
+    await server.close();
+    await input.runtime.close();
+  };
   return { close };
 }
 
