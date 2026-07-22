@@ -157,6 +157,18 @@ export {
 } from "./macOsBrowserWindowCapture.js";
 
 export {
+  createMacOsCaptureHelperClient,
+  defaultMacOsCaptureHelperDependencies,
+  preflightMacOsCaptureHelper,
+  type CaptureHelperChildProcess,
+  type CreateMacOsCaptureHelperClientInput,
+  type MacOsCaptureHelperClient,
+  type MacOsCaptureHelperDependencies,
+  type MacOsCaptureHelperPreflightResult,
+  type MacOsCaptureRegion,
+} from "./macOsCaptureHelperClient.js";
+
+export {
   abandonDiscoverySession,
   beginDiscoveryAttempt,
   completeDiscoverySession,
