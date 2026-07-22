@@ -1761,3 +1761,65 @@ describe("runCliAsync validate", () => {
     expect(result.stderr).toContain("Missing media artifact: media/viewport.webm");
   });
 });
+
+describe("runCliAsync setup capture-helper", () => {
+  it("passes an explicit ad-hoc setup request through the async CLI", async () => {
+    const inputs: unknown[] = [];
+    const result = await runCliAsync(["setup", "capture-helper", "--ad-hoc", "--json"], {
+      ...testDependencies(),
+      async setupCaptureHelper(input) {
+        inputs.push(input);
+        return {
+          ok: true,
+          code: "capture_helper_ready",
+          installPath: "/Users/example/Applications/Auto Demo Capture.app",
+          signature: "ad-hoc",
+        };
+      },
+    });
+
+    expect(inputs).toEqual([{ adHoc: true, json: true }]);
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: `${JSON.stringify({
+        ok: true,
+        code: "capture_helper_ready",
+        installPath: "/Users/example/Applications/Auto Demo Capture.app",
+        signature: "ad-hoc",
+      }, null, 2)}\n`,
+      stderr: "",
+    });
+  });
+
+  it("rejects conflicting signing arguments before setup", async () => {
+    let called = false;
+    const result = await runCliAsync(
+      [
+        "setup",
+        "capture-helper",
+        "--ad-hoc",
+        "--signing-identity",
+        "A".repeat(40),
+        "--json",
+      ],
+      {
+        ...testDependencies(),
+        async setupCaptureHelper() {
+          called = true;
+          throw new Error("must not run");
+        },
+      },
+    );
+
+    expect(called).toBe(false);
+    expect(result).toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "Choose either --signing-identity or --ad-hoc, not both.\n",
+    });
+  });
+
+  it("publishes capture-helper setup in top-level help", () => {
+    expect(runCli(["--help"]).stdout).toContain("setup      Install local platform helpers");
+  });
+});
