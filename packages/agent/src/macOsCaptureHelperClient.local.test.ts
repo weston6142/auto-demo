@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { chmod, mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,9 +34,31 @@ it.runIf(process.platform === "darwin" && process.env.AUTODEMO_REAL_CAPTURE_HELP
       await client.close();
       client = undefined;
       expect(await readdir(sessionDirectory)).toEqual([]);
+      expect(await runningCaptureHelperProcesses()).toEqual([]);
     } finally {
       await client?.close();
       await rm(sessionDirectory, { recursive: true, force: true });
     }
   },
+  5_000,
 );
+
+function runningCaptureHelperProcesses(): Promise<string[]> {
+  const executable = join(
+    homedir(),
+    "Applications",
+    "Auto Demo Capture.app",
+    "Contents",
+    "MacOS",
+    "AutoDemoCaptureHelper",
+  );
+  return new Promise((resolve, reject) => {
+    execFile("pgrep", ["-f", `^${executable} --supervised-request `], (error, stdout) => {
+      if (error !== null && error.code !== 1) {
+        reject(error);
+        return;
+      }
+      resolve(stdout.trim().split("\n").filter(Boolean));
+    });
+  });
+}

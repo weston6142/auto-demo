@@ -35,6 +35,14 @@ The main agent already knows prior Cars.com failure modes and milestone history.
 
 ## Environment And Evidence Boundary
 
+Before acceptance resumes, the macOS capture boundary must satisfy the approved
+[WES-273 macOS capture helper supervision design](./2026-07-21-wes-273-macos-capture-helper-supervision-design.md).
+The signed app must own Screen Recording through Launch Services, and the real
+local helper gate must prove one capture plus complete shutdown and cleanup.
+This correction is part of WES-273 because the prior direct inner-executable
+launch made fresh screenshot-coordinate acceptance impossible despite green
+mocked TypeScript tests.
+
 - The clean clone is created from the verified `origin/develop` commit before WES-273 evidence documentation is added.
 - The fresh agent receives no forked conversation context and no summary of prior Cars.com attempts.
 - The only task content supplied is the exact Linear test prompt. The checkout path is operational routing, not product guidance.

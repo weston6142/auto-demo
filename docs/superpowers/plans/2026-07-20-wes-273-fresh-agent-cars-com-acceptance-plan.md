@@ -211,6 +211,15 @@ If no product defect is found, mark every Task 3 step as not required in the fin
 - Create locally, do not commit: `demos/cars-kia-sorento/**`
 - Create locally, do not commit: acceptance execution and handoff artifacts
 
+- [ ] **Step -1: Require the supervised macOS capture helper gate**
+
+Complete the approved
+[macOS capture helper supervision plan](./2026-07-21-wes-273-macos-capture-helper-supervision.md)
+through its real signed-helper capture and cleanup check before creating the
+fresh acceptance checkout. The capture app must be launched through Launch
+Services, permission must belong to `com.autodemo.capture-helper`, and neither
+the helper nor supervisor may remain after close.
+
 - [ ] **Step 0: Resume acceptance with WES-274 visual feedback**
 
 Create a brand-new clean clone at the reconciled WES-273 branch head. Dispatch a different context-isolated agent with the exact prompt from Task 2.3 and no forked conversation history. Require it to use the repository-owned visual decision channel delivered by WES-274, reach `review_required`, and return a replay-validated blocker-free sanitized walkthrough. Do not provide Cars.com-specific guidance, and do not reuse the paused acceptance checkout.

@@ -1,5 +1,6 @@
 import AppKit
 import AutoDemoCaptureCore
+import Darwin
 import Foundation
 
 struct AppKitCaptureApplicationLauncher: CaptureApplicationLaunching {
@@ -20,12 +21,16 @@ struct AppKitCaptureApplicationLauncher: CaptureApplicationLaunching {
 
 private final class AppKitRunningApplication: @unchecked Sendable, CaptureRunningApplication {
     private let application: NSRunningApplication
+    private let processIdentifier: pid_t
 
     init(application: NSRunningApplication) {
         self.application = application
+        processIdentifier = application.processIdentifier
     }
 
-    func isTerminated() async -> Bool { application.isTerminated }
+    func isTerminated() async -> Bool {
+        application.isTerminated || (kill(processIdentifier, 0) != 0 && errno == ESRCH)
+    }
     func terminate() async -> Bool { application.terminate() }
     func forceTerminate() async -> Bool { application.forceTerminate() }
 }

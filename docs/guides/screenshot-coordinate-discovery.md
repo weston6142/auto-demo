@@ -18,8 +18,12 @@ npm run autodemo -- setup capture-helper --json
 
 The command installs `~/Applications/Auto Demo Capture.app`, signs it with an
 eligible local Apple Development identity when exactly one is available, and
-asks macOS for Screen Recording permission. If multiple identities are
-available, rerun with the returned fingerprint as
+asks macOS for Screen Recording permission. Permission belongs only to the
+signed app identity `com.autodemo.capture-helper`. Setup and discovery start the
+app through Launch Services using its bundled supervisor; they never launch the
+inner capture executable directly or ask Terminal, Codex, ChatGPT, or another
+host process to capture the screen. If multiple identities are available, rerun
+with the returned fingerprint as
 `--signing-identity <fingerprint>`. Use `--ad-hoc` only as an explicit fallback;
 macOS may ask for permission again after an ad-hoc rebuild. Certificates and
 private keys stay in Keychain, and the signed app is never committed.
@@ -29,6 +33,14 @@ Discovery reports `capture_helper_not_installed`,
 `capture_helper_signature_invalid`, `capture_helper_protocol_mismatch`, or
 `capture_helper_permission_required` with the recovery command when setup is
 incomplete. The browser is not opened first.
+
+Each discovery session gets a fresh app instance, private request, token, and
+socket. Closing the session tells the supervisor to terminate that exact app
+instance and remove its private launch files. The helper's 30-second idle
+timeout is only an orphan backstop. If setup still returns
+`capture_helper_permission_required`, enable Screen Recording for **Auto Demo
+Capture** in System Settings and rerun setup; do not grant Screen Recording to a
+terminal or model host as a fallback.
 
 ## Start
 

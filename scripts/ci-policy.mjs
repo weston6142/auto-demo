@@ -17,14 +17,14 @@ export function classifyChangedPaths(paths) {
 export function validateCiResults(results) {
   const errors = [];
   if (results.route === "full") {
-    for (const job of ["static", "docs", "unit", "browser"]) {
+    for (const job of ["static", "docs", "unit", "browser", "macosNative"]) {
       if (results[job] !== SUCCESS) errors.push(`${job} was ${results[job] ?? "missing"}`);
     }
   } else if (results.route === "docs-only") {
     for (const job of ["static", "docs"]) {
       if (results[job] !== SUCCESS) errors.push(`${job} was ${results[job] ?? "missing"}`);
     }
-    for (const job of ["unit", "browser"]) {
+    for (const job of ["unit", "browser", "macosNative"]) {
       if (results[job] !== SKIPPED) {
         errors.push(`${job} was ${results[job] ?? "missing"}; expected skipped`);
       }
@@ -62,13 +62,14 @@ export async function runCiPolicy(
     return { route };
   }
   if (mode === "gate") {
-    const [route, staticResult, docs, unit, browser] = values;
+    const [route, staticResult, docs, unit, browser, macosNative] = values;
     const result = validateCiResults({
       route,
       static: staticResult,
       docs,
       unit,
       browser,
+      macosNative,
     });
     if (!result.ok) throw new Error(`CI validation failed: ${result.errors.join("; ")}`);
     return result;

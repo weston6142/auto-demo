@@ -412,7 +412,7 @@ async function stopChild(child: CaptureHelperChildProcess): Promise<void> {
   child.kill("SIGTERM");
   const stopped = await Promise.race([
     exited,
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2_000)),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
   ]);
   if (!stopped && child.exitCode === null) child.kill("SIGKILL");
 }

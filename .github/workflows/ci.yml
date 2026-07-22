@@ -146,10 +146,39 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  macos-native:
+    needs: changes
+    if: needs.changes.outputs.route == 'full'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Test native capture helper
+        run: swift test --package-path native/macos-capture-helper
+
+      - name: Build native capture helper
+        run: swift build --package-path native/macos-capture-helper --configuration release
+
+      - name: Assemble and verify ad-hoc test bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Auto Demo Capture.app"
+          mkdir -p "$APP/Contents/MacOS"
+          cp native/macos-capture-helper/Resources/Info.plist "$APP/Contents/Info.plist"
+          cp native/macos-capture-helper/.build/release/AutoDemoCaptureHelper "$APP/Contents/MacOS/"
+          cp native/macos-capture-helper/.build/release/AutoDemoCaptureSupervisor "$APP/Contents/MacOS/"
+          codesign --force --sign - --identifier com.autodemo.capture-helper "$APP"
+          codesign --verify --deep --strict "$APP"
+          test -x "$APP/Contents/MacOS/AutoDemoCaptureHelper"
+          test -x "$APP/Contents/MacOS/AutoDemoCaptureSupervisor"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")" = "com.autodemo.capture-helper"
+
   validate:
     name: validate
     if: always()
-    needs: [changes, static, docs, unit, browser]
+    needs: [changes, static, docs, unit, browser, macos-native]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -163,3 +192,4 @@ jobs:
           "${{ needs.docs.result }}"
           "${{ needs.unit.result }}"
           "${{ needs.browser.result }}"
+          "${{ needs.macos-native.result }}"

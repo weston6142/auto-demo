@@ -48,7 +48,7 @@ public actor CaptureApplicationSupervisor {
     public init(
         launcher: any CaptureApplicationLaunching,
         supervisorExecutableURL: URL,
-        terminationGrace: Duration = .seconds(2),
+        terminationGrace: Duration = .seconds(1),
         pollInterval: Duration = .milliseconds(50)
     ) {
         self.launcher = launcher

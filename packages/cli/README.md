@@ -58,7 +58,13 @@ On macOS, `setup capture-helper` builds and installs the locally signed
 `~/Applications/Auto Demo Capture.app`. The signing certificate and private key
 remain in Keychain, and neither signing data nor the built app belongs in the
 repository. Discovery preflights the helper signature, protocol, and Screen
-Recording permission before opening the browser.
+Recording permission before opening the browser. Setup and runtime use the
+bundle's `AutoDemoCaptureSupervisor` to start the signed app through Launch
+Services. Screen Recording belongs only to `com.autodemo.capture-helper`, and
+normal session close terminates the exact app instance returned by Launch
+Services; the idle timeout remains an orphan backstop. The CLI never falls back
+to launching the inner helper directly or granting capture permission to the
+terminal or model host.
 
 ## Agent Plan Intake
 
