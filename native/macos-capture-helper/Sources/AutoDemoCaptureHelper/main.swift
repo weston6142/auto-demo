@@ -3,7 +3,6 @@ import CoreGraphics
 import Darwin
 import Foundation
 
-private let bundleIdentifier = "com.autodemo.capture-helper"
 private let maximumBootstrapBytes: off_t = 16 * 1_024
 
 @main
@@ -11,33 +10,37 @@ struct AutoDemoCaptureHelper {
     static func main() async {
         do {
             let arguments = Array(CommandLine.arguments.dropFirst())
-            if arguments == ["--version-json"] {
+            if arguments.count == 2, arguments[0] == "--supervised-request" {
+                let request = try loadPrivateCaptureLaunchRequest(path: arguments[1])
+                try await executeCaptureHelperRequest(
+                    request,
+                    permission: CoreGraphicsCapturePermission(),
+                    serve: { bootstrapPath in
+                        let bootstrap = try loadBootstrap(path: bootstrapPath)
+                        let server = UnixCaptureServer(
+                            bootstrap: bootstrap,
+                            provider: ScreenCaptureKitProvider()
+                        )
+                        try await server.run()
+                    }
+                )
+            } else if arguments == ["--version-json"] {
                 writeJson([
                     "ok": true,
                     "protocolVersion": captureProtocolVersion,
-                    "bundleIdentifier": bundleIdentifier,
+                    "bundleIdentifier": captureHelperBundleIdentifier,
                 ])
-            } else if arguments == ["--preflight-json"] {
-                let granted = CGPreflightScreenCaptureAccess()
-                writeJson(permissionResult(granted: granted))
-                if !granted { Darwin.exit(EXIT_FAILURE) }
-            } else if arguments == ["--request-permission-json"] {
-                let granted = CGRequestScreenCaptureAccess()
-                writeJson(permissionResult(granted: granted))
-                if !granted { Darwin.exit(EXIT_FAILURE) }
-            } else if arguments.count == 2, arguments[0] == "--serve-bootstrap" {
-                guard CGPreflightScreenCaptureAccess() else {
-                    throw HelperError.permissionRequired
-                }
-                let bootstrap = try loadBootstrap(path: arguments[1])
-                let server = UnixCaptureServer(
-                    bootstrap: bootstrap,
-                    provider: ScreenCaptureKitProvider()
-                )
-                try await server.run()
             } else {
                 throw HelperError.invalidArguments
             }
+        } catch let error as CaptureHelperModeError {
+            switch error {
+            case .permissionRequired:
+                writeJson(HelperError.permissionRequired.result)
+            case .invalidRequest:
+                writeJson(HelperError.invalidArguments.result)
+            }
+            Darwin.exit(EXIT_FAILURE)
         } catch let error as HelperError {
             writeJson(error.result)
             Darwin.exit(EXIT_FAILURE)
@@ -68,10 +71,9 @@ private enum HelperError: Error {
     }
 }
 
-private func permissionResult(granted: Bool) -> [String: Any] {
-    granted
-        ? ["ok": true, "code": "capture_helper_permission_granted"]
-        : HelperError.permissionRequired.result
+private struct CoreGraphicsCapturePermission: CapturePermissionChecking {
+    func preflight() async -> Bool { CGPreflightScreenCaptureAccess() }
+    func request() async -> Bool { CGRequestScreenCaptureAccess() }
 }
 
 private func loadBootstrap(path: String) throws -> CaptureBootstrap {
