@@ -79,7 +79,7 @@ export async function selectWithVisiblePointer(
 
   await clickWithVisiblePointer(page, target);
   for (let attempt = 0; attempt < optionState.cycleLimit; attempt += 1) {
-    await naturalInput(page).type(cycleKey);
+    await naturalInput(page).keypress([cycleKey]);
     const selectedLabel = await target.evaluate((node) =>
       node instanceof HTMLSelectElement
         ? node.selectedOptions[0]?.textContent?.replace(/\s+/g, " ").trim()
