@@ -72,9 +72,7 @@ export function defaultCaptureHelperSetupDependencies(
 export function parseCodeSigningIdentities(output: string): CodeSigningIdentity[] {
   const identities: CodeSigningIdentity[] = [];
   for (const line of output.split(/\r?\n/u)) {
-    const match = /^\s*\d+\)\s+([A-F0-9]{40})\s+"(Apple Development:[^"]+)"\s*$/u.exec(
-      line,
-    );
+    const match = /^\s*\d+\)\s+([A-F0-9]{40})\s+"(Apple Development:[^"]+)"\s*$/u.exec(line);
     if (match === null) continue;
     identities.push({ fingerprint: match[1]!, label: match[2]! });
   }
@@ -86,10 +84,7 @@ export async function runMacOsCaptureHelperSetup(
   dependencies: CaptureHelperSetupDependencies,
 ): Promise<CaptureHelperSetupResult> {
   if (dependencies.platform !== "darwin") {
-    return failure(
-      "unsupported_platform",
-      "Auto Demo Capture is supported only on macOS.",
-    );
+    return failure("unsupported_platform", "Auto Demo Capture is supported only on macOS.");
   }
   const nativeRoot = join(dependencies.repositoryRoot, "native/macos-capture-helper");
   const installPath = join(dependencies.homeDirectory, "Applications", HELPER_APP_NAME);
@@ -98,11 +93,7 @@ export async function runMacOsCaptureHelperSetup(
     return failure("capture_helper_build_failed", "Auto Demo Capture could not be built.");
   }
 
-  const currentSignature = await currentInstallSignature(
-    installPath,
-    sourceHash,
-    dependencies,
-  );
+  const currentSignature = await currentInstallSignature(installPath, sourceHash, dependencies);
   if (currentSignature !== undefined) {
     return await permissionResult(installPath, currentSignature, dependencies);
   }
@@ -173,10 +164,7 @@ export async function runMacOsCaptureHelperSetup(
     if (!(await pathExists(installPath)) && movedExisting) {
       await rename(backupPath, installPath).catch(() => undefined);
     }
-    return failure(
-      "capture_helper_install_failed",
-      "Auto Demo Capture could not be installed.",
-    );
+    return failure("capture_helper_install_failed", "Auto Demo Capture could not be installed.");
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -237,10 +225,7 @@ async function createAppBundle(input: {
   await mkdir(resources, { recursive: true });
   await copyFile(join(input.nativeRoot, "Resources/Info.plist"), join(contents, "Info.plist"));
   const executable = join(executableDirectory, HELPER_EXECUTABLE_NAME);
-  await copyFile(
-    join(input.scratchPath, "release", HELPER_EXECUTABLE_NAME),
-    executable,
-  );
+  await copyFile(join(input.scratchPath, "release", HELPER_EXECUTABLE_NAME), executable);
   await chmod(executable, 0o755);
   await writeFile(join(resources, "source-hash"), `${input.sourceHash}\n`, { mode: 0o644 });
   await writeFile(join(resources, "signature-kind"), `${input.signature}\n`, { mode: 0o644 });
@@ -386,12 +371,7 @@ function runCommand(
       { encoding: "utf8", maxBuffer: 1_000_000, timeout: 120_000 },
       (error, stdout) => {
         resolve({
-          exitCode:
-            error === null
-              ? 0
-              : typeof error.code === "number"
-                ? error.code
-                : 1,
+          exitCode: error === null ? 0 : typeof error.code === "number" ? error.code : 1,
           stdout,
         });
       },

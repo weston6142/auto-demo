@@ -43,10 +43,7 @@ describe("macOS capture helper setup", () => {
     expect(result).toMatchObject({
       ok: false,
       code: "signing_identity_required",
-      choices: [
-        { fingerprint: "A".repeat(40) },
-        { fingerprint: "B".repeat(40) },
-      ],
+      choices: [{ fingerprint: "A".repeat(40) }, { fingerprint: "B".repeat(40) }],
     });
     expect(fixture.commands).not.toContainEqual(expect.objectContaining({ command: "swift" }));
   });
@@ -71,10 +68,12 @@ describe("macOS capture helper setup", () => {
         args: expect.arrayContaining(["--sign", "B".repeat(40)]),
       }),
     );
-    expect(await readFile(join(fixture.installPath, "Contents/Resources/signature-kind"), "utf8"))
-      .toBe("development\n");
-    expect(JSON.stringify(await readFile(join(fixture.installPath, "Contents/Resources/source-hash"))))
-      .not.toContain("Local User");
+    expect(
+      await readFile(join(fixture.installPath, "Contents/Resources/signature-kind"), "utf8"),
+    ).toBe("development\n");
+    expect(
+      JSON.stringify(await readFile(join(fixture.installPath, "Contents/Resources/source-hash"))),
+    ).not.toContain("Local User");
   });
 
   it("supports explicit ad-hoc signing and returns a bounded permission requirement", async () => {
@@ -91,7 +90,10 @@ describe("macOS capture helper setup", () => {
       message: "Auto Demo Capture needs Screen Recording permission.",
     });
     expect(fixture.commands).toContainEqual(
-      expect.objectContaining({ command: "codesign", args: expect.arrayContaining(["--sign", "-"]) }),
+      expect.objectContaining({
+        command: "codesign",
+        args: expect.arrayContaining(["--sign", "-"]),
+      }),
     );
   });
 
@@ -156,10 +158,7 @@ async function setupFixture(options: FixtureOptions = {}) {
         return {
           exitCode: 0,
           stdout: identities
-            .map(
-              (item, index) =>
-                `${index + 1}) ${item.fingerprint} "${item.label}"`,
-            )
+            .map((item, index) => `${index + 1}) ${item.fingerprint} "${item.label}"`)
             .join("\n"),
         };
       }

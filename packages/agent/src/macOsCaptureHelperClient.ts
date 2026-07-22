@@ -34,7 +34,10 @@ export type MacOsCaptureHelperPreflightResult =
 export type CaptureHelperChildProcess = {
   exitCode: number | null;
   kill(signal: NodeJS.Signals): boolean;
-  once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
+  once(
+    event: "exit",
+    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
+  ): unknown;
   once(event: "error", listener: (error: Error) => void): unknown;
 };
 
@@ -77,10 +80,7 @@ export async function preflightMacOsCaptureHelper(
     const metadata = await lstat(executable);
     if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("invalid helper");
   } catch {
-    return preflightFailure(
-      "capture_helper_not_installed",
-      "Auto Demo Capture is not installed.",
-    );
+    return preflightFailure("capture_helper_not_installed", "Auto Demo Capture is not installed.");
   }
   const signature = await dependencies.runCommand("codesign", [
     "--verify",
@@ -192,10 +192,7 @@ function preflightFailure(
   return { ok: false, code, message, setupCommand: SETUP_COMMAND };
 }
 
-async function waitForSocket(
-  socketPath: string,
-  child: CaptureHelperChildProcess,
-): Promise<void> {
+async function waitForSocket(socketPath: string, child: CaptureHelperChildProcess): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     if (child.exitCode !== null) throw new Error("capture helper exited");
     try {
@@ -248,10 +245,7 @@ function captureFromSocket(input: {
   });
 }
 
-function parseResponse(
-  response: Buffer,
-  region: MacOsCaptureRegion,
-): Uint8Array | undefined {
+function parseResponse(response: Buffer, region: MacOsCaptureRegion): Uint8Array | undefined {
   const newline = response.indexOf(0x0a);
   if (newline < 1 || newline > MAXIMUM_HEADER_BYTES) throw new Error("invalid capture header");
   const header = JSON.parse(response.subarray(0, newline).toString("utf8")) as Record<
@@ -321,12 +315,7 @@ function runCommand(
       { encoding: "utf8", maxBuffer: 64_000, timeout: 2_000 },
       (error, stdout, stderr) => {
         resolve({
-          exitCode:
-            error === null
-              ? 0
-              : typeof error.code === "number"
-                ? error.code
-                : 1,
+          exitCode: error === null ? 0 : typeof error.code === "number" ? error.code : 1,
           stdout,
           stderr,
         });
