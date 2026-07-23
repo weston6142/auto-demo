@@ -89,14 +89,24 @@ final class CaptureProtocolTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            CaptureResponseHeader.failure(.invalidRegion),
+            CaptureResponseHeader.failure(
+                .captureFailed,
+                diagnostic: CaptureFailureDiagnostic(
+                    stage: .screenshotCapture,
+                    systemErrorDomain: "SCStreamErrorDomain",
+                    systemErrorCode: -3812
+                )
+            ),
             CaptureResponseHeader(
                 ok: false,
-                code: "capture_region_invalid",
-                message: "Capture region is invalid.",
+                code: "native_window_capture_unavailable",
+                message: "Native browser UI capture is unavailable.",
                 byteLength: nil,
                 width: nil,
-                height: nil
+                height: nil,
+                diagnosticStage: .screenshotCapture,
+                systemErrorDomain: "SCStreamErrorDomain",
+                systemErrorCode: -3812
             )
         )
     }

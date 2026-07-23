@@ -4,6 +4,12 @@ import { chmod, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  createNativeCaptureDiagnosticRecorder,
+  elapsedMilliseconds,
+  type MacOsCaptureDiagnosticEvent,
+  type NativeCaptureRegion,
+} from "./nativeCaptureDiagnostics.js";
 
 const SETUP_COMMAND = "npm run autodemo -- setup capture-helper --json" as const;
 const HELPER_APP_NAME = "Auto Demo Capture.app";
@@ -12,11 +18,22 @@ const SUPERVISOR_EXECUTABLE = "Contents/MacOS/AutoDemoCaptureSupervisor";
 const MAXIMUM_RESPONSE_BYTES = 32 * 1_024 * 1_024;
 const MAXIMUM_HEADER_BYTES = 8 * 1_024;
 const MAXIMUM_PROBE_BYTES = 16 * 1_024;
+type CaptureSocketResult =
+  | { ok: true; png: Uint8Array }
+  | {
+      ok: false;
+      code: string;
+      diagnosticStage?: string;
+      systemErrorDomain?: string;
+      systemErrorCode?: number;
+    };
 
-export type MacOsCaptureRegion = { x: number; y: number; width: number; height: number };
+export type MacOsCaptureRegion = NativeCaptureRegion;
+export type { MacOsCaptureDiagnosticEvent } from "./nativeCaptureDiagnostics.js";
 
 export type MacOsCaptureHelperClient = {
   capture(region: MacOsCaptureRegion): Promise<Uint8Array | undefined>;
+  recordDiagnostic?(event: MacOsCaptureDiagnosticEvent): Promise<void>;
   close(): Promise<void>;
 };
 
@@ -214,36 +231,96 @@ export async function createMacOsCaptureHelperClient(
     })}\n`,
     { flag: "wx", mode: 0o600 },
   );
-  const child = dependencies.launch(supervisor, ["--launch-request", launchRequestPath]);
+  const diagnostics = await createNativeCaptureDiagnosticRecorder(input.sessionDirectory);
+  let child: CaptureHelperChildProcess;
+  try {
+    child = dependencies.launch(supervisor, ["--launch-request", launchRequestPath]);
+  } catch {
+    await diagnostics.record({ event: "helper_start_failed", stage: "helper_lifecycle" });
+    await cleanup(bootstrapPath, socketDirectory);
+    await diagnostics.close();
+    throw new Error("capture helper unavailable");
+  }
   const childObservation = observeChild(child);
   let closed = false;
   try {
     await waitForSocket(socketPath, child, childObservation);
+    await diagnostics.record({ event: "helper_started" });
   } catch {
+    await diagnostics.record({ event: "helper_start_failed", stage: "helper_lifecycle" });
     if (childObservation.error === undefined) {
       await stopChild(child, childObservation, dependencies).catch(() => undefined);
     }
     await cleanup(bootstrapPath, socketDirectory);
+    await diagnostics.close();
     throw new Error("capture helper unavailable");
   }
 
+  let attempt = 0;
   return {
     async capture(region) {
       if (closed || !validRegion(region)) return undefined;
-      return await captureFromSocket({
-        socketPath,
-        token,
-        region,
-        timeoutMs: input.requestTimeoutMs ?? 5_000,
-      }).catch(() => undefined);
+      attempt += 1;
+      const started = performance.now();
+      try {
+        const result = await captureFromSocket({
+          socketPath,
+          token,
+          region,
+          timeoutMs: input.requestTimeoutMs ?? 5_000,
+        });
+        if (!result.ok) {
+          await diagnostics.record({
+            event: "capture_failed",
+            attempt,
+            elapsedMs: elapsedMilliseconds(started),
+            region,
+            code: result.code,
+            stage: result.diagnosticStage ?? "helper_response",
+            ...(result.systemErrorDomain === undefined
+              ? {}
+              : { systemErrorDomain: result.systemErrorDomain }),
+            ...(result.systemErrorCode === undefined
+              ? {}
+              : { systemErrorCode: result.systemErrorCode }),
+          });
+          return undefined;
+        }
+        await diagnostics.record({
+          event: "capture_succeeded",
+          attempt,
+          elapsedMs: elapsedMilliseconds(started),
+          region,
+          byteLength: result.png.byteLength,
+        });
+        return result.png;
+      } catch (error) {
+        await diagnostics.record({
+          event: "capture_failed",
+          attempt,
+          elapsedMs: elapsedMilliseconds(started),
+          region,
+          code: error instanceof CaptureSocketError ? error.code : "capture_transport_failed",
+          stage: error instanceof CaptureSocketError ? error.stage : "socket_transport",
+        });
+        return undefined;
+      }
+    },
+    async recordDiagnostic(event) {
+      await diagnostics.record(event);
     },
     async close() {
       if (closed) return;
       closed = true;
       try {
         await stopChild(child, childObservation, dependencies);
+        await diagnostics.record({ event: "helper_stopped" });
+      } catch (error) {
+        await diagnostics.record({ event: "helper_stop_failed", stage: "helper_lifecycle" });
+        throw error;
       } finally {
         await cleanup(bootstrapPath, socketDirectory);
+        await diagnostics.close();
       }
     },
   };
@@ -345,12 +422,15 @@ function captureFromSocket(input: {
   token: string;
   region: MacOsCaptureRegion;
   timeoutMs: number;
-}): Promise<Uint8Array | undefined> {
+}): Promise<CaptureSocketResult> {
   return new Promise((resolve, reject) => {
     const socket = createConnection(input.socketPath);
     const chunks: Buffer[] = [];
     let totalBytes = 0;
-    const timeout = setTimeout(() => socket.destroy(new Error("capture timeout")), input.timeoutMs);
+    const timeout = setTimeout(
+      () => socket.destroy(new CaptureSocketError("socket_transport", "capture_timeout")),
+      input.timeoutMs,
+    );
     socket.on("connect", () => {
       socket.write(
         `${JSON.stringify({ protocolVersion: 1, token: input.token, ...input.region })}\n`,
@@ -359,34 +439,58 @@ function captureFromSocket(input: {
     socket.on("data", (chunk: Buffer) => {
       totalBytes += chunk.length;
       if (totalBytes > MAXIMUM_HEADER_BYTES + MAXIMUM_RESPONSE_BYTES) {
-        socket.destroy(new Error("capture response too large"));
+        socket.destroy(new CaptureSocketError("response_validation", "capture_response_too_large"));
         return;
       }
       chunks.push(Buffer.from(chunk));
     });
     socket.on("error", (error) => {
       clearTimeout(timeout);
-      reject(error);
+      reject(
+        error instanceof CaptureSocketError
+          ? error
+          : new CaptureSocketError("socket_transport", "capture_socket_error"),
+      );
     });
     socket.on("end", () => {
       clearTimeout(timeout);
       try {
         resolve(parseResponse(Buffer.concat(chunks), input.region));
       } catch (error) {
-        reject(error);
+        reject(
+          error instanceof CaptureSocketError
+            ? error
+            : new CaptureSocketError("response_validation", "invalid_capture_header"),
+        );
       }
     });
   });
 }
 
-function parseResponse(response: Buffer, region: MacOsCaptureRegion): Uint8Array | undefined {
+function parseResponse(response: Buffer, region: MacOsCaptureRegion): CaptureSocketResult {
   const newline = response.indexOf(0x0a);
-  if (newline < 1 || newline > MAXIMUM_HEADER_BYTES) throw new Error("invalid capture header");
+  if (newline < 1 || newline > MAXIMUM_HEADER_BYTES) {
+    throw new CaptureSocketError("response_validation", "invalid_capture_header");
+  }
   const header = JSON.parse(response.subarray(0, newline).toString("utf8")) as Record<
     string,
     unknown
   >;
-  if (header.ok !== true) return undefined;
+  if (header.ok !== true) {
+    return {
+      ok: false,
+      code: boundedCode(header.code) ?? "native_window_capture_unavailable",
+      ...(boundedDiagnosticStage(header.diagnosticStage) === undefined
+        ? {}
+        : { diagnosticStage: boundedDiagnosticStage(header.diagnosticStage) }),
+      ...(boundedSystemErrorDomain(header.systemErrorDomain) === undefined
+        ? {}
+        : { systemErrorDomain: boundedSystemErrorDomain(header.systemErrorDomain) }),
+      ...(boundedSystemErrorCode(header.systemErrorCode) === undefined
+        ? {}
+        : { systemErrorCode: boundedSystemErrorCode(header.systemErrorCode) }),
+    };
+  }
   if (
     !Number.isInteger(header.byteLength) ||
     (header.byteLength as number) < 1 ||
@@ -394,12 +498,43 @@ function parseResponse(response: Buffer, region: MacOsCaptureRegion): Uint8Array
     header.width !== region.width ||
     header.height !== region.height
   ) {
-    throw new Error("invalid capture header");
+    throw new CaptureSocketError("response_validation", "invalid_capture_header");
   }
   const byteLength = header.byteLength as number;
   const png = response.subarray(newline + 1);
-  if (png.length !== byteLength) throw new Error("invalid capture length");
-  return Uint8Array.from(png);
+  if (png.length !== byteLength) {
+    throw new CaptureSocketError("response_validation", "invalid_capture_length");
+  }
+  return { ok: true, png: Uint8Array.from(png) };
+}
+
+class CaptureSocketError extends Error {
+  constructor(
+    readonly stage: "socket_transport" | "response_validation",
+    readonly code: string,
+  ) {
+    super(code);
+  }
+}
+
+function boundedCode(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9_]{1,128}$/u.test(value) ? value : undefined;
+}
+
+function boundedDiagnosticStage(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9_]{1,64}$/u.test(value) ? value : undefined;
+}
+
+function boundedSystemErrorDomain(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9._-]{1,128}$/u.test(value) ? value : undefined;
+}
+
+function boundedSystemErrorCode(value: unknown): number | undefined {
+  return Number.isSafeInteger(value) &&
+    (value as number) >= -1_000_000 &&
+    (value as number) <= 1_000_000
+    ? (value as number)
+    : undefined;
 }
 
 function validRegion(region: MacOsCaptureRegion): boolean {

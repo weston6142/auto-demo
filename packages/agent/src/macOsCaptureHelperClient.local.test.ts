@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, mkdtemp, readdir, rm } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PNG } from "pngjs";
@@ -33,7 +33,10 @@ it.runIf(process.platform === "darwin" && process.env.AUTODEMO_REAL_CAPTURE_HELP
       expect({ width: image.width, height: image.height }).toEqual({ width: 32, height: 32 });
       await client.close();
       client = undefined;
-      expect(await readdir(sessionDirectory)).toEqual([]);
+      expect(await readdir(sessionDirectory)).toEqual(["native-capture-diagnostics.jsonl"]);
+      expect(
+        await readFile(join(sessionDirectory, "native-capture-diagnostics.jsonl"), "utf8"),
+      ).toContain('"event":"capture_succeeded"');
       expect(await runningCaptureProcesses()).toEqual([]);
     } finally {
       await client?.close();

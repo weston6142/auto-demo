@@ -80,6 +80,12 @@ public final class UnixCaptureServer<Provider: CaptureProvider>: @unchecked Send
                     height: request.height
                 )
                 try writeResponse(header, png: png, to: client)
+            } catch let diagnostic as CaptureFailureDiagnostic {
+                try writeResponse(
+                    .failure(.captureFailed, diagnostic: diagnostic),
+                    png: nil,
+                    to: client
+                )
             } catch let error as CaptureProtocolError {
                 try writeResponse(.failure(error), png: nil, to: client)
             } catch {

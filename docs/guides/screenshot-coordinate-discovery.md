@@ -42,6 +42,14 @@ timeout is only an orphan backstop. If setup still returns
 Capture** in System Settings and rerun setup; do not grant Screen Recording to a
 terminal or model host as a fallback.
 
+The helper writes `native-capture-diagnostics.jsonl` inside the private
+discovery-session directory. It records bounded lifecycle, timing, requested
+region, response-validation, and ScreenCaptureKit stage codes for each native
+capture attempt. It does not contain screenshots, page content, tokens, socket
+or bootstrap paths, signing data, or raw system error descriptions. Use this
+file to distinguish display selection, screenshot capture, PNG encoding,
+transport, and normalization failures before retrying a failed session.
+
 ## Start
 
 Choose `safe`, `public-browse`, `disposable`, or `yolo` before browser activity,

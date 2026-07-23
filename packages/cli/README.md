@@ -66,6 +66,12 @@ Services; the idle timeout remains an orphan backstop. The CLI never falls back
 to launching the inner helper directly or granting capture permission to the
 terminal or model host.
 
+Each macOS discovery session retains a private
+`native-capture-diagnostics.jsonl` with bounded helper lifecycle, timing,
+region, and failure-stage codes. It excludes screenshots, page content,
+authentication material, private paths, signing data, and raw system error
+descriptions.
+
 ## Agent Plan Intake
 
 New walkthrough plans come from evidence-backed discovery compilation. Persist

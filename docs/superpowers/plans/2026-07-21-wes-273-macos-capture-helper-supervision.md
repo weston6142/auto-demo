@@ -783,6 +783,18 @@ private launch material.
 
 ### Task 8: Run Fresh Prompt-Only Cars.com Acceptance To Review
 
+Acceptance correction result: the first warned rerun did not reach review. Two
+autonomous discovery sessions encountered intermittent
+`native_window_capture_unavailable` while reopening the Cars.com native
+distance menu, and the agent exceeded the single permitted clean retry. The run
+was stopped without replay, approval, recording, handoff, editor, or export.
+RED-GREEN correction now refreshes geometry for every native capture and
+retains owner-only, sanitized stage diagnostics spanning helper lifecycle,
+ScreenCaptureKit, display selection, transport, response validation, and PNG
+normalization. The signed real-helper gate passes with a retained diagnostic
+file and no helper or supervisor process left running. Restart this task only
+from a new reviewed commit and a new clean clone.
+
 **Files:**
 
 - Create locally, do not commit: a new clean acceptance checkout and `workflow/` session artifacts

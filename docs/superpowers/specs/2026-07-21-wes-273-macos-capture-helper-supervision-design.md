@@ -130,6 +130,23 @@ Every discovery session receives a new application instance, bootstrap, token, a
 
 Arbitrary exception messages, local certificate names, signing fingerprints, Team IDs, process arguments, tokens, raw screen data, and private paths never enter public results.
 
+### Acceptance-driven capture diagnostics
+
+The first clean Cars.com acceptance attempts exposed intermittent native-window
+capture failures while a native distance menu was open. The existing boundary
+collapsed ScreenCaptureKit, display selection, transport, response validation,
+and PNG normalization failures into one public capability code, leaving no
+safe root-cause evidence.
+
+Each discovery session therefore retains one owner-only
+`native-capture-diagnostics.jsonl`. Records use stable lifecycle and failure
+stage codes, a monotonic sequence, bounded elapsed time, the requested numeric
+region, bounded system error domain/code, and output byte length. They never
+contain screenshots, page content, URLs, target labels, tokens, socket or
+bootstrap paths, signing data, or raw exception text. Browser geometry is read
+again for every native capture so window movement cannot silently reuse stale
+coordinates.
+
 ## Testing Strategy
 
 ### TypeScript RED-GREEN Coverage
@@ -139,6 +156,10 @@ Arbitrary exception messages, local certificate names, signing fingerprints, Tea
 - Session creation launches the supervisor with a private request path and keeps the token out of arguments.
 - Client close, early child exit, socket timeout, malformed response, and cleanup behavior remain observable at the public boundary.
 - Existing signature, source-hash, same-user socket, authentication, response-bound, and secret-hygiene tests remain green.
+- Failed helper responses preserve bounded diagnostic stages in the private
+  JSONL file, malformed responses identify response validation, invalid PNGs
+  identify normalization, and capture continues to expose only the existing
+  public capability error.
 
 ### Swift RED-GREEN Coverage
 

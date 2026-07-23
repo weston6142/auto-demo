@@ -122,6 +122,52 @@ describe("macOS capture helper client", () => {
     await client.close();
   });
 
+  it("persists private bounded diagnostics for helper capture failures", async () => {
+    const fixture = await helperFixture();
+    const child = new FakeChildProcess();
+    let observedToken = "";
+    const client = await createMacOsCaptureHelperClient({
+      sessionDirectory: fixture.sessionDirectory,
+      installPath: fixture.installPath,
+      dependencies: {
+        ...fixture.dependencies,
+        launch(_executable, args) {
+          void startFailureServerFromLaunchRequest(args[1]!, child, (token) => {
+            observedToken = token;
+          });
+          return child;
+        },
+      },
+    });
+
+    expect(await client.capture({ x: 40, y: 120, width: 320, height: 240 })).toBeUndefined();
+    await client.close();
+
+    const diagnosticPath = join(fixture.sessionDirectory, "native-capture-diagnostics.jsonl");
+    expect((await stat(diagnosticPath)).mode & 0o777).toBe(0o600);
+    const diagnosticText = await readFile(diagnosticPath, "utf8");
+    const diagnostics = diagnosticText
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          schemaVersion: 1,
+          event: "capture_failed",
+          attempt: 1,
+          stage: "screenshot_capture",
+          code: "native_window_capture_unavailable",
+          systemErrorDomain: "SCStreamErrorDomain",
+          systemErrorCode: -3812,
+          region: { x: 40, y: 120, width: 320, height: 240 },
+        }),
+      ]),
+    );
+    expect(diagnosticText).not.toContain(observedToken);
+    expect(diagnosticText).not.toContain(fixture.sessionDirectory);
+  });
+
   it("rejects a supervisor spawn error without an unhandled child-process error", async () => {
     const fixture = await helperFixture();
     const child = new FakeChildProcess();
@@ -340,6 +386,44 @@ async function startMalformedServerFromLaunchRequest(
   const bootstrapPath = launchRequest.bootstrapPath;
   const bootstrap = JSON.parse(await readFile(bootstrapPath, "utf8")) as { socketPath: string };
   const server = createServer((socket) => socket.end('{"ok":true,"byteLength":4,"width":1}\nno'));
+  servers.push(server);
+  child.onKill = () => server.close();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(bootstrap.socketPath, resolve);
+  });
+}
+
+async function startFailureServerFromLaunchRequest(
+  launchRequestPath: string,
+  child: FakeChildProcess,
+  observeToken: (token: string) => void,
+) {
+  const launchRequest = JSON.parse(await readFile(launchRequestPath, "utf8")) as {
+    bootstrapPath: string;
+  };
+  const bootstrap = JSON.parse(await readFile(launchRequest.bootstrapPath, "utf8")) as {
+    socketPath: string;
+  };
+  const server = createServer((socket) => {
+    let request = "";
+    socket.on("data", (chunk) => {
+      request += chunk.toString("utf8");
+      if (!request.includes("\n")) return;
+      const parsed = JSON.parse(request.trim()) as { token: string };
+      observeToken(parsed.token);
+      socket.end(
+        `${JSON.stringify({
+          ok: false,
+          code: "native_window_capture_unavailable",
+          message: "Native browser UI capture is unavailable.",
+          diagnosticStage: "screenshot_capture",
+          systemErrorDomain: "SCStreamErrorDomain",
+          systemErrorCode: -3812,
+        })}\n`,
+      );
+    });
+  });
   servers.push(server);
   child.onKill = () => server.close();
   await new Promise<void>((resolve, reject) => {
