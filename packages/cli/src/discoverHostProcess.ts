@@ -58,6 +58,8 @@ export async function runDiscoverHostProcess(
     await socket?.cleanup().catch(() => undefined);
     return;
   }
+  // Unreachable: the try block assigns socket or the catch returns. TypeScript
+  // cannot narrow the assignment across the try/catch boundary.
   if (socket === undefined) return;
   await atomicJson(
     join(bootstrap.sessionDirectory, "host.json"),
