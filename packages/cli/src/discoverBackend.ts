@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { lstat, mkdir, open, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { DiscoverCommandBackend, DiscoverStartInput } from "./discoverCommand.js";
+import { isTrustedDiscoverHostSocketPath } from "./discoverHostSocket.js";
 import { sendDiscoverHostRequest } from "./discoverProtocol.js";
 
 export type DiscoverHostBootstrap = {
@@ -91,19 +92,19 @@ export function createFileDiscoverCommandBackend(
         if (!tokenMetadata.isFile() || tokenMetadata.isSymbolicLink()) return unavailable();
         const token = await readFile(tokenPath, "utf8");
         const host = await readJson(join(sessionDirectory, "host.json"));
-        const socketPath = join(sessionDirectory, "host.sock");
         if (
           !isRecord(host) ||
           host.schemaVersion !== 1 ||
-          host.socketPath !== socketPath ||
+          typeof host.socketPath !== "string" ||
           typeof host.pid !== "number" ||
           !Number.isInteger(host.pid) ||
-          host.pid < 1
+          host.pid < 1 ||
+          !(await isTrustedDiscoverHostSocketPath(host.socketPath))
         ) {
           return unavailable();
         }
         return await sendDiscoverHostRequest({
-          socketPath,
+          socketPath: host.socketPath,
           token,
           request: { command, sessionId, ...(payload === undefined ? {} : { payload }) },
         });

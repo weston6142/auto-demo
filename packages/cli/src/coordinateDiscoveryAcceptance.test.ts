@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDiscoverSessionHost, type DiscoverSessionHost } from "./discoverHost.js";
 import { createFileDiscoverCommandBackend } from "./discoverBackend.js";
+import { allocateDiscoverHostSocket } from "./discoverHostSocket.js";
 import {
   createPlaywrightDiscoverRuntime,
   readDiscoverBootstrap,
@@ -64,7 +65,9 @@ describe("coordinate discovery CLI acceptance", () => {
           );
           return;
         }
-        const socketPath = join(bootstrap.sessionDirectory, "host.sock");
+        const allocation = await allocateDiscoverHostSocket();
+        tempDirectories.push(allocation.socketDirectory);
+        const socketPath = allocation.socketPath;
         const host = await createDiscoverSessionHost({
           socketPath,
           token: bootstrap.token,

@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createFileDiscoverCommandBackend } from "./discoverBackend.js";
+import { allocateDiscoverHostSocket } from "./discoverHostSocket.js";
 import { createDiscoverHostServer, type DiscoverHostServer } from "./discoverProtocol.js";
 
 const directories: string[] = [];
@@ -17,20 +18,25 @@ afterEach(async () => {
 });
 
 describe("file discover command backend", () => {
-  it("starts once and reconnects later commands from safe host metadata", async () => {
+  it("starts once and reconnects later commands from validated private socket metadata", async () => {
     const root = await mkdtemp(join(tmpdir(), "discover-backend-"));
     directories.push(root);
-    const workflowDirectory = join(root, "workflow");
+    const workflowDirectory = join(
+      root,
+      "a-deliberately-long-workflow-segment-that-would-overflow-the-unix-socket-path-limit-if-sockets-lived-under-it",
+      "workflow",
+    );
     const backend = createFileDiscoverCommandBackend({
       workflowDirectory,
       idGenerator: () => "discovery-123",
       tokenGenerator: () => "private-token",
       async launch(bootstrapPath) {
         const bootstrap = JSON.parse(await readFile(bootstrapPath, "utf8"));
-        const socketPath = join(bootstrap.sessionDirectory, "host.sock");
+        const allocation = await allocateDiscoverHostSocket();
+        directories.push(allocation.socketDirectory);
         servers.push(
           await createDiscoverHostServer({
-            socketPath,
+            socketPath: allocation.socketPath,
             token: bootstrap.token,
             async handle(request) {
               return { ok: true, sessionId: request.sessionId, status: "discovering" };
@@ -39,7 +45,7 @@ describe("file discover command backend", () => {
         );
         await writeFile(
           join(bootstrap.sessionDirectory, "host.json"),
-          JSON.stringify({ schemaVersion: 1, socketPath, pid: process.pid }),
+          JSON.stringify({ schemaVersion: 1, socketPath: allocation.socketPath, pid: process.pid }),
         );
         await writeFile(
           join(bootstrap.sessionDirectory, "ready.json"),
@@ -75,6 +81,56 @@ describe("file discover command backend", () => {
     expect(await readFile(join(workflowDirectory, "discovery-123", ".host-token"), "utf8")).toBe(
       "private-token",
     );
+  });
+
+  it("refuses to connect through host metadata pointing at an untrusted socket directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "discover-backend-"));
+    directories.push(root);
+    const workflowDirectory = join(root, "workflow");
+    const backend = createFileDiscoverCommandBackend({
+      workflowDirectory,
+      idGenerator: () => "discovery-123",
+      tokenGenerator: () => "private-token",
+      async launch(bootstrapPath) {
+        const bootstrap = JSON.parse(await readFile(bootstrapPath, "utf8"));
+        const allocation = await allocateDiscoverHostSocket();
+        directories.push(allocation.socketDirectory);
+        servers.push(
+          await createDiscoverHostServer({
+            socketPath: allocation.socketPath,
+            token: bootstrap.token,
+            async handle(request) {
+              return { ok: true, sessionId: request.sessionId, status: "discovering" };
+            },
+          }),
+        );
+        await chmod(allocation.socketDirectory, 0o755);
+        await writeFile(
+          join(bootstrap.sessionDirectory, "host.json"),
+          JSON.stringify({ schemaVersion: 1, socketPath: allocation.socketPath, pid: process.pid }),
+        );
+        await writeFile(
+          join(bootstrap.sessionDirectory, "ready.json"),
+          JSON.stringify({ ok: true, sessionId: bootstrap.sessionId }),
+        );
+      },
+      pollIntervalMs: 1,
+      startupTimeoutMs: 100,
+    });
+
+    await backend.start({
+      url: "https://example.test/",
+      goal: "Open the first organic result",
+      risk: "yolo",
+      allowedOrigins: [],
+      grid: false,
+    });
+
+    await expect(backend.request("discovery-123", "status")).resolves.toEqual({
+      ok: false,
+      code: "discovery_host_unavailable",
+      message: "Discover host is unavailable.",
+    });
   });
 
   it("fails safely when the detached host does not become ready", async () => {

@@ -37,6 +37,7 @@ import type { DiscoverHostRuntime } from "./discoverHost.js";
 export type PlaywrightDiscoverRuntimeResult = {
   runtime: DiscoverHostRuntime;
   initialResponse: Record<string, unknown> & { ok: boolean };
+  recordStartupFailure?(stage: DiscoverRuntimeOperationStage): Promise<void>;
 };
 
 export type PlaywrightDiscoverRuntimeOptions = {
@@ -225,6 +226,13 @@ export async function createPlaywrightDiscoverRuntime(
   return {
     runtime: runtimeFor(state),
     initialResponse: { ok: true, sessionId: bootstrap.sessionId, frame: frame.frame },
+    async recordStartupFailure(stage) {
+      await diagnostics.record({
+        event: "runtime_operation_failed",
+        operation: "startup",
+        stage,
+      });
+    },
   };
 }
 

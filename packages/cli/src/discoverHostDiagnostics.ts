@@ -13,6 +13,7 @@ const MAX_SESSION_ELAPSED_MS = 86_400_000;
 export type DiscoverRuntimeOperationStage =
   | "browser_launch"
   | "capture_setup"
+  | "host_socket_bind"
   | "coordinate_session_start"
   | "initial_frame_persistence"
   | "coordinate_session"
