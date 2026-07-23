@@ -935,7 +935,7 @@ failures, finish checkpoint failures, both review-artifact write stages, and
 failed-attempt listener detachment. Preserve the same raw-data exclusions and
 best-effort behavior.
 
-- [ ] **Step 9: Reverify broadly, commit the review repair, and obtain Ready**
+- [x] **Step 9: Reverify broadly, commit the review repair, and obtain Ready**
 
 Run the complete agent and CLI suites, repository build/test CI, issue-owned
 Prettier/ESLint, and diff validation. Commit only WES-273 paths in a separate
