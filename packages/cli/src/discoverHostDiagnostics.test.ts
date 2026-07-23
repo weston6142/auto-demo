@@ -33,14 +33,20 @@ describe("discover host diagnostics", () => {
       viewport: { width: 1280, height: 720 },
     });
     attached.onMainDocumentResponse({
+      ordinal: 1,
+      profileId,
       status: 99,
       url: "https://www.example.test/private-invalid?token=invalid-secret",
     });
     attached.onMainDocumentResponse({
+      ordinal: 1,
+      profileId,
       status: 302,
       url: "https://www.example.test/private-result?token=same-origin-secret",
     });
     attached.onMainDocumentResponse({
+      ordinal: 2,
+      profileId: `sha256:${"b".repeat(64)}`,
       status: 403,
       url: "https://challenge.example.net/private-block?token=other-origin-secret",
     });
@@ -68,6 +74,8 @@ describe("discover host diagnostics", () => {
         schemaVersion: 1,
         sequence: 2,
         event: "main_document_response",
+        ordinal: 1,
+        profileId,
         status: 302,
         originRelation: "same-origin",
       }),
@@ -75,6 +83,8 @@ describe("discover host diagnostics", () => {
         schemaVersion: 1,
         sequence: 3,
         event: "main_document_response",
+        ordinal: 2,
+        profileId: `sha256:${"b".repeat(64)}`,
         status: 403,
         originRelation: "other-origin",
       }),
@@ -108,12 +118,16 @@ describe("discover host diagnostics", () => {
     });
     expect(() =>
       attached.onMainDocumentResponse({
+        ordinal: 1,
+        profileId: `sha256:${"a".repeat(64)}`,
         status: 403,
         url: "https://example.test/private?token=listener-secret",
       }),
     ).not.toThrow();
     expect(() =>
       attached.onMainDocumentResponse({
+        ordinal: 1,
+        profileId: `sha256:${"a".repeat(64)}`,
         status: 403,
         url: "not a url containing malformed-secret",
       }),

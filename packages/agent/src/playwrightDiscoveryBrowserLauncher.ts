@@ -36,13 +36,15 @@ export type DiscoveryBrowserLaunchResult =
 export type DiscoveryBrowserLauncherPage = {
   raw: Page;
   observeMainDocumentResponses(
-    listener: (response: DiscoveryBrowserMainDocumentResponse) => void,
+    listener: (response: { status: number; url: string }) => void,
   ): () => void;
   goto(url: string): Promise<void>;
   challengeSummary(): Promise<{ title: string; visibleText: string }>;
 };
 
 export type DiscoveryBrowserMainDocumentResponse = {
+  ordinal: 1 | 2 | 3;
+  profileId: string;
   status: number;
   url: string;
 };
@@ -68,6 +70,7 @@ export type DiscoveryBrowserLauncher = {
     url: string;
     profilePlan: unknown;
     onMainDocumentResponse?: (response: DiscoveryBrowserMainDocumentResponse) => void;
+    onLaunchAttempt?: (attempt: DiscoveryBrowserLaunchAttempt) => void;
   }): Promise<DiscoveryBrowserLaunchResult>;
 };
 
@@ -100,7 +103,11 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
         try {
           browser = await driver.launch(profile);
         } catch {
-          attempts.push({ ordinal, profileId, outcome: "browser_launch_failed" });
+          reportLaunchAttempt(
+            attempts,
+            { ordinal, profileId, outcome: "browser_launch_failed" },
+            input.onLaunchAttempt,
+          );
           continue;
         }
         let detachResponseDiagnostics: (() => void) | undefined;
@@ -111,7 +118,7 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
             try {
               detachResponseDiagnostics = page.observeMainDocumentResponses((response) => {
                 try {
-                  input.onMainDocumentResponse?.(response);
+                  input.onMainDocumentResponse?.({ ordinal, profileId, ...response });
                 } catch {
                   // Diagnostics cannot alter launch behavior.
                 }
@@ -123,19 +130,22 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
           try {
             await page.goto(input.url);
           } catch {
-            attempts.push({ ordinal, profileId, outcome: "browser_navigation_failed" });
+            reportLaunchAttempt(
+              attempts,
+              { ordinal, profileId, outcome: "browser_navigation_failed" },
+              input.onLaunchAttempt,
+            );
             detachDiagnostics(detachResponseDiagnostics);
             await closeResources(context, browser);
             continue;
           }
           const challenge = classifyBrowserChallenge(await page.challengeSummary());
           if (challenge !== undefined) {
-            attempts.push({
-              ordinal,
-              profileId,
-              outcome: "anti_bot_challenge",
-              challenge,
-            });
+            reportLaunchAttempt(
+              attempts,
+              { ordinal, profileId, outcome: "anti_bot_challenge", challenge },
+              input.onLaunchAttempt,
+            );
             detachDiagnostics(detachResponseDiagnostics);
             await closeResources(context, browser);
             continue;
@@ -155,7 +165,11 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
             },
           };
         } catch {
-          attempts.push({ ordinal, profileId, outcome: "browser_navigation_failed" });
+          reportLaunchAttempt(
+            attempts,
+            { ordinal, profileId, outcome: "browser_navigation_failed" },
+            input.onLaunchAttempt,
+          );
           detachDiagnostics(detachResponseDiagnostics);
           await closeResources(context, browser);
         }
@@ -169,6 +183,19 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
       };
     },
   };
+}
+
+function reportLaunchAttempt(
+  attempts: DiscoveryBrowserLaunchAttempt[],
+  attempt: DiscoveryBrowserLaunchAttempt,
+  listener: ((attempt: DiscoveryBrowserLaunchAttempt) => void) | undefined,
+): void {
+  attempts.push(attempt);
+  try {
+    listener?.(attempt);
+  } catch {
+    // Diagnostics cannot alter browser launch or fallback behavior.
+  }
 }
 
 function createDefaultDriver(): DiscoveryBrowserLauncherDriver {

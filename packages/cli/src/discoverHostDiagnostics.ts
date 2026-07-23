@@ -4,6 +4,7 @@ import type {
   CoordinateDiscoveryActResult,
   CoordinateDiscoveryBoundary,
   CoordinateDiscoveryDiagnosticEvent,
+  DiscoveryBrowserLaunchAttempt,
 } from "@auto-demo/agent";
 
 const DIAGNOSTIC_FILENAME = "discover-host-diagnostics.jsonl";
@@ -33,6 +34,8 @@ export type DiscoverHostDiagnosticEvent =
     }
   | {
       event: "main_document_response";
+      ordinal: 1 | 2 | 3;
+      profileId: string;
       status: number;
       originRelation: "same-origin" | "other-origin";
     }
@@ -97,11 +100,21 @@ export function createDiscoverPageDiagnostics(input: {
   startUrl: string;
   recorder: DiscoverHostDiagnosticRecorder;
 }): {
-  onMainDocumentResponse(response: { status: number; url: string }): void;
+  onMainDocumentResponse(response: {
+    ordinal: 1 | 2 | 3;
+    profileId: string;
+    status: number;
+    url: string;
+  }): void;
+  onLaunchAttempt(attempt: DiscoveryBrowserLaunchAttempt): void;
   close(): Promise<void>;
 } {
   const startOrigin = new URL(input.startUrl).origin;
   let pending = Promise.resolve();
+  const queueEvent = (event: DiscoverHostDiagnosticEvent) => {
+    const recorded = input.recorder.record(event).catch(() => undefined);
+    pending = pending.then(async () => await recorded);
+  };
   return {
     onMainDocumentResponse(response) {
       const status = response.status;
@@ -109,14 +122,24 @@ export function createDiscoverPageDiagnostics(input: {
       try {
         const originRelation =
           new URL(response.url).origin === startOrigin ? "same-origin" : "other-origin";
-        pending = pending
-          .then(async () =>
-            input.recorder.record({ event: "main_document_response", status, originRelation }),
-          )
-          .catch(() => undefined);
+        queueEvent({
+          event: "main_document_response",
+          ordinal: response.ordinal,
+          profileId: response.profileId,
+          status,
+          originRelation,
+        });
       } catch {
         // Diagnostics cannot alter browser behavior.
       }
+    },
+    onLaunchAttempt(attempt) {
+      queueEvent({
+        event: "browser_launch_attempt",
+        ordinal: attempt.ordinal,
+        profileId: attempt.profileId,
+        outcome: attempt.outcome,
+      });
     },
     async close() {
       await pending;
@@ -140,6 +163,8 @@ function boundedEvent(event: DiscoverHostDiagnosticEvent): DiscoverHostDiagnosti
     case "main_document_response":
       return {
         event: event.event,
+        ordinal: boundedInteger(event.ordinal, 1, 3) as 1 | 2 | 3,
+        profileId: boundedProfileId(event.profileId),
         status: boundedInteger(event.status, 100, 599),
         originRelation: event.originRelation,
       };

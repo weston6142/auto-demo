@@ -1,4 +1,4 @@
-import type { BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
+import { browserLaunchProfileId, type BrowserLaunchProfileV1 } from "@auto-demo/browser-profile";
 import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import {
@@ -77,9 +77,55 @@ class FakeDriver implements DiscoveryBrowserLauncherDriver {
   }
 }
 
+class DiagnosticFallbackDriver implements DiscoveryBrowserLauncherDriver {
+  readonly detached = [false, false];
+  private attemptIndex = 0;
+
+  async launch() {
+    const attemptIndex = this.attemptIndex++;
+    const detached = this.detached;
+    let listener: ((response: { status: number; url: string }) => void) | undefined;
+    return {
+      async newContext() {
+        return {
+          async newPage() {
+            return {
+              raw: {} as Page,
+              observeMainDocumentResponses(
+                next: (response: { status: number; url: string }) => void,
+              ) {
+                listener = next;
+                return () => {
+                  listener = undefined;
+                  detached[attemptIndex] = true;
+                };
+              },
+              async goto() {
+                listener?.({
+                  status: attemptIndex === 0 ? 403 : 200,
+                  url:
+                    attemptIndex === 0
+                      ? "https://blocked.example/private?token=first-secret"
+                      : "https://example.com/private?token=second-secret",
+                });
+                if (attemptIndex === 0) throw new Error("first-navigation-secret");
+              },
+              async challengeSummary() {
+                return { title: "Ready", visibleText: "Search inventory" };
+              },
+            };
+          },
+          async close() {},
+        };
+      },
+      async close() {},
+    };
+  }
+}
+
 describe("Playwright discovery browser launcher", () => {
   it("observes main-document responses before navigation completes and detaches on close", async () => {
-    const observed: Array<{ status: number; url: string }> = [];
+    const observed: Array<{ ordinal: number; profileId: string; status: number; url: string }> = [];
     let listener: ((response: { status: number; url: string }) => void) | undefined;
     let detached = false;
     const driver: DiscoveryBrowserLauncherDriver = {
@@ -127,6 +173,8 @@ describe("Playwright discovery browser launcher", () => {
     expect(result.ok).toBe(true);
     expect(observed).toEqual([
       {
+        ordinal: 1,
+        profileId: browserLaunchProfileId(bundledHeadless),
         status: 403,
         url: "https://blocked.example/private?token=navigation-secret",
       },
@@ -134,6 +182,35 @@ describe("Playwright discovery browser launcher", () => {
     expect(detached).toBe(false);
     if (result.ok) await result.close();
     expect(detached).toBe(true);
+  });
+
+  it("emits causally ordered attempt identity across a failed profile and fallback", async () => {
+    const driver = new DiagnosticFallbackDriver();
+    const events: string[] = [];
+    const result = await createPlaywrightDiscoveryBrowserLauncherForDriver(driver).launch({
+      url: "https://example.com",
+      profilePlan: {
+        schemaVersion: 1,
+        primary: bundledHeadless,
+        fallbacks: [chromeHeadful],
+      },
+      onMainDocumentResponse(response) {
+        events.push(`response:${response.ordinal}:${response.status}:${response.profileId}`);
+      },
+      onLaunchAttempt(attempt) {
+        events.push(`attempt:${attempt.ordinal}:${attempt.outcome}:${attempt.profileId}`);
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(events).toEqual([
+      `response:1:403:${browserLaunchProfileId(bundledHeadless)}`,
+      `attempt:1:browser_navigation_failed:${browserLaunchProfileId(bundledHeadless)}`,
+      `response:2:200:${browserLaunchProfileId(chromeHeadful)}`,
+    ]);
+    expect(driver.detached).toEqual([true, false]);
+    if (result.ok) await result.close();
+    expect(driver.detached).toEqual([true, true]);
   });
 
   it("falls back in declaration order and closes the challenged attempt", async () => {

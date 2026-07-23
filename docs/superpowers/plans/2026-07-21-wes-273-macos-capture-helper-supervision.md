@@ -924,7 +924,18 @@ with exact closed-enum stages, and add a distinct pre-action challenge stage.
 Do not persist raw response URLs or exception text and do not change public
 discovery results solely because diagnostic recording fails.
 
-- [ ] **Step 8: Reverify broadly, commit the review repair, and obtain Ready**
+- [x] **Step 8: Repair causal fallback ordering and expand direct stage coverage**
+
+The first repair re-review found that responses were captured live while failed
+attempt outcomes were batch-written only after all fallbacks completed. Add a
+RED two-profile navigation fixture, stamp every retained response with bounded
+attempt ordinal/profile identity, and emit each failed attempt outcome before
+the next profile begins. Add direct behavior coverage for returned frame
+failures, finish checkpoint failures, both review-artifact write stages, and
+failed-attempt listener detachment. Preserve the same raw-data exclusions and
+best-effort behavior.
+
+- [ ] **Step 9: Reverify broadly, commit the review repair, and obtain Ready**
 
 Run the complete agent and CLI suites, repository build/test CI, issue-owned
 Prettier/ESLint, and diff validation. Commit only WES-273 paths in a separate

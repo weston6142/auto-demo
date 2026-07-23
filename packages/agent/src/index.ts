@@ -240,6 +240,7 @@ export {
   type DiscoveryBrowserLaunchHandle,
   type DiscoveryBrowserLaunchResult,
   type DiscoveryBrowserLauncher,
+  type DiscoveryBrowserMainDocumentResponse,
 } from "./playwrightDiscoveryBrowserLauncher.js";
 
 export {

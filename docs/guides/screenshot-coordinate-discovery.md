@@ -54,7 +54,8 @@ transport, and normalization failures before retrying a failed session.
 Every discovery session also writes `discover-host-diagnostics.jsonl` in the
 same private directory. It records the resolved browser profile, bounded
 main-document response status and same-origin/other-origin relation beginning
-before the initial navigation, bounded failed browser-launch attempts, exact
+before the initial navigation, the bounded attempt ordinal/profile responsible
+for each response, live failed browser-launch outcomes, exact
 stable coordinate-session/action failure stages, bounded action results,
 returned persistence failures, finish stages, and host lifecycle closure. A
 `runtime_stopped` record means the logger and owned runtime reached their close

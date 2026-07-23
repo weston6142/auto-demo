@@ -96,6 +96,7 @@ export async function createPlaywrightDiscoverRuntime(
         ],
       },
       onMainDocumentResponse: pageDiagnostics.onMainDocumentResponse,
+      onLaunchAttempt: pageDiagnostics.onLaunchAttempt,
     });
   } catch (error) {
     await diagnostics.record({
@@ -106,7 +107,6 @@ export async function createPlaywrightDiscoverRuntime(
     await closeDiagnostics(pageDiagnostics, diagnostics);
     throw error;
   }
-  await recordBrowserLaunchAttempts(diagnostics, launched.attempts);
   if (!launched.ok) {
     await diagnostics.record({
       event: "runtime_operation_failed",
@@ -488,20 +488,6 @@ async function recordReturnedFailure(
   stage: DiscoverRuntimeOperationStage,
 ): Promise<void> {
   await state.diagnostics.record({ event: "runtime_operation_failed", operation, stage });
-}
-
-async function recordBrowserLaunchAttempts(
-  diagnostics: DiscoverHostDiagnosticRecorder,
-  attempts: DiscoveryBrowserLaunchHandle["attempts"],
-): Promise<void> {
-  for (const attempt of attempts) {
-    await diagnostics.record({
-      event: "browser_launch_attempt",
-      ordinal: attempt.ordinal,
-      profileId: attempt.profileId,
-      outcome: attempt.outcome,
-    });
-  }
 }
 
 async function closeDiagnostics(
