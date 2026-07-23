@@ -118,8 +118,11 @@ export {
 
 export {
   createCoordinateDiscoverySession,
+  type CoordinateDiscoveryActionStage,
   type CoordinateDiscoveryActResult,
   type CoordinateDiscoveryBoundary,
+  type CoordinateDiscoveryDiagnosticEvent,
+  type CoordinateDiscoveryDiagnosticSink,
   type CoordinateDiscoveryPage,
   type CoordinateDiscoverySession,
   type CoordinatePageState,

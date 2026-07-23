@@ -805,6 +805,114 @@ correction raises the validated orphan backstop to five minutes and adds bounded
 session-relative elapsed time to every diagnostic record. This is a generic
 session-lifecycle correction, not Cars.com-specific recovery guidance.
 
+The reviewed five-minute build then completed every native capture and closed
+both helpers cleanly, but the prompt-only acceptance still did not reach review.
+The initial discovery and its one clean retry independently selected New, Kia,
+Sorento, and All miles. Each Show matches command returned only
+`discover_host_failed`; a later observation retained the same public hard-block
+page, while the failing click itself never entered the trace. No HTTP status,
+origin relation, structured challenge classification, or internal failure stage
+was retained, and both host logs were empty. The second session was a retry, not
+replay validation. Add generic bounded discovery-host diagnostics before any
+new acceptance; do not infer a server-side classification reason or add a
+Cars.com-specific workaround.
+
+#### Step group A: Retain bounded discovery-host navigation diagnostics
+
+**Files:**
+
+- Create: `packages/cli/src/discoverHostDiagnostics.ts`
+- Create: `packages/cli/src/discoverHostDiagnostics.test.ts`
+- Modify: `packages/agent/src/coordinateDiscoverySession.ts`
+- Modify: `packages/agent/src/coordinateDiscoverySession.test.ts`
+- Modify: `packages/cli/src/playwrightDiscoverRuntime.ts`
+- Modify: `packages/cli/package.json`
+- Modify: `docs/guides/screenshot-coordinate-discovery.md`
+- Modify: `packages/cli/README.md`
+
+- [x] **Step 1: Write failing recorder and page-boundary tests**
+
+Add behavior tests that require a `0600` `discover-host-diagnostics.jsonl` with
+ordered sequence numbers and bounded `sessionElapsedMs`. Drive a fake page with
+one ignored subresource response and main-document responses on the starting
+and another origin. Require only bounded response status/origin relation and the
+resolved profile projection to persist. Seed raw URL paths, headers, bodies,
+page text, target labels, coordinates, tokens, socket paths, and exception text,
+then require every seeded value to be absent.
+
+Run:
+
+```bash
+rtk npm --workspace @auto-demo/cli exec vitest run src/discoverHostDiagnostics.test.ts
+```
+
+Expected: FAIL because the bounded recorder and page diagnostic attachment do
+not exist.
+
+- [x] **Step 2: Write the failing exact-stage test**
+
+Extend the coordinate-session fake so `state()` throws a secret-bearing error
+only after a click begins navigation. Supply an in-memory diagnostic sink and
+require the action to retain a stable `after_action_state` failure with action
+index/type while excluding the raw error. Preserve the existing public failure
+behavior.
+
+Run:
+
+```bash
+rtk npm --workspace @auto-demo/agent exec vitest run src/coordinateDiscoverySession.test.ts
+```
+
+Expected: FAIL because coordinate discovery has no diagnostic sink or stable
+action-stage events.
+
+- [x] **Step 3: Implement the minimal private recorder and page diagnostics**
+
+Create a best-effort ordered recorder that opens exactly one new `0600` JSONL
+file, clamps session elapsed time to 24 hours, and suppresses diagnostic write
+and close failures. Attach to Playwright main-document responses only; persist
+status `100...599` and `same-origin` or `other-origin`, never the response URL or
+headers. Record the selected channel/headless/viewport profile and hashed public
+profile ID when the runtime starts.
+
+- [x] **Step 4: Add exact coordinate-action stage diagnostics**
+
+Add an optional diagnostic sink to `createCoordinateDiscoverySession`. Wrap
+challenge checks, current/before/after page-state reads, target inspection,
+action execution, and boundary capture with stable stage attribution. Persist
+only failures plus one bounded action outcome; never pass exception objects or
+raw messages to the sink. Await diagnostics best-effort so they are ordered but
+cannot alter action behavior.
+
+- [x] **Step 5: Integrate lifecycle ownership and verify GREEN**
+
+The Playwright discover runtime owns the recorder, records runtime start/action
+outcome/unexpected runtime failure/stop, detaches page listeners, and closes the
+recorder in every startup failure and normal/abandoned shutdown path. Existing
+browser and capture cleanup remains authoritative.
+
+Run:
+
+```bash
+rtk npm --workspace @auto-demo/agent exec vitest run src/coordinateDiscoverySession.test.ts
+rtk npm --workspace @auto-demo/cli exec vitest run src/discoverHostDiagnostics.test.ts src/playwrightDiscoverRuntime.test.ts
+rtk npm --workspace @auto-demo/agent run typecheck
+rtk npm --workspace @auto-demo/cli run typecheck
+rtk git diff --check
+```
+
+Expected: all focused tests, both package typechecks, and diff validation pass.
+
+- [ ] **Step 6: Document, verify broadly, commit, and review**
+
+Document the owner-only file, stable fields, forbidden content, and diagnostic-
+only purpose. Run the complete agent and CLI suites, repository build/test CI,
+Prettier/ESLint on issue-owned files, and diff validation. Commit only WES-273
+paths as `WES-273: diagnose discovery host failures`, then obtain independent
+read-only review before creating another clean acceptance clone.
+
+#### Step group B: Run fresh prompt-only acceptance at the reviewed diagnostic head
+
 **Files:**
 
 - Create locally, do not commit: a new clean acceptance checkout and `workflow/` session artifacts

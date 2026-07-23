@@ -51,6 +51,18 @@ or bootstrap paths, signing data, or raw system error descriptions. Use this
 file to distinguish display selection, screenshot capture, PNG encoding,
 transport, and normalization failures before retrying a failed session.
 
+Every discovery session also writes `discover-host-diagnostics.jsonl` in the
+same private directory. It records the resolved browser profile, bounded
+main-document response status and same-origin/other-origin relation, exact
+stable coordinate-action failure stage, bounded action result, and clean host
+shutdown. It intentionally excludes URLs, hostnames, headers, bodies, page text
+or titles, target labels, coordinates, runtime input, authentication material,
+private paths, screenshots, and raw exception messages. Use it when a public
+`discover_host_failed` result does not identify whether failure occurred during
+browser navigation, page-state observation, action execution, artifact
+persistence, or cleanup. The evidence can identify the client boundary and
+response class; it cannot reveal an unexposed server-side blocking reason.
+
 ## Start
 
 Choose `safe`, `public-browse`, `disposable`, or `yolo` before browser activity,

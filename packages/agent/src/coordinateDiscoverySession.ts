@@ -50,6 +50,27 @@ export type CoordinateDiscoveryBoundary =
   | "viewport_changed"
   | "layout_changed";
 
+export type CoordinateDiscoveryActionStage =
+  | "current_page_state"
+  | "before_action_state"
+  | "target_inspection"
+  | "action_execution"
+  | "after_action_state"
+  | "post_action_challenge"
+  | "post_action_target_inspection"
+  | "boundary_capture";
+
+export type CoordinateDiscoveryDiagnosticEvent = {
+  event: "coordinate_action_stage_failed";
+  stage: CoordinateDiscoveryActionStage;
+  actionIndex: number;
+  actionType: CoordinateDiscoveryAction["type"];
+};
+
+export type CoordinateDiscoveryDiagnosticSink = {
+  record(event: CoordinateDiscoveryDiagnosticEvent): Promise<void>;
+};
+
 export type CoordinateDiscoveryActResult =
   | {
       ok: true;
@@ -89,6 +110,7 @@ export type CoordinateDiscoverySession = {
 export function createCoordinateDiscoverySession(input: {
   page: CoordinateDiscoveryPage;
   grid: boolean;
+  diagnostics?: CoordinateDiscoveryDiagnosticSink;
 }): CoordinateDiscoverySession {
   let frameNumber = 0;
   let activeFrame: CapturedCoordinateFrame | undefined;
@@ -152,7 +174,13 @@ export function createCoordinateDiscoverySession(input: {
       if (parsed.batch.frameId !== activeFrame.id) {
         return failure("stale_frame", 0, "Coordinate discovery frame is stale.");
       }
-      const currentState = await input.page.state();
+      const firstAction = parsed.batch.actions[0]!;
+      const currentState = await actionStage(
+        "current_page_state",
+        0,
+        firstAction.type,
+        async () => await input.page.state(),
+      );
       if (classifyBoundary(activeState, currentState) !== "unchanged") {
         try {
           return failure(
@@ -170,21 +198,51 @@ export function createCoordinateDiscoverySession(input: {
       let executedActions = 0;
       for (let index = 0; index < parsed.batch.actions.length; index += 1) {
         const action = parsed.batch.actions[index]!;
-        const before = await input.page.state();
+        const before = await actionStage(
+          "before_action_state",
+          index,
+          action.type,
+          async () => await input.page.state(),
+        );
         const point = actionPoint(action);
-        const target = point === undefined ? lastTarget : await input.page.inspectPoint(point);
+        const target =
+          point === undefined
+            ? lastTarget
+            : await actionStage(
+                "target_inspection",
+                index,
+                action.type,
+                async () => await input.page.inspectPoint(point),
+              );
         if (point !== undefined) {
           lastTarget = target;
           lastTargetPoint = point;
         }
         try {
-          await input.page.execute(action);
+          await actionStage(
+            "action_execution",
+            index,
+            action.type,
+            async () => await input.page.execute(action),
+          );
         } catch {
           return await failedAction(index, executedActions);
         }
         executedActions += 1;
-        const after = await input.page.state();
-        if (await input.page.challenge()) {
+        const after = await actionStage(
+          "after_action_state",
+          index,
+          action.type,
+          async () => await input.page.state(),
+        );
+        if (
+          await actionStage(
+            "post_action_challenge",
+            index,
+            action.type,
+            async () => await input.page.challenge(),
+          )
+        ) {
           challengeDetected = true;
           try {
             return failure(
@@ -192,7 +250,12 @@ export function createCoordinateDiscoverySession(input: {
               executedActions,
               "Coordinate discovery stopped at an anti-bot challenge.",
               index,
-              await capture(),
+              await actionStage(
+                "boundary_capture",
+                index,
+                action.type,
+                async () => await capture(),
+              ),
             );
           } catch {
             return failure(
@@ -203,10 +266,16 @@ export function createCoordinateDiscoverySession(input: {
             );
           }
         }
+        const targetPoint = lastTargetPoint;
         const afterTarget =
-          lastTargetPoint === undefined
+          targetPoint === undefined
             ? undefined
-            : await input.page.inspectPoint(lastTargetPoint).catch(() => undefined);
+            : await actionStage(
+                "post_action_target_inspection",
+                index,
+                action.type,
+                async () => await input.page.inspectPoint(targetPoint),
+              ).catch(() => undefined);
         const semanticAction = semanticIntent(action, target, afterTarget, bindings, index);
         trace.push({
           actionIndex: trace.length,
@@ -222,7 +291,12 @@ export function createCoordinateDiscoverySession(input: {
         const boundary = classifyBoundary(before, after);
         if (boundary !== "unchanged") {
           try {
-            const boundaryFrame = await capture();
+            const boundaryFrame = await actionStage(
+              "boundary_capture",
+              index,
+              action.type,
+              async () => await capture(),
+            );
             return {
               ok: true,
               executedActions,
@@ -247,6 +321,22 @@ export function createCoordinateDiscoverySession(input: {
       return Object.fromEntries(bindings);
     },
   };
+
+  async function actionStage<T>(
+    stage: CoordinateDiscoveryActionStage,
+    actionIndex: number,
+    actionType: CoordinateDiscoveryAction["type"],
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      await input.diagnostics
+        ?.record({ event: "coordinate_action_stage_failed", stage, actionIndex, actionType })
+        .catch(() => undefined);
+      throw error;
+    }
+  }
 
   async function failedAction(
     failedActionIndex: number,

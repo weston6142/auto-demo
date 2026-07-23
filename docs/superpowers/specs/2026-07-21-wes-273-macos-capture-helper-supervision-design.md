@@ -147,6 +147,33 @@ bootstrap paths, signing data, or raw exception text. Browser geometry is read
 again for every native capture so window movement cannot silently reuse stale
 coordinates.
 
+### Acceptance-driven discovery-host diagnostics
+
+The reviewed five-minute-backstop acceptance proved that native capture was
+healthy, then exposed a different opaque boundary: both the initial discovery
+and its single clean retry reached the public search submission, displayed a
+retained hard-block page, and returned only `discover_host_failed`. The failing
+click never entered the durable trace, the public result contained no response
+status or challenge classification, and the existing host logs were empty.
+
+Each discovery session therefore also retains one owner-only
+`discover-host-diagnostics.jsonl`. Its ordered, best-effort records contain a
+monotonic sequence, bounded session-relative elapsed time, the resolved public
+browser-profile projection, main-document response status, whether the response
+origin is the starting origin or another origin, action type/index, stable
+coordinate-session failure stage, bounded action outcome code/boundary, and
+clean host shutdown. The recorder never stores raw URLs, hostnames, request or
+response headers, bodies, page text or titles, target labels, coordinates,
+runtime bindings, tokens, socket/bootstrap paths, screenshots, or raw exception
+text. Diagnostic write or close failures cannot change the public result or mask
+browser/helper cleanup.
+
+This evidence is diagnostic only. It must not introduce a Cars.com selector,
+Cloudflare workaround, provider-specific browser behavior, automatic retry, or
+weakened policy. A later fresh acceptance may attribute a public hard block only
+to the bounded response and stage evidence actually retained; the server's
+private classification reason remains unknown unless the server exposes it.
+
 ## Testing Strategy
 
 ### TypeScript RED-GREEN Coverage
@@ -160,6 +187,10 @@ coordinates.
   JSONL file, malformed responses identify response validation, invalid PNGs
   identify normalization, and capture continues to expose only the existing
   public capability error.
+- Discovery-host diagnostics persist the resolved browser profile, bounded
+  main-document status/origin relation, successful action outcomes, the exact
+  stable action stage that throws, and clean shutdown without retaining raw
+  navigation, page, request, response, input, target, token, or exception data.
 
 ### Swift RED-GREEN Coverage
 

@@ -72,6 +72,16 @@ region, and failure-stage codes. It excludes screenshots, page content,
 authentication material, private paths, signing data, and raw system error
 descriptions.
 
+All discovery sessions also retain a private
+`discover-host-diagnostics.jsonl`. It contains ordered, bounded browser-profile,
+main-document status/origin-relation, coordinate-action stage/result, and host
+lifecycle codes. It does not contain URLs, hostnames, headers, bodies, page
+content or titles, target labels, coordinates, runtime bindings, tokens,
+private paths, screenshots, or raw exception messages. Diagnostic failures are
+best-effort and cannot change discovery or cleanup behavior. This file can
+locate an opaque `discover_host_failed` boundary, but it cannot explain a
+server-side blocking decision that the server does not expose.
+
 ## Agent Plan Intake
 
 New walkthrough plans come from evidence-backed discovery compilation. Persist
