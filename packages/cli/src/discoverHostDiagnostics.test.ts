@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  attachDiscoverPageDiagnostics,
   createDiscoverHostDiagnosticRecorder,
+  createDiscoverPageDiagnostics,
 } from "./discoverHostDiagnostics.js";
 
 const tempDirectories: string[] = [];
@@ -19,9 +19,7 @@ describe("discover host diagnostics", () => {
     tempDirectories.push(sessionDirectory);
     await chmod(sessionDirectory, 0o700);
     const recorder = await createDiscoverHostDiagnosticRecorder(sessionDirectory);
-    const page = new FakeDiagnosticPage();
-    const attached = attachDiscoverPageDiagnostics({
-      page,
+    const attached = createDiscoverPageDiagnostics({
       startUrl: "https://www.example.test/private-start?token=url-secret",
       recorder,
     });
@@ -34,30 +32,18 @@ describe("discover host diagnostics", () => {
       headless: false,
       viewport: { width: 1280, height: 720 },
     });
-    page.emitResponse(
-      response({
-        frame: page.main,
-        resourceType: "script",
-        status: 200,
-        url: "https://www.example.test/private-script?token=subresource-secret",
-      }),
-    );
-    page.emitResponse(
-      response({
-        frame: page.main,
-        resourceType: "document",
-        status: 302,
-        url: "https://www.example.test/private-result?token=same-origin-secret",
-      }),
-    );
-    page.emitResponse(
-      response({
-        frame: page.main,
-        resourceType: "document",
-        status: 403,
-        url: "https://challenge.example.net/private-block?token=other-origin-secret",
-      }),
-    );
+    attached.onMainDocumentResponse({
+      status: 99,
+      url: "https://www.example.test/private-invalid?token=invalid-secret",
+    });
+    attached.onMainDocumentResponse({
+      status: 302,
+      url: "https://www.example.test/private-result?token=same-origin-secret",
+    });
+    attached.onMainDocumentResponse({
+      status: 403,
+      url: "https://challenge.example.net/private-block?token=other-origin-secret",
+    });
     await attached.close();
     await recorder.close();
 
@@ -103,104 +89,39 @@ describe("discover host diagnostics", () => {
       ),
     ).toBe(true);
     expect(diagnosticText).not.toMatch(
-      /private-|url-secret|subresource-secret|same-origin-secret|other-origin-secret|script/u,
+      /private-|url-secret|invalid-secret|same-origin-secret|other-origin-secret/u,
     );
   });
 
   it("does not let page diagnostic failures alter discovery behavior", async () => {
     const sessionDirectory = await mkdtemp(join(tmpdir(), "auto-demo-discover-diagnostics-"));
     tempDirectories.push(sessionDirectory);
-    const recorder = await createDiscoverHostDiagnosticRecorder(sessionDirectory);
-    const attachFailure = new ThrowingDiagnosticPage("attach");
-
-    const attached = attachDiscoverPageDiagnostics({
-      page: attachFailure,
+    const recorder = {
+      async record() {
+        throw new Error("diagnostic-write-secret");
+      },
+      async close() {},
+    };
+    const attached = createDiscoverPageDiagnostics({
       startUrl: "https://example.test",
       recorder,
     });
-    expect(() => attachFailure.emitResponse()).not.toThrow();
+    expect(() =>
+      attached.onMainDocumentResponse({
+        status: 403,
+        url: "https://example.test/private?token=listener-secret",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      attached.onMainDocumentResponse({
+        status: 403,
+        url: "not a url containing malformed-secret",
+      }),
+    ).not.toThrow();
     await expect(attached.close()).resolves.toBeUndefined();
 
-    const listenerFailure = new ThrowingDiagnosticPage("listener");
-    const listening = attachDiscoverPageDiagnostics({
-      page: listenerFailure,
-      startUrl: "https://example.test",
-      recorder,
-    });
-    expect(() => listenerFailure.emitResponse()).not.toThrow();
-    await expect(listening.close()).resolves.toBeUndefined();
-    await recorder.close();
+    const unavailableRecorder = await createDiscoverHostDiagnosticRecorder(sessionDirectory);
+    await expect(unavailableRecorder.record({ event: "runtime_stopped" })).resolves.toBeUndefined();
+    await expect(unavailableRecorder.close()).resolves.toBeUndefined();
   });
 });
-
-type DiagnosticResponse = {
-  request(): { resourceType(): string };
-  frame(): object;
-  status(): number;
-  url(): string;
-};
-
-class FakeDiagnosticPage {
-  readonly main = {};
-  private readonly listeners = new Set<(response: DiagnosticResponse) => void>();
-
-  mainFrame() {
-    return this.main;
-  }
-
-  onResponse(listener: (response: DiagnosticResponse) => void) {
-    this.listeners.add(listener);
-  }
-
-  offResponse(listener: (response: DiagnosticResponse) => void) {
-    this.listeners.delete(listener);
-  }
-
-  emitResponse(value: DiagnosticResponse) {
-    for (const listener of this.listeners) listener(value);
-  }
-}
-
-class ThrowingDiagnosticPage {
-  private listener: ((response: DiagnosticResponse) => void) | undefined;
-
-  constructor(private readonly failure: "attach" | "listener") {}
-
-  mainFrame() {
-    return {};
-  }
-
-  onResponse(listener: (response: DiagnosticResponse) => void) {
-    if (this.failure === "attach") throw new Error("diagnostic-attach-secret");
-    this.listener = listener;
-  }
-
-  offResponse() {
-    throw new Error("diagnostic-detach-secret");
-  }
-
-  emitResponse() {
-    this.listener?.({
-      request() {
-        throw new Error("diagnostic-listener-secret");
-      },
-      frame: () => ({}),
-      status: () => 403,
-      url: () => "https://example.test/private",
-    });
-  }
-}
-
-function response(input: {
-  frame: object;
-  resourceType: string;
-  status: number;
-  url: string;
-}): DiagnosticResponse {
-  return {
-    request: () => ({ resourceType: () => input.resourceType }),
-    frame: () => input.frame,
-    status: () => input.status,
-    url: () => input.url,
-  };
-}

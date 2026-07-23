@@ -903,13 +903,33 @@ rtk git diff --check
 
 Expected: all focused tests, both package typechecks, and diff validation pass.
 
-- [ ] **Step 6: Document, verify broadly, commit, and review**
+- [x] **Step 6: Document, verify broadly, commit, and review**
 
 Document the owner-only file, stable fields, forbidden content, and diagnostic-
 only purpose. Run the complete agent and CLI suites, repository build/test CI,
 Prettier/ESLint on issue-owned files, and diff validation. Commit only WES-273
 paths as `WES-273: diagnose discovery host failures`, then obtain independent
 read-only review before creating another clean acceptance clone.
+
+- [x] **Step 7: Repair review-discovered coverage gaps with RED-GREEN tests**
+
+Independent review found that the first implementation attached response
+logging only after initial navigation, handled thrown store failures while the
+store returns bounded failure results, left `finish` unwrapped, and attributed
+the pre-action challenge check only to the coarse coordinate-session boundary.
+Add behavior tests first, then start the recorder and main-document listener
+before browser navigation, retain bounded launch-attempt outcomes, record every
+returned frame/checkpoint failure, wrap finalization and review-artifact writes
+with exact closed-enum stages, and add a distinct pre-action challenge stage.
+Do not persist raw response URLs or exception text and do not change public
+discovery results solely because diagnostic recording fails.
+
+- [ ] **Step 8: Reverify broadly, commit the review repair, and obtain Ready**
+
+Run the complete agent and CLI suites, repository build/test CI, issue-owned
+Prettier/ESLint, and diff validation. Commit only WES-273 paths in a separate
+review-repair commit and obtain a new independent read-only review before
+creating another acceptance clone.
 
 #### Step group B: Run fresh prompt-only acceptance at the reviewed diagnostic head
 

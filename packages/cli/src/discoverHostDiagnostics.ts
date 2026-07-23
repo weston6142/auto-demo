@@ -10,13 +10,17 @@ const DIAGNOSTIC_FILENAME = "discover-host-diagnostics.jsonl";
 const MAX_SESSION_ELAPSED_MS = 86_400_000;
 
 export type DiscoverRuntimeOperationStage =
+  | "browser_launch"
   | "capture_setup"
   | "coordinate_session_start"
   | "initial_frame_persistence"
   | "coordinate_session"
   | "frame_persistence"
   | "checkpoint_persistence"
-  | "checkpoint_or_close";
+  | "checkpoint_or_close"
+  | "finalization"
+  | "review_plan_persistence"
+  | "review_artifact_persistence";
 
 export type DiscoverHostDiagnosticEvent =
   | CoordinateDiscoveryDiagnosticEvent
@@ -31,6 +35,12 @@ export type DiscoverHostDiagnosticEvent =
       event: "main_document_response";
       status: number;
       originRelation: "same-origin" | "other-origin";
+    }
+  | {
+      event: "browser_launch_attempt";
+      ordinal: 1 | 2 | 3;
+      profileId: string;
+      outcome: "browser_launch_failed" | "browser_navigation_failed" | "anti_bot_challenge";
     }
   | {
       event: "coordinate_act_result";
@@ -49,19 +59,6 @@ export type DiscoverHostDiagnosticEvent =
 export type DiscoverHostDiagnosticRecorder = {
   record(event: DiscoverHostDiagnosticEvent): Promise<void>;
   close(): Promise<void>;
-};
-
-export type DiscoverDiagnosticResponse = {
-  request(): { resourceType(): string };
-  frame(): object;
-  status(): number;
-  url(): string;
-};
-
-export type DiscoverDiagnosticPage = {
-  mainFrame(): object;
-  onResponse(listener: (response: DiscoverDiagnosticResponse) => void): void;
-  offResponse(listener: (response: DiscoverDiagnosticResponse) => void): void;
 };
 
 export async function createDiscoverHostDiagnosticRecorder(
@@ -96,50 +93,32 @@ export async function createDiscoverHostDiagnosticRecorder(
   };
 }
 
-export function attachDiscoverPageDiagnostics(input: {
-  page: DiscoverDiagnosticPage;
+export function createDiscoverPageDiagnostics(input: {
   startUrl: string;
   recorder: DiscoverHostDiagnosticRecorder;
-}): { close(): Promise<void> } {
+}): {
+  onMainDocumentResponse(response: { status: number; url: string }): void;
+  close(): Promise<void>;
+} {
   const startOrigin = new URL(input.startUrl).origin;
   let pending = Promise.resolve();
-  const listener = (response: DiscoverDiagnosticResponse) => {
-    try {
-      if (
-        response.request().resourceType() !== "document" ||
-        response.frame() !== input.page.mainFrame()
-      ) {
-        return;
-      }
-      const status = response.status();
-      if (!Number.isInteger(status) || status < 100 || status > 599) return;
-      const originRelation =
-        new URL(response.url()).origin === startOrigin ? "same-origin" : "other-origin";
-      pending = pending
-        .then(async () =>
-          input.recorder.record({ event: "main_document_response", status, originRelation }),
-        )
-        .catch(() => undefined);
-    } catch {
-      return;
-    }
-  };
-  let attached = false;
-  try {
-    input.page.onResponse(listener);
-    attached = true;
-  } catch {
-    attached = false;
-  }
   return {
-    async close() {
-      if (attached) {
-        try {
-          input.page.offResponse(listener);
-        } catch {
-          // Diagnostics are best-effort and cannot alter browser cleanup.
-        }
+    onMainDocumentResponse(response) {
+      const status = response.status;
+      if (!Number.isInteger(status) || status < 100 || status > 599) return;
+      try {
+        const originRelation =
+          new URL(response.url).origin === startOrigin ? "same-origin" : "other-origin";
+        pending = pending
+          .then(async () =>
+            input.recorder.record({ event: "main_document_response", status, originRelation }),
+          )
+          .catch(() => undefined);
+      } catch {
+        // Diagnostics cannot alter browser behavior.
       }
+    },
+    async close() {
       await pending;
     },
   };
@@ -164,6 +143,13 @@ function boundedEvent(event: DiscoverHostDiagnosticEvent): DiscoverHostDiagnosti
         status: boundedInteger(event.status, 100, 599),
         originRelation: event.originRelation,
       };
+    case "browser_launch_attempt":
+      return {
+        event: event.event,
+        ordinal: boundedInteger(event.ordinal, 1, 3) as 1 | 2 | 3,
+        profileId: boundedProfileId(event.profileId),
+        outcome: event.outcome,
+      };
     case "coordinate_action_stage_failed":
       return {
         event: event.event,
@@ -171,6 +157,8 @@ function boundedEvent(event: DiscoverHostDiagnosticEvent): DiscoverHostDiagnosti
         actionIndex: boundedInteger(event.actionIndex, 0, 10_000),
         actionType: event.actionType,
       };
+    case "coordinate_session_stage_failed":
+      return { event: event.event, stage: event.stage };
     case "coordinate_act_result":
       return {
         event: event.event,

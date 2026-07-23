@@ -159,14 +159,17 @@ status or challenge classification, and the existing host logs were empty.
 Each discovery session therefore also retains one owner-only
 `discover-host-diagnostics.jsonl`. Its ordered, best-effort records contain a
 monotonic sequence, bounded session-relative elapsed time, the resolved public
-browser-profile projection, main-document response status, whether the response
-origin is the starting origin or another origin, action type/index, stable
-coordinate-session failure stage, bounded action outcome code/boundary, and
-clean host shutdown. The recorder never stores raw URLs, hostnames, request or
+browser-profile projection, bounded failed browser-launch attempts,
+main-document response status beginning before initial navigation, whether the
+response origin is the starting origin or another origin, action type/index,
+stable coordinate-session failure stage, bounded action outcome code/boundary,
+returned persistence failures, exact finish stage, and host lifecycle closure.
+`runtime_stopped` identifies lifecycle closure only; it does not supersede an
+earlier failure event. The recorder never stores raw URLs, hostnames, request or
 response headers, bodies, page text or titles, target labels, coordinates,
 runtime bindings, tokens, socket/bootstrap paths, screenshots, or raw exception
-text. Diagnostic write or close failures cannot change the public result or mask
-browser/helper cleanup.
+text. Diagnostic write or close failures cannot change the public result or
+mask browser/helper cleanup.
 
 This evidence is diagnostic only. It must not introduce a Cars.com selector,
 Cloudflare workaround, provider-specific browser behavior, automatic retry, or
@@ -188,9 +191,10 @@ private classification reason remains unknown unless the server exposes it.
   identify normalization, and capture continues to expose only the existing
   public capability error.
 - Discovery-host diagnostics persist the resolved browser profile, bounded
-  main-document status/origin relation, successful action outcomes, the exact
-  stable action stage that throws, and clean shutdown without retaining raw
-  navigation, page, request, response, input, target, token, or exception data.
+  launch-attempt and initial/main-document status/origin relation, successful
+  action outcomes, returned persistence failures, exact coordinate and finish
+  stages that fail, and lifecycle closure without retaining raw navigation,
+  page, request, response, input, target, token, or exception data.
 
 ### Swift RED-GREEN Coverage
 

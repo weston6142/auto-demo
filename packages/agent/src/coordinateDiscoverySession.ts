@@ -60,12 +60,17 @@ export type CoordinateDiscoveryActionStage =
   | "post_action_target_inspection"
   | "boundary_capture";
 
-export type CoordinateDiscoveryDiagnosticEvent = {
-  event: "coordinate_action_stage_failed";
-  stage: CoordinateDiscoveryActionStage;
-  actionIndex: number;
-  actionType: CoordinateDiscoveryAction["type"];
-};
+export type CoordinateDiscoveryDiagnosticEvent =
+  | {
+      event: "coordinate_action_stage_failed";
+      stage: CoordinateDiscoveryActionStage;
+      actionIndex: number;
+      actionType: CoordinateDiscoveryAction["type"];
+    }
+  | {
+      event: "coordinate_session_stage_failed";
+      stage: "pre_action_challenge";
+    };
 
 export type CoordinateDiscoveryDiagnosticSink = {
   record(event: CoordinateDiscoveryDiagnosticEvent): Promise<void>;
@@ -151,7 +156,21 @@ export function createCoordinateDiscoverySession(input: {
     },
 
     async act(value): Promise<CoordinateDiscoveryActResult> {
-      if (challengeDetected || (await input.page.challenge())) {
+      let challengePresent = challengeDetected;
+      if (!challengePresent) {
+        try {
+          challengePresent = await input.page.challenge();
+        } catch (error) {
+          await input.diagnostics
+            ?.record({
+              event: "coordinate_session_stage_failed",
+              stage: "pre_action_challenge",
+            })
+            .catch(() => undefined);
+          throw error;
+        }
+      }
+      if (challengePresent) {
         challengeDetected = true;
         return failure(
           "anti_bot_challenge",

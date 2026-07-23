@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type {
   CoordinateDiscoveryPage,
   CoordinatePageState,
+  CoordinateDiscoveryStore,
   DiscoveryBrowserLaunchHandle,
 } from "@auto-demo/agent";
 import type { Page } from "playwright";
@@ -111,6 +112,146 @@ describe("Playwright discover runtime", () => {
     );
     expect(diagnosticText).not.toContain("runtime-navigation-secret");
   });
+
+  it("starts diagnostics before launch and retains bounded failed-attempt evidence", async () => {
+    const sessionDirectory = await mkdtemp(join(tmpdir(), "auto-demo-launch-diagnostics-"));
+    tempDirectories.push(sessionDirectory);
+    await chmod(sessionDirectory, 0o700);
+
+    const result = await createPlaywrightDiscoverRuntime(bootstrap(sessionDirectory), {
+      platform: "linux",
+      async launchBrowser(input) {
+        const diagnosticInput = input as typeof input & {
+          onMainDocumentResponse?: (response: { status: number; url: string }) => void;
+        };
+        diagnosticInput.onMainDocumentResponse?.({
+          status: 403,
+          url: "https://blocked.example/private?token=launch-secret",
+        });
+        return {
+          ok: false,
+          code: "browser_profile_fallback_exhausted",
+          message: "Browser launch profile fallback was exhausted.",
+          attempts: [
+            {
+              ordinal: 1,
+              profileId: `sha256:${"b".repeat(64)}`,
+              outcome: "browser_navigation_failed",
+            },
+          ],
+        };
+      },
+    });
+
+    expect(result.initialResponse).toMatchObject({
+      ok: false,
+      code: "browser_profile_fallback_exhausted",
+    });
+    const diagnosticText = await readFile(
+      join(sessionDirectory, "discover-host-diagnostics.jsonl"),
+      "utf8",
+    );
+    expect(diagnosticText).toContain('"event":"main_document_response"');
+    expect(diagnosticText).toContain('"status":403');
+    expect(diagnosticText).toContain('"originRelation":"other-origin"');
+    expect(diagnosticText).toContain('"event":"browser_launch_attempt"');
+    expect(diagnosticText).toContain('"outcome":"browser_navigation_failed"');
+    expect(diagnosticText).toContain('"operation":"startup"');
+    expect(diagnosticText).toContain('"stage":"browser_launch"');
+    expect(diagnosticText).not.toMatch(/blocked\.example|private|launch-secret/u);
+  });
+
+  it("records returned checkpoint failures instead of reporting diagnostic success", async () => {
+    const sessionDirectory = await mkdtemp(join(tmpdir(), "auto-demo-store-diagnostics-"));
+    tempDirectories.push(sessionDirectory);
+    await chmod(sessionDirectory, 0o700);
+    const rawPage = new FakeRawPage();
+    const coordinatePage = new ThrowingCoordinatePage(false);
+    const launched = successfulLaunch(rawPage);
+    let checkpointWrites = 0;
+
+    const result = await createPlaywrightDiscoverRuntime(bootstrap(sessionDirectory), {
+      platform: "linux",
+      async createWindowCapture() {
+        return undefined;
+      },
+      async launchBrowser() {
+        return launched;
+      },
+      createCoordinatePage() {
+        return coordinatePage;
+      },
+      createCoordinateStore() {
+        const store = fileBackedStore(sessionDirectory);
+        return {
+          ...store,
+          async writeCheckpoint(checkpoint) {
+            checkpointWrites += 1;
+            if (checkpointWrites > 1) {
+              return {
+                ok: false,
+                code: "coordinate_store_write_failed",
+                message: "Coordinate discovery state could not be written.",
+              };
+            }
+            return await store.writeCheckpoint(checkpoint);
+          },
+        } satisfies CoordinateDiscoveryStore;
+      },
+    });
+    expect(result.initialResponse.ok).toBe(true);
+
+    const acted = await result.runtime.act({
+      frameId: "frame-1",
+      actions: [{ type: "move", x: 500, y: 300 }],
+    });
+    expect(acted.ok).toBe(true);
+    await result.runtime.abandon();
+
+    const diagnosticText = await readFile(
+      join(sessionDirectory, "discover-host-diagnostics.jsonl"),
+      "utf8",
+    );
+    expect(diagnosticText).toContain('"event":"runtime_operation_failed"');
+    expect(diagnosticText).toContain('"operation":"act"');
+    expect(diagnosticText).toContain('"stage":"checkpoint_persistence"');
+    expect(diagnosticText).toContain('"operation":"abandon"');
+  });
+
+  it("attributes finish failures to the exact finalization stage", async () => {
+    const sessionDirectory = await mkdtemp(join(tmpdir(), "auto-demo-finish-diagnostics-"));
+    tempDirectories.push(sessionDirectory);
+    await chmod(sessionDirectory, 0o700);
+    const rawPage = new FakeRawPage();
+    const launched = successfulLaunch(rawPage);
+    const result = await createPlaywrightDiscoverRuntime(bootstrap(sessionDirectory), {
+      platform: "linux",
+      async createWindowCapture() {
+        return undefined;
+      },
+      async launchBrowser() {
+        return launched;
+      },
+      createCoordinatePage() {
+        return new ThrowingCoordinatePage(false);
+      },
+      async finalizeCoordinateDiscovery() {
+        throw new Error("finish-finalization-secret");
+      },
+    });
+    expect(result.initialResponse.ok).toBe(true);
+
+    await expect(result.runtime.finish()).rejects.toThrow("finish-finalization-secret");
+    await result.runtime.abandon();
+
+    const diagnosticText = await readFile(
+      join(sessionDirectory, "discover-host-diagnostics.jsonl"),
+      "utf8",
+    );
+    expect(diagnosticText).toContain('"operation":"finish"');
+    expect(diagnosticText).toContain('"stage":"finalization"');
+    expect(diagnosticText).not.toContain("finish-finalization-secret");
+  });
 });
 
 function bootstrap(sessionDirectory = "/tmp/capture-helper-preflight"): DiscoverHostBootstrap {
@@ -158,6 +299,8 @@ class ThrowingCoordinatePage implements CoordinateDiscoveryPage {
     layoutIdentity: "layout-1",
   };
 
+  constructor(private readonly failAfterAction = true) {}
+
   pointer() {
     return { x: 64, y: 64 };
   }
@@ -174,7 +317,7 @@ class ThrowingCoordinatePage implements CoordinateDiscoveryPage {
   }
 
   async state() {
-    if (this.executed) throw new Error("runtime-navigation-secret");
+    if (this.executed && this.failAfterAction) throw new Error("runtime-navigation-secret");
     return structuredClone(this.pageState);
   }
 
@@ -189,4 +332,48 @@ class ThrowingCoordinatePage implements CoordinateDiscoveryPage {
   async execute() {
     this.executed = true;
   }
+}
+
+function successfulLaunch(rawPage: FakeRawPage): DiscoveryBrowserLaunchHandle {
+  return {
+    ok: true,
+    page: rawPage as unknown as Page,
+    profile: {
+      schemaVersion: 1,
+      browser: "chromium",
+      channel: "chrome",
+      headless: false,
+      viewport: { width: 1280, height: 720 },
+    },
+    profileId: `sha256:${"a".repeat(64)}`,
+    attempts: [],
+    async close() {},
+  };
+}
+
+function fileBackedStore(sessionDirectory: string): CoordinateDiscoveryStore {
+  const frames = new Map<string, Uint8Array>();
+  return {
+    async initialize() {
+      return { ok: true };
+    },
+    async writeCheckpoint() {
+      return { ok: true, path: join(sessionDirectory, "session.json") };
+    },
+    async loadCheckpoint() {
+      return {
+        ok: false,
+        code: "coordinate_store_read_failed",
+        message: "Coordinate discovery state could not be read.",
+      };
+    },
+    async writeFrame(input) {
+      frames.set(input.id, input.bytes);
+      return {
+        ok: true,
+        path: `frames/${input.id}.png`,
+        sha256: "a".repeat(64),
+      };
+    },
+  };
 }

@@ -5,7 +5,7 @@ import {
   type BrowserChallenge,
   type BrowserLaunchProfileV1,
 } from "@auto-demo/browser-profile";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page, type Response } from "playwright";
 
 export type DiscoveryBrowserLaunchAttempt = {
   ordinal: 1 | 2 | 3;
@@ -35,8 +35,16 @@ export type DiscoveryBrowserLaunchResult =
 
 export type DiscoveryBrowserLauncherPage = {
   raw: Page;
+  observeMainDocumentResponses(
+    listener: (response: DiscoveryBrowserMainDocumentResponse) => void,
+  ): () => void;
   goto(url: string): Promise<void>;
   challengeSummary(): Promise<{ title: string; visibleText: string }>;
+};
+
+export type DiscoveryBrowserMainDocumentResponse = {
+  status: number;
+  url: string;
 };
 
 export type DiscoveryBrowserLauncherContext = {
@@ -56,7 +64,11 @@ export type DiscoveryBrowserLauncherDriver = {
 };
 
 export type DiscoveryBrowserLauncher = {
-  launch(input: { url: string; profilePlan: unknown }): Promise<DiscoveryBrowserLaunchResult>;
+  launch(input: {
+    url: string;
+    profilePlan: unknown;
+    onMainDocumentResponse?: (response: DiscoveryBrowserMainDocumentResponse) => void;
+  }): Promise<DiscoveryBrowserLaunchResult>;
 };
 
 export function createPlaywrightDiscoveryBrowserLauncher(): DiscoveryBrowserLauncher {
@@ -91,13 +103,28 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
           attempts.push({ ordinal, profileId, outcome: "browser_launch_failed" });
           continue;
         }
+        let detachResponseDiagnostics: (() => void) | undefined;
         try {
           context = await browser.newContext({ viewport: profile.viewport });
           const page = await context.newPage();
+          if (input.onMainDocumentResponse !== undefined) {
+            try {
+              detachResponseDiagnostics = page.observeMainDocumentResponses((response) => {
+                try {
+                  input.onMainDocumentResponse?.(response);
+                } catch {
+                  // Diagnostics cannot alter launch behavior.
+                }
+              });
+            } catch {
+              detachResponseDiagnostics = undefined;
+            }
+          }
           try {
             await page.goto(input.url);
           } catch {
             attempts.push({ ordinal, profileId, outcome: "browser_navigation_failed" });
+            detachDiagnostics(detachResponseDiagnostics);
             await closeResources(context, browser);
             continue;
           }
@@ -109,6 +136,7 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
               outcome: "anti_bot_challenge",
               challenge,
             });
+            detachDiagnostics(detachResponseDiagnostics);
             await closeResources(context, browser);
             continue;
           }
@@ -122,11 +150,13 @@ export function createPlaywrightDiscoveryBrowserLauncherForDriver(
             async close() {
               if (closed) return;
               closed = true;
+              detachDiagnostics(detachResponseDiagnostics);
               await closeResources(context, browser);
             },
           };
         } catch {
           attempts.push({ ordinal, profileId, outcome: "browser_navigation_failed" });
+          detachDiagnostics(detachResponseDiagnostics);
           await closeResources(context, browser);
         }
       }
@@ -170,6 +200,31 @@ function wrapContext(context: BrowserContext): DiscoveryBrowserLauncherContext {
       const page = await context.newPage();
       return {
         raw: page,
+        observeMainDocumentResponses(listener) {
+          const responseListener = (response: Response) => {
+            try {
+              if (
+                response.request().resourceType() !== "document" ||
+                response.frame() !== page.mainFrame()
+              ) {
+                return;
+              }
+              const status = response.status();
+              if (!Number.isInteger(status) || status < 100 || status > 599) return;
+              listener({ status, url: response.url() });
+            } catch {
+              // Diagnostics cannot alter browser behavior.
+            }
+          };
+          page.on("response", responseListener);
+          return () => {
+            try {
+              page.off("response", responseListener);
+            } catch {
+              // Diagnostics cannot alter browser cleanup.
+            }
+          };
+        },
         async goto(url) {
           await page.goto(url, { waitUntil: "domcontentloaded" });
         },
@@ -189,6 +244,14 @@ function wrapContext(context: BrowserContext): DiscoveryBrowserLauncherContext {
       await context.close();
     },
   };
+}
+
+function detachDiagnostics(detach: (() => void) | undefined): void {
+  try {
+    detach?.();
+  } catch {
+    // Diagnostics cannot alter launch or cleanup behavior.
+  }
 }
 
 async function closeResources(

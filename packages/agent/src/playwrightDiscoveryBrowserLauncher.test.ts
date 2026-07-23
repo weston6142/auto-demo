@@ -47,6 +47,9 @@ class FakeDriver implements DiscoveryBrowserLauncherDriver {
           async newPage() {
             return {
               raw: {} as Page,
+              observeMainDocumentResponses() {
+                return () => undefined;
+              },
               async goto() {
                 if (behavior?.outcome === "navigation-failure") throw new Error(behavior.secret);
               },
@@ -75,6 +78,64 @@ class FakeDriver implements DiscoveryBrowserLauncherDriver {
 }
 
 describe("Playwright discovery browser launcher", () => {
+  it("observes main-document responses before navigation completes and detaches on close", async () => {
+    const observed: Array<{ status: number; url: string }> = [];
+    let listener: ((response: { status: number; url: string }) => void) | undefined;
+    let detached = false;
+    const driver: DiscoveryBrowserLauncherDriver = {
+      async launch() {
+        return {
+          async newContext() {
+            return {
+              async newPage() {
+                return {
+                  raw: {} as Page,
+                  observeMainDocumentResponses(next) {
+                    listener = next;
+                    return () => {
+                      detached = true;
+                      listener = undefined;
+                    };
+                  },
+                  async goto() {
+                    listener?.({
+                      status: 403,
+                      url: "https://blocked.example/private?token=navigation-secret",
+                    });
+                  },
+                  async challengeSummary() {
+                    return { title: "Ready", visibleText: "Search inventory" };
+                  },
+                };
+              },
+              async close() {},
+            };
+          },
+          async close() {},
+        };
+      },
+    };
+
+    const result = await createPlaywrightDiscoveryBrowserLauncherForDriver(driver).launch({
+      url: "https://example.com",
+      profilePlan: { schemaVersion: 1, primary: bundledHeadless },
+      onMainDocumentResponse(response) {
+        observed.push(structuredClone(response));
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(observed).toEqual([
+      {
+        status: 403,
+        url: "https://blocked.example/private?token=navigation-secret",
+      },
+    ]);
+    expect(detached).toBe(false);
+    if (result.ok) await result.close();
+    expect(detached).toBe(true);
+  });
+
   it("falls back in declaration order and closes the challenged attempt", async () => {
     const driver = new FakeDriver([
       {
