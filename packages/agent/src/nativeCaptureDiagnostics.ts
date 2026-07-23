@@ -37,10 +37,14 @@ export type NativeCaptureDiagnosticRecord =
       systemErrorCode?: number;
     };
 
-export async function createNativeCaptureDiagnosticRecorder(sessionDirectory: string): Promise<{
+export type NativeCaptureDiagnosticRecorder = {
   record(event: NativeCaptureDiagnosticRecord): Promise<void>;
   close(): Promise<void>;
-}> {
+};
+
+export async function createNativeCaptureDiagnosticRecorder(
+  sessionDirectory: string,
+): Promise<NativeCaptureDiagnosticRecorder> {
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(join(sessionDirectory, DIAGNOSTIC_FILENAME), "wx", 0o600);

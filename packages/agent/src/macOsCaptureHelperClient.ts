@@ -8,6 +8,7 @@ import {
   createNativeCaptureDiagnosticRecorder,
   elapsedMilliseconds,
   type MacOsCaptureDiagnosticEvent,
+  type NativeCaptureDiagnosticRecorder,
   type NativeCaptureRegion,
 } from "./nativeCaptureDiagnostics.js";
 
@@ -71,6 +72,8 @@ export type MacOsCaptureHelperDependencies = {
     args: string[],
   ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   launch(executable: string, args: string[]): CaptureHelperChildProcess;
+  createDiagnosticRecorder?(sessionDirectory: string): Promise<NativeCaptureDiagnosticRecorder>;
+  cleanupPaths?(bootstrapPath: string, socketDirectory: string): Promise<void>;
   terminationTimeoutMs?: number;
   forceTerminationTimeoutMs?: number;
 };
@@ -231,14 +234,19 @@ export async function createMacOsCaptureHelperClient(
     })}\n`,
     { flag: "wx", mode: 0o600 },
   );
-  const diagnostics = await createNativeCaptureDiagnosticRecorder(input.sessionDirectory);
+  const diagnostics = await (
+    dependencies.createDiagnosticRecorder ?? createNativeCaptureDiagnosticRecorder
+  )(input.sessionDirectory);
   let child: CaptureHelperChildProcess;
   try {
     child = dependencies.launch(supervisor, ["--launch-request", launchRequestPath]);
   } catch {
     await diagnostics.record({ event: "helper_start_failed", stage: "helper_lifecycle" });
-    await cleanup(bootstrapPath, socketDirectory);
-    await diagnostics.close();
+    try {
+      await cleanupClientPaths(dependencies, bootstrapPath, socketDirectory);
+    } finally {
+      await diagnostics.close().catch(() => undefined);
+    }
     throw new Error("capture helper unavailable");
   }
   const childObservation = observeChild(child);
@@ -251,8 +259,11 @@ export async function createMacOsCaptureHelperClient(
     if (childObservation.error === undefined) {
       await stopChild(child, childObservation, dependencies).catch(() => undefined);
     }
-    await cleanup(bootstrapPath, socketDirectory);
-    await diagnostics.close();
+    try {
+      await cleanupClientPaths(dependencies, bootstrapPath, socketDirectory);
+    } finally {
+      await diagnostics.close().catch(() => undefined);
+    }
     throw new Error("capture helper unavailable");
   }
 
@@ -319,8 +330,11 @@ export async function createMacOsCaptureHelperClient(
         await diagnostics.record({ event: "helper_stop_failed", stage: "helper_lifecycle" });
         throw error;
       } finally {
-        await cleanup(bootstrapPath, socketDirectory);
-        await diagnostics.close();
+        try {
+          await cleanupClientPaths(dependencies, bootstrapPath, socketDirectory);
+        } finally {
+          await diagnostics.close().catch(() => undefined);
+        }
       }
     },
   };
@@ -609,6 +623,14 @@ async function cleanup(bootstrapPath: string, socketDirectory: string): Promise<
     rm(bootstrapPath, { force: true }),
     rm(socketDirectory, { recursive: true, force: true }),
   ]);
+}
+
+async function cleanupClientPaths(
+  dependencies: MacOsCaptureHelperDependencies,
+  bootstrapPath: string,
+  socketDirectory: string,
+): Promise<void> {
+  await (dependencies.cleanupPaths ?? cleanup)(bootstrapPath, socketDirectory);
 }
 
 function runCommand(

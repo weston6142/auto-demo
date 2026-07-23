@@ -230,6 +230,42 @@ describe("macOS capture helper client", () => {
     await expect(client.close()).rejects.toThrow("did not exit");
     expect(child.killSignals).toEqual(["SIGTERM", "SIGKILL"]);
   });
+
+  it("closes diagnostics while preserving a cleanup failure", async () => {
+    const fixture = await helperFixture();
+    const png = Buffer.from([137, 80, 78, 71]);
+    const child = new FakeChildProcess();
+    const events: unknown[] = [];
+    let diagnosticCloseCount = 0;
+    const client = await createMacOsCaptureHelperClient({
+      sessionDirectory: fixture.sessionDirectory,
+      installPath: fixture.installPath,
+      dependencies: {
+        ...fixture.dependencies,
+        async createDiagnosticRecorder() {
+          return {
+            async record(event) {
+              events.push(event);
+            },
+            async close() {
+              diagnosticCloseCount += 1;
+            },
+          };
+        },
+        async cleanupPaths() {
+          throw new Error("cleanup failed");
+        },
+        launch(_executable, args) {
+          void startProtocolServerFromLaunchRequest(args[1]!, png, child, () => undefined);
+          return child;
+        },
+      },
+    });
+
+    await expect(client.close()).rejects.toThrow("cleanup failed");
+    expect(diagnosticCloseCount).toBe(1);
+    expect(events).toContainEqual({ event: "helper_stopped" });
+  });
 });
 
 async function helperFixture(
