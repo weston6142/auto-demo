@@ -36,8 +36,9 @@ incomplete. The browser is not opened first.
 
 Each discovery session gets a fresh app instance, private request, token, and
 socket. Closing the session tells the supervisor to terminate that exact app
-instance and remove its private launch files. The helper's 30-second idle
-timeout is only an orphan backstop. If setup still returns
+instance and remove its private launch files. The helper's five-minute idle
+timeout is only an orphan backstop and is long enough for ordinary autonomous
+reasoning between native captures. If setup still returns
 `capture_helper_permission_required`, enable Screen Recording for **Auto Demo
 Capture** in System Settings and rerun setup; do not grant Screen Recording to a
 terminal or model host as a fallback.

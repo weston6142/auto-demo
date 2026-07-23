@@ -6,7 +6,7 @@ public let maximumCaptureDimension = 8_192
 public let maximumCaptureBytes = 32 * 1_024 * 1_024
 public let maximumRequestBytes = 8 * 1_024
 public let minimumIdleTimeoutMs = 1_000
-public let maximumIdleTimeoutMs = 30_000
+public let maximumIdleTimeoutMs = 300_000
 
 private let maximumScreenCoordinate = 1_000_000
 private let maximumUnixSocketPathBytes = 103

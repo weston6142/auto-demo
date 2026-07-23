@@ -795,6 +795,16 @@ normalization. The signed real-helper gate passes with a retained diagnostic
 file and no helper or supervisor process left running. Restart this task only
 from a new reviewed commit and a new clean clone.
 
+The next clean reviewed run made the failure causal: four native captures
+succeeded before an immediate `capture_socket_error`, and the single clean
+retry again succeeded before the same transport failure. Retained artifact
+times showed 52- and 75-second reasoning gaps after the preceding frames, both
+longer than the hard 30-second helper idle limit. The helper had exited and
+removed its socket while the owning discovery host was still active. RED-GREEN
+correction raises the validated orphan backstop to five minutes and adds bounded
+session-relative elapsed time to every diagnostic record. This is a generic
+session-lifecycle correction, not Cars.com-specific recovery guidance.
+
 **Files:**
 
 - Create locally, do not commit: a new clean acceptance checkout and `workflow/` session artifacts

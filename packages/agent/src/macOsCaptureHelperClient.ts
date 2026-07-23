@@ -220,7 +220,7 @@ export async function createMacOsCaptureHelperClient(
       protocolVersion: 1,
       socketPath,
       token,
-      idleTimeoutMs: 30_000,
+      idleTimeoutMs: 300_000,
     })}\n`,
     { flag: "wx", mode: 0o600 },
   );

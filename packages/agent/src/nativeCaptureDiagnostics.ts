@@ -45,6 +45,7 @@ export type NativeCaptureDiagnosticRecorder = {
 export async function createNativeCaptureDiagnosticRecorder(
   sessionDirectory: string,
 ): Promise<NativeCaptureDiagnosticRecorder> {
+  const started = performance.now();
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(join(sessionDirectory, DIAGNOSTIC_FILENAME), "wx", 0o600);
@@ -56,7 +57,12 @@ export async function createNativeCaptureDiagnosticRecorder(
   return {
     async record(event) {
       sequence += 1;
-      const line = `${JSON.stringify({ schemaVersion: 1, sequence, ...event })}\n`;
+      const line = `${JSON.stringify({
+        schemaVersion: 1,
+        sequence,
+        sessionElapsedMs: Math.min(86_400_000, elapsedMilliseconds(started)),
+        ...event,
+      })}\n`;
       writes = writes.then(async () => await handle!.appendFile(line)).catch(() => undefined);
       await writes;
     },

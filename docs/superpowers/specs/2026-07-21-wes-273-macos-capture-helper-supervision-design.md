@@ -91,7 +91,7 @@ The permission call always runs inside the Launch Services-created capture app. 
 
 ## Capture Session Flow
 
-1. Node creates the existing `0600` bootstrap containing the random session token, owner-only socket path, protocol version, and 30-second idle timeout.
+1. Node creates the existing `0600` bootstrap containing the random session token, owner-only socket path, protocol version, and five-minute idle timeout.
 2. Node writes a private supervisor launch request that selects service mode and refers to the bootstrap path. The token itself remains absent from process arguments.
 3. Node starts the supervisor and monitors it as the owned child process.
 4. The supervisor launches a fresh non-activating capture-app instance through `NSWorkspace` and retains its `NSRunningApplication`.
@@ -100,7 +100,7 @@ The permission call always runs inside the Launch Services-created capture app. 
 7. If the capture app exits, the supervisor exits and Node treats the helper as unavailable.
 8. On normal close, Node sends `SIGTERM` to the supervisor. The supervisor requests graceful termination of the exact captured `NSRunningApplication`, waits for a bounded interval, and uses `forceTerminate()` only if the instance remains alive.
 9. After termination, Node removes the bootstrap, response, socket, and temporary directories it owns.
-10. If the supervisor is itself force-killed, the capture app's existing 30-second idle timeout remains the final orphan-protection backstop.
+10. If the supervisor is itself force-killed, the capture app's five-minute idle timeout remains the final orphan-protection backstop without expiring during ordinary autonomous reasoning between native captures.
 
 Every discovery session receives a new application instance, bootstrap, token, and socket. No browser, permission object, or helper state crosses discovery, review, replay, or recording boundaries.
 

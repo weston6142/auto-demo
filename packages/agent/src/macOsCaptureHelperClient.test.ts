@@ -87,6 +87,7 @@ describe("macOS capture helper client", () => {
     const bootstrap = JSON.parse(await readFile(launchRequest.bootstrapPath, "utf8")) as {
       token: string;
       socketPath: string;
+      idleTimeoutMs: number;
     };
     expect(bootstrap.token).toMatch(/^[a-f0-9]{64}$/u);
     expect(observedToken).toBe(bootstrap.token);
@@ -95,6 +96,7 @@ describe("macOS capture helper client", () => {
     expect((await stat(launchRequest.bootstrapPath)).mode & 0o777).toBe(0o600);
     expect((await stat(join(bootstrap.socketPath, ".."))).mode & 0o777).toBe(0o700);
     expect(bootstrap.socketPath.length).toBeLessThan(104);
+    expect(bootstrap.idleTimeoutMs).toBe(300_000);
 
     await client.close();
     await client.close();
@@ -164,6 +166,7 @@ describe("macOS capture helper client", () => {
         }),
       ]),
     );
+    expect(diagnostics.every((event) => typeof event.sessionElapsedMs === "number")).toBe(true);
     expect(diagnosticText).not.toContain(observedToken);
     expect(diagnosticText).not.toContain(fixture.sessionDirectory);
   });

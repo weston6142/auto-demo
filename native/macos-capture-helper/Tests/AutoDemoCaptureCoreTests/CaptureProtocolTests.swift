@@ -47,7 +47,7 @@ final class CaptureProtocolTests: XCTestCase {
             protocolVersion: captureProtocolVersion,
             socketPath: "/tmp/auto-demo-capture.sock",
             token: token,
-            idleTimeoutMs: 30_000
+            idleTimeoutMs: 300_000
         )
 
         XCTAssertEqual(try bootstrap.validated(), bootstrap)
@@ -57,6 +57,14 @@ final class CaptureProtocolTests: XCTestCase {
                 socketPath: "relative.sock",
                 token: token,
                 idleTimeoutMs: 30_000
+            ).validated()
+        )
+        XCTAssertThrowsError(
+            try CaptureBootstrap(
+                protocolVersion: 1,
+                socketPath: "/tmp/capture.sock",
+                token: token,
+                idleTimeoutMs: 300_001
             ).validated()
         )
         XCTAssertThrowsError(
