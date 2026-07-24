@@ -583,31 +583,56 @@ async function stopChild(
   observation: CaptureHelperChildObservation,
   dependencies: MacOsCaptureHelperDependencies,
 ): Promise<void> {
-  if (observation.exited || child.exitCode !== null) return;
+  if (observation.exited || child.exitCode !== null) {
+    requireSuccessfulSupervisorExit(
+      observation.terminal ?? {
+        exitCode: child.exitCode,
+        signal: null,
+      },
+    );
+    return;
+  }
   child.kill("SIGTERM");
-  if (await observation.wait(dependencies.terminationTimeoutMs ?? 5_000)) return;
-  if (child.exitCode !== null) return;
+  if (await observation.wait(dependencies.terminationTimeoutMs ?? 5_000)) {
+    requireSuccessfulSupervisorExit(observation.terminal);
+    return;
+  }
+  if (child.exitCode !== null) {
+    requireSuccessfulSupervisorExit(
+      observation.terminal ?? { exitCode: child.exitCode, signal: null },
+    );
+    return;
+  }
   child.kill("SIGKILL");
-  if (await observation.wait(dependencies.forceTerminationTimeoutMs ?? 2_000)) return;
+  if (await observation.wait(dependencies.forceTerminationTimeoutMs ?? 2_000)) {
+    throw new Error("capture helper supervisor required forced termination");
+  }
   throw new Error("capture helper supervisor did not exit");
 }
+
+type CaptureHelperTerminal = {
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+};
 
 type CaptureHelperChildObservation = {
   readonly error: Error | undefined;
   readonly exited: boolean;
+  readonly terminal: CaptureHelperTerminal | undefined;
   wait(timeoutMs: number): Promise<boolean>;
 };
 
 function observeChild(child: CaptureHelperChildProcess): CaptureHelperChildObservation {
   let error: Error | undefined;
-  let exited = child.exitCode !== null;
+  let terminal: CaptureHelperTerminal | undefined =
+    child.exitCode === null ? undefined : { exitCode: child.exitCode, signal: null };
   let resolveSettled!: () => void;
   const exitedPromise = new Promise<void>((resolve) => {
     resolveSettled = resolve;
   });
-  if (exited) resolveSettled();
-  child.once("exit", () => {
-    exited = true;
+  if (terminal !== undefined) resolveSettled();
+  child.once("exit", (exitCode, signal) => {
+    terminal = { exitCode, signal };
     resolveSettled();
   });
   child.on("error", (value) => {
@@ -618,16 +643,24 @@ function observeChild(child: CaptureHelperChildProcess): CaptureHelperChildObser
       return error;
     },
     get exited() {
-      return exited;
+      return terminal !== undefined;
+    },
+    get terminal() {
+      return terminal;
     },
     async wait(timeoutMs) {
-      if (exited) return true;
+      if (terminal !== undefined) return true;
       return await Promise.race([
         exitedPromise.then(() => true),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
       ]);
     },
   };
+}
+
+function requireSuccessfulSupervisorExit(terminal: CaptureHelperTerminal | undefined): void {
+  if (terminal?.exitCode === 0 && terminal.signal === null) return;
+  throw new Error("capture helper supervisor exited unsuccessfully");
 }
 
 async function cleanup(bootstrapPath: string, socketDirectory: string): Promise<void> {

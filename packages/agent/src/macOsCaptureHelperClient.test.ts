@@ -295,6 +295,59 @@ describe("macOS capture helper client", () => {
     expect(child.killSignals).toEqual(["SIGTERM", "SIGKILL"]);
   });
 
+  it("rejects close when the supervisor reports a failed native shutdown", async () => {
+    const fixture = await helperFixture();
+    const png = Buffer.from([137, 80, 78, 71]);
+    const child = new NonZeroExitChildProcess();
+    const events: unknown[] = [];
+    const client = await createMacOsCaptureHelperClient({
+      sessionDirectory: fixture.sessionDirectory,
+      installPath: fixture.installPath,
+      dependencies: {
+        ...fixture.dependencies,
+        async createDiagnosticRecorder() {
+          return {
+            async record(event) {
+              events.push(event);
+            },
+            async close() {},
+          };
+        },
+        launch(_executable, args) {
+          void startProtocolServerFromLaunchRequest(args[1]!, png, child, () => undefined);
+          return child;
+        },
+      },
+    });
+
+    await expect(client.close()).rejects.toThrow("exited unsuccessfully");
+    expect(child.killSignals).toEqual(["SIGTERM"]);
+    expect(events).toContainEqual({ event: "helper_stop_failed", stage: "helper_lifecycle" });
+    expect(events).not.toContainEqual({ event: "helper_stopped" });
+  });
+
+  it("rejects close when stopping the supervisor requires SIGKILL", async () => {
+    const fixture = await helperFixture();
+    const png = Buffer.from([137, 80, 78, 71]);
+    const child = new ForcedExitChildProcess();
+    const client = await createMacOsCaptureHelperClient({
+      sessionDirectory: fixture.sessionDirectory,
+      installPath: fixture.installPath,
+      dependencies: {
+        ...fixture.dependencies,
+        terminationTimeoutMs: 5,
+        forceTerminationTimeoutMs: 5,
+        launch(_executable, args) {
+          void startProtocolServerFromLaunchRequest(args[1]!, png, child, () => undefined);
+          return child;
+        },
+      },
+    });
+
+    await expect(client.close()).rejects.toThrow("required forced termination");
+    expect(child.killSignals).toEqual(["SIGTERM", "SIGKILL"]);
+  });
+
   it("closes diagnostics while preserving a cleanup failure", async () => {
     const fixture = await helperFixture();
     const png = Buffer.from([137, 80, 78, 71]);
@@ -429,6 +482,28 @@ class ErroringKillChildProcess extends NonExitingChildProcess {
     this.onKill?.();
     queueMicrotask(() => this.emit("error", new Error("signal failed")));
     return false;
+  }
+}
+
+class NonZeroExitChildProcess extends FakeChildProcess {
+  override kill(signal: NodeJS.Signals): boolean {
+    if (this.exitCode !== null) return false;
+    this.killSignals.push(signal);
+    this.exitCode = 1;
+    this.onKill?.();
+    this.emit("exit", 1, null);
+    return true;
+  }
+}
+
+class ForcedExitChildProcess extends NonExitingChildProcess {
+  override kill(signal: NodeJS.Signals): boolean {
+    this.killSignals.push(signal);
+    this.onKill?.();
+    if (signal === "SIGKILL") {
+      this.emit("exit", null, signal);
+    }
+    return true;
   }
 }
 
