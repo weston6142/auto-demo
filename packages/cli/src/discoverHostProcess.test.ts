@@ -223,6 +223,9 @@ describe("runDiscoverHostProcess", () => {
 
       expect(runtimeClosed).toBe(true);
       expect(socketCleaned).toBe(true);
+      await expect(lstat(join(sessionDirectory, "host.json"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     },
   );
 });

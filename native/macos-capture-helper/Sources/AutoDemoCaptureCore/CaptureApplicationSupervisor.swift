@@ -35,25 +35,30 @@ public protocol CaptureApplicationLaunching: Sendable {
 public enum CaptureApplicationSupervisorError: Error, Equatable, Sendable {
     case invalidApplicationBundle
     case alreadyRunning
+    case terminationFailed
 }
 
 public actor CaptureApplicationSupervisor {
     private let launcher: any CaptureApplicationLaunching
     private let supervisorExecutableURL: URL
     private let terminationGrace: Duration
+    private let forceTerminationGrace: Duration
     private let pollInterval: Duration
     private var application: (any CaptureRunningApplication)?
     private var shutdownRequested = false
+    private var shutdownFailed = false
 
     public init(
         launcher: any CaptureApplicationLaunching,
         supervisorExecutableURL: URL,
         terminationGrace: Duration = .seconds(1),
+        forceTerminationGrace: Duration = .seconds(1),
         pollInterval: Duration = .milliseconds(50)
     ) {
         self.launcher = launcher
         self.supervisorExecutableURL = supervisorExecutableURL
         self.terminationGrace = terminationGrace
+        self.forceTerminationGrace = forceTerminationGrace
         self.pollInterval = pollInterval
     }
 
@@ -74,33 +79,49 @@ public actor CaptureApplicationSupervisor {
         let launchedApplication = try await launcher.launch(launch)
         application = launchedApplication
         if shutdownRequested {
-            await terminate(launchedApplication)
+            shutdownFailed = !(await terminate(launchedApplication))
         }
         while !(await launchedApplication.isTerminated()) {
+            if shutdownFailed {
+                application = nil
+                throw CaptureApplicationSupervisorError.terminationFailed
+            }
             try await Task.sleep(for: pollInterval)
         }
         application = nil
+        if shutdownFailed {
+            throw CaptureApplicationSupervisorError.terminationFailed
+        }
     }
 
     public func shutdown() async {
         guard !shutdownRequested else { return }
         shutdownRequested = true
         guard let application else { return }
-        await terminate(application)
+        shutdownFailed = !(await terminate(application))
     }
 
-    private func terminate(_ application: any CaptureRunningApplication) async {
-        guard !(await application.isTerminated()) else { return }
+    private func terminate(_ application: any CaptureRunningApplication) async -> Bool {
+        guard !(await application.isTerminated()) else { return true }
         _ = await application.terminate()
+        if await waitForTermination(application, grace: terminationGrace) {
+            return true
+        }
+        _ = await application.forceTerminate()
+        return await waitForTermination(application, grace: forceTerminationGrace)
+    }
+
+    private func waitForTermination(
+        _ application: any CaptureRunningApplication,
+        grace: Duration
+    ) async -> Bool {
         let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: terminationGrace)
+        let deadline = clock.now.advanced(by: grace)
         while clock.now < deadline {
-            if await application.isTerminated() { return }
+            if await application.isTerminated() { return true }
             try? await Task.sleep(for: pollInterval)
         }
-        if !(await application.isTerminated()) {
-            _ = await application.forceTerminate()
-        }
+        return await application.isTerminated()
     }
 }
 

@@ -71,6 +71,32 @@ final class CaptureApplicationSupervisorTests: XCTestCase {
         XCTAssertEqual(actions, [.terminate, .forceTerminate])
     }
 
+    func testFailsBoundedlyWhenForceTerminationDoesNotStopApplication() async throws {
+        let application = FakeRunningApplication(
+            terminatesGracefully: false,
+            forceTerminates: false
+        )
+        let launcher = FakeApplicationLauncher(application: application)
+        let supervisor = makeSupervisor(launcher: launcher)
+        let request = serviceRequest()
+        let running = Task { try await supervisor.run(request: request) }
+        await waitUntilLaunched(launcher)
+
+        await supervisor.shutdown()
+
+        do {
+            try await running.value
+            XCTFail("expected termination confirmation failure")
+        } catch {
+            XCTAssertEqual(
+                error as? CaptureApplicationSupervisorError,
+                .terminationFailed
+            )
+        }
+        let actions = await application.recordedActions()
+        XCTAssertEqual(actions, [.terminate, .forceTerminate])
+    }
+
     func testDerivesOnlyAnEnclosingApplicationBundle() throws {
         XCTAssertEqual(
             try enclosingCaptureApplicationURL(
@@ -94,6 +120,7 @@ final class CaptureApplicationSupervisorTests: XCTestCase {
                 fileURLWithPath: "/Applications/Auto Demo Capture.app/Contents/MacOS/AutoDemoCaptureSupervisor"
             ),
             terminationGrace: .milliseconds(10),
+            forceTerminationGrace: .milliseconds(10),
             pollInterval: .milliseconds(1)
         )
     }
@@ -126,11 +153,17 @@ private enum ApplicationAction: Equatable {
 private actor FakeRunningApplication: CaptureRunningApplication {
     private var terminated: Bool
     private let terminatesGracefully: Bool
+    private let forceTerminates: Bool
     private var actions: [ApplicationAction] = []
 
-    init(terminated: Bool = false, terminatesGracefully: Bool = true) {
+    init(
+        terminated: Bool = false,
+        terminatesGracefully: Bool = true,
+        forceTerminates: Bool = true
+    ) {
         self.terminated = terminated
         self.terminatesGracefully = terminatesGracefully
+        self.forceTerminates = forceTerminates
     }
 
     func isTerminated() -> Bool { terminated }
@@ -143,7 +176,7 @@ private actor FakeRunningApplication: CaptureRunningApplication {
 
     func forceTerminate() -> Bool {
         actions.append(.forceTerminate)
-        terminated = true
+        if forceTerminates { terminated = true }
         return true
     }
 

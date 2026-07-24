@@ -95,6 +95,25 @@ describe("macOS capture helper client", () => {
     });
   });
 
+  it("reports an unavailable version probe without claiming a protocol mismatch", async () => {
+    const fixture = await helperFixture();
+
+    expect(
+      await preflightMacOsCaptureHelper({
+        ...fixture.dependencies,
+        async runCommand(command) {
+          if (command === "codesign") return { exitCode: 0, stdout: "", stderr: "" };
+          return { exitCode: 1, stdout: "", stderr: "" };
+        },
+      }),
+    ).toEqual({
+      ok: false,
+      code: "capture_helper_unavailable",
+      message: "Auto Demo Capture could not complete its version check.",
+      setupCommand: "npm run autodemo -- setup capture-helper --json",
+    });
+  });
+
   it("uses a private bootstrap and authenticated short socket without putting the token in args", async () => {
     const fixture = await helperFixture();
     const png = Buffer.from([137, 80, 78, 71]);

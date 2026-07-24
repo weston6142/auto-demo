@@ -133,6 +133,12 @@ export async function preflightMacOsCaptureHelper(
     mode: "version",
     dependencies,
   });
+  if (version === undefined || (!version.ok && version.code === "capture_helper_unavailable")) {
+    return preflightFailure(
+      "capture_helper_unavailable",
+      "Auto Demo Capture could not complete its version check.",
+    );
+  }
   if (!validVersion(version)) {
     return preflightFailure(
       "capture_helper_protocol_mismatch",

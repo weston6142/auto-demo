@@ -1,4 +1,4 @@
-import { rename, writeFile } from "node:fs/promises";
+import { rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createDiscoverSessionHost } from "./discoverHost.js";
 import { allocateDiscoverHostSocket } from "./discoverHostSocket.js";
@@ -63,9 +63,10 @@ export async function runDiscoverHostProcess(
   // Unreachable: the try block assigns socket or the catch returns. TypeScript
   // cannot narrow the assignment across the try/catch boundary.
   if (socket === undefined) return;
+  const hostMetadataPath = join(bootstrap.sessionDirectory, "host.json");
   try {
     await writeJson(
-      join(bootstrap.sessionDirectory, "host.json"),
+      hostMetadataPath,
       {
         schemaVersion: 1,
         socketPath: socket.socketPath,
@@ -78,6 +79,7 @@ export async function runDiscoverHostProcess(
     await created.recordStartupFailure?.("host_metadata_publish").catch(() => undefined);
     await host.close().catch(() => undefined);
     await socket.cleanup().catch(() => undefined);
+    await rm(hostMetadataPath, { force: true }).catch(() => undefined);
     return;
   }
 
@@ -96,9 +98,14 @@ function startFailure() {
 
 async function atomicJson(path: string, value: unknown, mode?: number): Promise<void> {
   const temporary = `${path}.tmp-${process.pid}`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    flag: "wx",
-    ...(mode === undefined ? {} : { mode }),
-  });
-  await rename(temporary, path);
+  try {
+    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+      flag: "wx",
+      ...(mode === undefined ? {} : { mode }),
+    });
+    await rename(temporary, path);
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
