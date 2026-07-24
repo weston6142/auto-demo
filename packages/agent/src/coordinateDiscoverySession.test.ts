@@ -23,7 +23,11 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
   private selectedOption = "Any make";
   private blocked = false;
 
-  constructor(private readonly failPopupCapture = false) {}
+  constructor(
+    private readonly failPopupCapture = false,
+    private readonly failStateAfterAction = false,
+    private readonly failInitialChallenge = false,
+  ) {}
 
   shiftLayout() {
     this.pageState.layoutIdentity = "layout-external";
@@ -49,10 +53,16 @@ class FakeCoordinatePage implements CoordinateDiscoveryPage {
   }
 
   async state() {
+    if (this.failStateAfterAction && this.executed.length > 0) {
+      throw new Error("state-after-navigation-secret");
+    }
     return structuredClone(this.pageState);
   }
 
   async challenge() {
+    if (this.failInitialChallenge && this.executed.length === 0) {
+      throw new Error("pre-action-challenge-secret");
+    }
     return this.blocked;
   }
 
@@ -127,6 +137,64 @@ async function started(page = new FakeCoordinatePage()) {
 }
 
 describe("coordinate discovery session", () => {
+  it("attributes a thrown pre-action challenge check without retaining the raw error", async () => {
+    const diagnostics: Array<Record<string, unknown>> = [];
+    const page = new FakeCoordinatePage(false, false, true);
+    const session = createCoordinateDiscoverySession({
+      page,
+      grid: false,
+      diagnostics: {
+        async record(event) {
+          diagnostics.push(structuredClone(event));
+        },
+      },
+    });
+    const started = await session.start();
+    if (!started.ok) throw new Error("fixture session failed to start");
+
+    await expect(
+      session.act({
+        frameId: started.frame.id,
+        actions: [{ type: "click", x: 700, y: 80 }],
+      }),
+    ).rejects.toThrow("pre-action-challenge-secret");
+    expect(diagnostics).toContainEqual({
+      event: "coordinate_session_stage_failed",
+      stage: "pre_action_challenge",
+    });
+    expect(JSON.stringify(diagnostics)).not.toContain("pre-action-challenge-secret");
+  });
+
+  it("attributes a thrown action stage without retaining the raw error", async () => {
+    const diagnostics: Array<Record<string, unknown>> = [];
+    const page = new FakeCoordinatePage(false, true);
+    const session = createCoordinateDiscoverySession({
+      page,
+      grid: false,
+      diagnostics: {
+        async record(event) {
+          diagnostics.push(structuredClone(event));
+        },
+      },
+    });
+    const started = await session.start();
+    if (!started.ok) throw new Error("fixture session failed to start");
+
+    await expect(
+      session.act({
+        frameId: started.frame.id,
+        actions: [{ type: "click", x: 700, y: 80 }],
+      }),
+    ).rejects.toThrow("state-after-navigation-secret");
+    expect(diagnostics).toContainEqual({
+      event: "coordinate_action_stage_failed",
+      stage: "after_action_state",
+      actionIndex: 0,
+      actionType: "click",
+    });
+    expect(JSON.stringify(diagnostics)).not.toContain("state-after-navigation-secret");
+  });
+
   it("observes a fresh frame and invalidates the prior frame", async () => {
     const { page, session, frame } = await started();
     const observed = await session.observe();

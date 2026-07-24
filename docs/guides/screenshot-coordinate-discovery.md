@@ -18,8 +18,12 @@ npm run autodemo -- setup capture-helper --json
 
 The command installs `~/Applications/Auto Demo Capture.app`, signs it with an
 eligible local Apple Development identity when exactly one is available, and
-asks macOS for Screen Recording permission. If multiple identities are
-available, rerun with the returned fingerprint as
+asks macOS for Screen Recording permission. Permission belongs only to the
+signed app identity `com.autodemo.capture-helper`. Setup and discovery start the
+app through Launch Services using its bundled supervisor; they never launch the
+inner capture executable directly or ask Terminal, Codex, ChatGPT, or another
+host process to capture the screen. If multiple identities are available, rerun
+with the returned fingerprint as
 `--signing-identity <fingerprint>`. Use `--ad-hoc` only as an explicit fallback;
 macOS may ask for permission again after an ad-hoc rebuild. Certificates and
 private keys stay in Keychain, and the signed app is never committed.
@@ -29,6 +33,41 @@ Discovery reports `capture_helper_not_installed`,
 `capture_helper_signature_invalid`, `capture_helper_protocol_mismatch`, or
 `capture_helper_permission_required` with the recovery command when setup is
 incomplete. The browser is not opened first.
+
+Each discovery session gets a fresh app instance, private request, token, and
+socket. Closing the session tells the supervisor to terminate that exact app
+instance and remove its private launch files. The helper's five-minute idle
+timeout is only an orphan backstop and is long enough for ordinary autonomous
+reasoning between native captures. If setup still returns
+`capture_helper_permission_required`, enable Screen Recording for **Auto Demo
+Capture** in System Settings and rerun setup; do not grant Screen Recording to a
+terminal or model host as a fallback.
+
+The helper writes `native-capture-diagnostics.jsonl` inside the private
+discovery-session directory. It records bounded lifecycle, timing, requested
+region, response-validation, and ScreenCaptureKit stage codes for each native
+capture attempt. It does not contain screenshots, page content, tokens, socket
+or bootstrap paths, signing data, or raw system error descriptions. Use this
+file to distinguish display selection, screenshot capture, PNG encoding,
+transport, and normalization failures before retrying a failed session.
+
+Every discovery session also writes `discover-host-diagnostics.jsonl` in the
+same private directory. It records the resolved browser profile, bounded
+main-document response status and same-origin/other-origin relation beginning
+before the initial navigation, the bounded attempt ordinal/profile responsible
+for each response, live failed browser-launch outcomes, exact
+stable coordinate-session/action failure stages, bounded action results,
+returned persistence failures, finish stages, and host lifecycle closure. A
+`runtime_stopped` record means the logger and owned runtime reached their close
+boundary; earlier failure records remain authoritative. The file intentionally
+excludes URLs, hostnames, headers, bodies, page text or titles, target labels,
+coordinates, runtime input, authentication material, private paths,
+screenshots, and raw exception messages. Use it when a public
+`discover_host_failed` result does not identify whether failure occurred during
+browser launch/navigation, page-state observation, action execution, artifact
+persistence, finalization, review-artifact writing, or cleanup. The evidence
+can identify the client boundary and response class; it cannot reveal an
+unexposed server-side blocking reason.
 
 ## Start
 

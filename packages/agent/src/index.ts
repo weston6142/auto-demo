@@ -118,8 +118,11 @@ export {
 
 export {
   createCoordinateDiscoverySession,
+  type CoordinateDiscoveryActionStage,
   type CoordinateDiscoveryActResult,
   type CoordinateDiscoveryBoundary,
+  type CoordinateDiscoveryDiagnosticEvent,
+  type CoordinateDiscoveryDiagnosticSink,
   type CoordinateDiscoveryPage,
   type CoordinateDiscoverySession,
   type CoordinatePageState,
@@ -160,11 +163,14 @@ export {
   createMacOsCaptureHelperClient,
   defaultMacOsCaptureHelperDependencies,
   preflightMacOsCaptureHelper,
+  runMacOsCaptureHelperProbe,
   type CaptureHelperChildProcess,
   type CreateMacOsCaptureHelperClientInput,
   type MacOsCaptureHelperClient,
   type MacOsCaptureHelperDependencies,
   type MacOsCaptureHelperPreflightResult,
+  type MacOsCaptureHelperProbeMode,
+  type MacOsCaptureHelperProbeResult,
   type MacOsCaptureRegion,
 } from "./macOsCaptureHelperClient.js";
 
@@ -234,6 +240,7 @@ export {
   type DiscoveryBrowserLaunchHandle,
   type DiscoveryBrowserLaunchResult,
   type DiscoveryBrowserLauncher,
+  type DiscoveryBrowserMainDocumentResponse,
 } from "./playwrightDiscoveryBrowserLauncher.js";
 
 export {

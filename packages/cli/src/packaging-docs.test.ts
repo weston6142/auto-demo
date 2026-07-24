@@ -129,5 +129,10 @@ describe("CLI packaging decision documentation", () => {
     expect(guide).toContain("capture_helper_permission_required");
     expect(guide).toContain("screen recording permission");
     expect(guide).toContain("browser is not opened");
+    expect(guide).toContain("launch services");
+    expect(guide).toContain("supervisor");
+    expect(guide).toContain("com.autodemo.capture-helper");
+    expect(guide).toContain("exact app instance");
+    expect(guide).not.toContain("grant screen recording to terminal");
   });
 });

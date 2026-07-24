@@ -105,6 +105,71 @@ final class UnixCaptureServerTests: XCTestCase {
         try await task.value
     }
 
+    func testReturnsBoundedProviderFailureDiagnostics() async throws {
+        let fixture = try ServerFixture()
+        defer { fixture.cleanup() }
+        let diagnostic = CaptureFailureDiagnostic(
+            stage: .screenshotCapture,
+            systemErrorDomain: "SCStreamErrorDomain",
+            systemErrorCode: -3812
+        )
+        let server = UnixCaptureServer(
+            bootstrap: fixture.bootstrap,
+            provider: FailingCaptureProvider(diagnostic: diagnostic),
+            maximumRequests: 1
+        )
+        let task = Task.detached { try await server.run() }
+        try await fixture.waitUntilReady()
+
+        let response = try fixture.request(
+            CaptureRequest(
+                protocolVersion: captureProtocolVersion,
+                token: fixture.token,
+                x: 40,
+                y: 80,
+                width: 320,
+                height: 240
+            )
+        )
+
+        XCTAssertEqual(response.header, .failure(.captureFailed, diagnostic: diagnostic))
+        XCTAssertTrue(response.png.isEmpty)
+        try await task.value
+    }
+
+    func testAttributesOversizedProviderOutputToPNGEncoding() async throws {
+        let fixture = try ServerFixture()
+        defer { fixture.cleanup() }
+        let server = UnixCaptureServer(
+            bootstrap: fixture.bootstrap,
+            provider: FailingCaptureProvider(error: CaptureProtocolError.responseTooLarge),
+            maximumRequests: 1
+        )
+        let task = Task.detached { try await server.run() }
+        try await fixture.waitUntilReady()
+
+        let response = try fixture.request(
+            CaptureRequest(
+                protocolVersion: captureProtocolVersion,
+                token: fixture.token,
+                x: 40,
+                y: 80,
+                width: 320,
+                height: 240
+            )
+        )
+
+        XCTAssertEqual(
+            response.header,
+            .failure(
+                .responseTooLarge,
+                diagnostic: CaptureFailureDiagnostic(stage: .pngEncoding)
+            )
+        )
+        XCTAssertTrue(response.png.isEmpty)
+        try await task.value
+    }
+
     func testStopsAfterBoundedIdleTimeout() async throws {
         let fixture = try ServerFixture()
         defer { fixture.cleanup() }
@@ -158,6 +223,22 @@ private actor FakeCaptureProvider: CaptureProvider {
 
     func captureCount() -> Int {
         regions.count
+    }
+}
+
+private struct FailingCaptureProvider: CaptureProvider {
+    let error: any Error
+
+    init(diagnostic: CaptureFailureDiagnostic) {
+        self.error = diagnostic
+    }
+
+    init(error: any Error) {
+        self.error = error
+    }
+
+    func capture(region: CGRect, outputSize: CGSize) async throws -> Data {
+        throw error
     }
 }
 

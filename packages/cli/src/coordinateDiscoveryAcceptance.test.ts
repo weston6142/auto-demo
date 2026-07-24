@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDiscoverSessionHost, type DiscoverSessionHost } from "./discoverHost.js";
 import { createFileDiscoverCommandBackend } from "./discoverBackend.js";
+import { allocateDiscoverHostSocket } from "./discoverHostSocket.js";
 import {
   createPlaywrightDiscoverRuntime,
   readDiscoverBootstrap,
@@ -64,7 +65,9 @@ describe("coordinate discovery CLI acceptance", () => {
           );
           return;
         }
-        const socketPath = join(bootstrap.sessionDirectory, "host.sock");
+        const allocation = await allocateDiscoverHostSocket();
+        tempDirectories.push(allocation.socketDirectory);
+        const socketPath = allocation.socketPath;
         const host = await createDiscoverSessionHost({
           socketPath,
           token: bootstrap.token,
@@ -191,7 +194,7 @@ describe("coordinate discovery CLI acceptance", () => {
         "utf8",
       ),
     ).resolves.toContain('"state": "validated"');
-  }, 45_000);
+  }, 75_000);
 });
 
 async function command(
@@ -200,9 +203,10 @@ async function command(
 ): Promise<Record<string, unknown>> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
+    const timeoutMs = args[0] === "discover" && args[1] === "start" ? 30_000 : 8_000;
     timeout = setTimeout(
       () => reject(new Error(`command timed out: ${args.slice(0, 2).join(" ")}`)),
-      8_000,
+      timeoutMs,
     );
   });
   const result = await Promise.race([runCliAsync(args, dependencies), timedOut]).finally(() =>

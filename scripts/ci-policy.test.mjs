@@ -104,6 +104,7 @@ describe("CI final gate", () => {
         docs: "success",
         unit: "success",
         browser: "success",
+        macosNative: "success",
       }),
       { ok: true, errors: [] },
     );
@@ -114,6 +115,7 @@ describe("CI final gate", () => {
         docs: "success",
         unit: "skipped",
         browser: "success",
+        macosNative: "success",
       }).ok,
       false,
     );
@@ -127,6 +129,7 @@ describe("CI final gate", () => {
         docs: "success",
         unit: "skipped",
         browser: "skipped",
+        macosNative: "skipped",
       }),
       { ok: true, errors: [] },
     );
@@ -138,6 +141,7 @@ describe("CI final gate", () => {
           docs: "success",
           unit: "skipped",
           browser: "skipped",
+          macosNative: "skipped",
         }).ok,
         false,
       );
@@ -148,6 +152,7 @@ describe("CI final gate", () => {
           docs: unacceptable,
           unit: "skipped",
           browser: "skipped",
+          macosNative: "skipped",
         }).ok,
         false,
       );
@@ -162,6 +167,7 @@ describe("CI final gate", () => {
         docs: "success",
         unit: "success",
         browser: "success",
+        macosNative: "success",
       }).ok,
       false,
     );
@@ -172,6 +178,7 @@ describe("CI final gate", () => {
         docs: "success",
         unit: "success",
         browser: "skipped",
+        macosNative: "skipped",
       }).ok,
       false,
     );
@@ -179,8 +186,22 @@ describe("CI final gate", () => {
 
   it("rejects an unacceptable gate through the CLI contract", async () => {
     await assert.rejects(
-      runCiPolicy(["gate", "full", "success", "success", "failure", "success"]),
+      runCiPolicy(["gate", "full", "success", "success", "failure", "success", "success"]),
       /unit.*failure/i,
+    );
+  });
+
+  it("requires the macOS native job for full changes", () => {
+    assert.equal(
+      validateCiResults({
+        route: "full",
+        static: "success",
+        docs: "success",
+        unit: "success",
+        browser: "success",
+        macosNative: "failure",
+      }).ok,
+      false,
     );
   });
 });

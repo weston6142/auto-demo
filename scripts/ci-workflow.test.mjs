@@ -16,14 +16,22 @@ describe("GitHub CI workflow contract", () => {
     assert.match(workflow, /^concurrency:$/m);
     assert.match(workflow, /group: ci-.*github\.event\.pull_request\.number.*github\.ref/);
     assert.match(workflow, /cancel-in-progress: true/);
-    assert.equal(matches(workflow, /uses: actions\/checkout@v7/g), 6);
+    assert.equal(matches(workflow, /uses: actions\/checkout@v7/g), 7);
     assert.equal(matches(workflow, /uses: actions\/setup-node@v6/g), 4);
     assert.doesNotMatch(workflow, /uses: actions\/(?:checkout|setup-node)@v4/);
   });
 
-  it("runs static, docs, unit, and browser responsibilities independently", async () => {
+  it("runs static, docs, unit, browser, and macOS native responsibilities independently", async () => {
     const workflow = await readFile(workflowPath, "utf8");
-    for (const job of ["changes", "static", "docs", "unit", "browser", "validate"]) {
+    for (const job of [
+      "changes",
+      "static",
+      "docs",
+      "unit",
+      "browser",
+      "macos-native",
+      "validate",
+    ]) {
       assert.match(workflow, new RegExp(`^  ${job}:$`, "m"));
     }
     assert.equal(matches(workflow, /playwright install --with-deps chromium/g), 1);
@@ -32,6 +40,11 @@ describe("GitHub CI workflow contract", () => {
     assert.match(jobBlock(workflow, "static"), /npm run typecheck:ci/);
     assert.match(jobBlock(workflow, "docs"), /npm run test:docs:ci/);
     assert.match(jobBlock(workflow, "unit"), /npm run test:unit:ci/);
+    const macosNative = jobBlock(workflow, "macos-native");
+    assert.match(macosNative, /runs-on: macos-latest/);
+    assert.match(macosNative, /swift test --package-path native\/macos-capture-helper/);
+    assert.match(macosNative, /AutoDemoCaptureSupervisor/);
+    assert.doesNotMatch(macosNative, /request-permission|AUTODEMO_REAL_CAPTURE_HELPER/);
   });
 
   it("preserves browser failure output and machine-readable reports", async () => {
@@ -50,13 +63,14 @@ describe("GitHub CI workflow contract", () => {
     const validate = jobBlock(await readFile(workflowPath, "utf8"), "validate");
     assert.match(validate, /^ {2}validate:\n {4}name: validate$/m);
     assert.match(validate, /if: always\(\)/);
-    assert.match(validate, /needs: \[changes, static, docs, unit, browser\]/);
+    assert.match(validate, /needs: \[changes, static, docs, unit, browser, macos-native\]/);
     assert.match(validate, /node scripts\/ci-policy\.mjs gate/);
     for (const result of [
       "needs.static.result",
       "needs.docs.result",
       "needs.unit.result",
       "needs.browser.result",
+      "needs.macos-native.result",
     ]) {
       assert.match(validate, new RegExp(result.replaceAll(".", "\\.")));
     }

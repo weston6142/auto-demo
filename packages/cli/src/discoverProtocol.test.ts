@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { lstat, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -36,6 +36,7 @@ describe("discover host protocol", () => {
 
     expect(response).toEqual({ ok: true, status: "discovering" });
     expect(received).toEqual([{ command: "status", sessionId: "discovery-123" }]);
+    expect((await lstat(socketPath)).mode & 0o777).toBe(0o600);
     await server.close();
   });
 

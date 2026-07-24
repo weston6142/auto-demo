@@ -14,7 +14,34 @@ export async function createMacOsBrowserWindowCapture(
 ): Promise<BrowserWindowCapture | undefined> {
   if ((options.platform ?? process.platform) !== "darwin") return undefined;
   if (options.client === undefined) return undefined;
-  const geometry = await page.evaluate(() => {
+  return {
+    async capture() {
+      const geometry = await captureGeometry(page);
+      const bytes = await options.client!.capture(geometry.region);
+      if (bytes === undefined) return undefined;
+      try {
+        return normalizePng(bytes, geometry.viewport);
+      } catch {
+        await options.client!.recordDiagnostic?.({
+          event: "browser_capture_failed",
+          stage: "png_normalization",
+          region: geometry.region,
+          viewport: geometry.viewport,
+        });
+        return undefined;
+      }
+    },
+    async close() {
+      await options.client!.close();
+    },
+  };
+}
+
+async function captureGeometry(page: Page): Promise<{
+  region: { x: number; y: number; width: number; height: number };
+  viewport: { width: number; height: number };
+}> {
+  return await page.evaluate(() => {
     const horizontalChrome = Math.max(0, outerWidth - innerWidth);
     const verticalChrome = Math.max(0, outerHeight - innerHeight);
     return {
@@ -27,20 +54,6 @@ export async function createMacOsBrowserWindowCapture(
       viewport: { width: innerWidth, height: innerHeight },
     };
   });
-  return {
-    async capture() {
-      const bytes = await options.client!.capture(geometry.region);
-      if (bytes === undefined) return undefined;
-      try {
-        return normalizePng(bytes, geometry.viewport);
-      } catch {
-        return undefined;
-      }
-    },
-    async close() {
-      await options.client!.close();
-    },
-  };
 }
 
 function normalizePng(bytes: Uint8Array, viewport: { width: number; height: number }): Uint8Array {

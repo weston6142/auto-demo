@@ -47,7 +47,7 @@ final class CaptureProtocolTests: XCTestCase {
             protocolVersion: captureProtocolVersion,
             socketPath: "/tmp/auto-demo-capture.sock",
             token: token,
-            idleTimeoutMs: 30_000
+            idleTimeoutMs: 300_000
         )
 
         XCTAssertEqual(try bootstrap.validated(), bootstrap)
@@ -57,6 +57,14 @@ final class CaptureProtocolTests: XCTestCase {
                 socketPath: "relative.sock",
                 token: token,
                 idleTimeoutMs: 30_000
+            ).validated()
+        )
+        XCTAssertThrowsError(
+            try CaptureBootstrap(
+                protocolVersion: 1,
+                socketPath: "/tmp/capture.sock",
+                token: token,
+                idleTimeoutMs: 300_001
             ).validated()
         )
         XCTAssertThrowsError(
@@ -89,14 +97,24 @@ final class CaptureProtocolTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            CaptureResponseHeader.failure(.invalidRegion),
+            CaptureResponseHeader.failure(
+                .captureFailed,
+                diagnostic: CaptureFailureDiagnostic(
+                    stage: .screenshotCapture,
+                    systemErrorDomain: "SCStreamErrorDomain",
+                    systemErrorCode: -3812
+                )
+            ),
             CaptureResponseHeader(
                 ok: false,
-                code: "capture_region_invalid",
-                message: "Capture region is invalid.",
+                code: "native_window_capture_unavailable",
+                message: "Native browser UI capture is unavailable.",
                 byteLength: nil,
                 width: nil,
-                height: nil
+                height: nil,
+                diagnosticStage: .screenshotCapture,
+                systemErrorDomain: "SCStreamErrorDomain",
+                systemErrorCode: -3812
             )
         )
     }

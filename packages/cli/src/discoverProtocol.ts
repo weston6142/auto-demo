@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { chmod } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 
 const MAX_MESSAGE_BYTES = 256_000;
@@ -39,6 +40,12 @@ export async function createDiscoverHostServer(input: {
     });
   });
   await listen(server, input.socketPath);
+  try {
+    await chmod(input.socketPath, 0o600);
+  } catch (error) {
+    await closeServer(server);
+    throw error;
+  }
   return { close: () => closeServer(server) };
 }
 

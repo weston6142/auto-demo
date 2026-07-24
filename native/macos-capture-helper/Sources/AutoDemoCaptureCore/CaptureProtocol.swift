@@ -6,7 +6,7 @@ public let maximumCaptureDimension = 8_192
 public let maximumCaptureBytes = 32 * 1_024 * 1_024
 public let maximumRequestBytes = 8 * 1_024
 public let minimumIdleTimeoutMs = 1_000
-public let maximumIdleTimeoutMs = 30_000
+public let maximumIdleTimeoutMs = 300_000
 
 private let maximumScreenCoordinate = 1_000_000
 private let maximumUnixSocketPathBytes = 103
@@ -111,6 +111,9 @@ public struct CaptureResponseHeader: Codable, Equatable, Sendable {
     public let byteLength: Int?
     public let width: Int?
     public let height: Int?
+    public let diagnosticStage: CaptureDiagnosticStage?
+    public let systemErrorDomain: String?
+    public let systemErrorCode: Int?
 
     public init(
         ok: Bool,
@@ -118,7 +121,10 @@ public struct CaptureResponseHeader: Codable, Equatable, Sendable {
         message: String?,
         byteLength: Int?,
         width: Int?,
-        height: Int?
+        height: Int?,
+        diagnosticStage: CaptureDiagnosticStage? = nil,
+        systemErrorDomain: String? = nil,
+        systemErrorCode: Int? = nil
     ) {
         self.ok = ok
         self.code = code
@@ -126,6 +132,9 @@ public struct CaptureResponseHeader: Codable, Equatable, Sendable {
         self.byteLength = byteLength
         self.width = width
         self.height = height
+        self.diagnosticStage = diagnosticStage
+        self.systemErrorDomain = systemErrorDomain
+        self.systemErrorCode = systemErrorCode
     }
 
     public static func success(byteLength: Int, width: Int, height: Int) throws -> Self {
@@ -148,14 +157,52 @@ public struct CaptureResponseHeader: Codable, Equatable, Sendable {
         )
     }
 
-    public static func failure(_ error: CaptureProtocolError) -> Self {
+    public static func failure(
+        _ error: CaptureProtocolError,
+        diagnostic: CaptureFailureDiagnostic? = nil
+    ) -> Self {
         Self(
             ok: false,
             code: error.rawValue,
             message: error.localizedDescription,
             byteLength: nil,
             width: nil,
-            height: nil
+            height: nil,
+            diagnosticStage: diagnostic?.stage,
+            systemErrorDomain: diagnostic?.systemErrorDomain,
+            systemErrorCode: diagnostic?.systemErrorCode
+        )
+    }
+}
+
+public enum CaptureDiagnosticStage: String, Codable, Equatable, Sendable {
+    case shareableContent = "shareable_content"
+    case displaySelection = "display_selection"
+    case screenshotCapture = "screenshot_capture"
+    case pngEncoding = "png_encoding"
+}
+
+public struct CaptureFailureDiagnostic: Error, Equatable, Sendable {
+    public let stage: CaptureDiagnosticStage
+    public let systemErrorDomain: String?
+    public let systemErrorCode: Int?
+
+    public init(
+        stage: CaptureDiagnosticStage,
+        systemErrorDomain: String? = nil,
+        systemErrorCode: Int? = nil
+    ) {
+        self.stage = stage
+        self.systemErrorDomain = sanitizeSystemErrorDomain(systemErrorDomain)
+        self.systemErrorCode = systemErrorCode.flatMap { (-1_000_000...1_000_000).contains($0) ? $0 : nil }
+    }
+
+    public init(stage: CaptureDiagnosticStage, underlying: Error) {
+        let error = underlying as NSError
+        self.init(
+            stage: stage,
+            systemErrorDomain: error.domain,
+            systemErrorCode: error.code
         )
     }
 }
@@ -204,4 +251,20 @@ private func constantTimeEqual(_ left: String, _ right: String) -> Bool {
 
 private func absCoordinateIsBounded(_ value: Int) -> Bool {
     value >= -maximumScreenCoordinate && value <= maximumScreenCoordinate
+}
+
+private func sanitizeSystemErrorDomain(_ value: String?) -> String? {
+    guard let value,
+          !value.isEmpty,
+          value.utf8.count <= 128,
+          value.unicodeScalars.allSatisfy({ scalar in
+              CharacterSet.alphanumerics.contains(scalar)
+                  || scalar == "."
+                  || scalar == "_"
+                  || scalar == "-"
+          })
+    else {
+        return nil
+    }
+    return value
 }

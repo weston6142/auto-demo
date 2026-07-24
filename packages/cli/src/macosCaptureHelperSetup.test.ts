@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -74,6 +74,13 @@ describe("macOS capture helper setup", () => {
     expect(
       JSON.stringify(await readFile(join(fixture.installPath, "Contents/Resources/source-hash"))),
     ).not.toContain("Local User");
+    await expect(
+      stat(join(fixture.installPath, "Contents/MacOS/AutoDemoCaptureHelper")),
+    ).resolves.toBeDefined();
+    await expect(
+      stat(join(fixture.installPath, "Contents/MacOS/AutoDemoCaptureSupervisor")),
+    ).resolves.toBeDefined();
+    expect(fixture.probes.map(({ mode }) => mode)).toEqual(["version", "permission-preflight"]);
   });
 
   it("supports explicit ad-hoc signing and returns a bounded permission requirement", async () => {
@@ -95,6 +102,22 @@ describe("macOS capture helper setup", () => {
         args: expect.arrayContaining(["--sign", "-"]),
       }),
     );
+  });
+
+  it("does not request permission when the supervised preflight is unavailable", async () => {
+    const fixture = await setupFixture({ permissionUnavailable: true });
+
+    const result = await runMacOsCaptureHelperSetup(
+      { adHoc: true, json: true },
+      fixture.dependencies,
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      code: "capture_helper_unavailable",
+      message: "Auto Demo Capture could not complete its permission check.",
+    });
+    expect(fixture.probes.map(({ mode }) => mode)).toEqual(["version", "permission-preflight"]);
   });
 
   it("does not rebuild an installed current helper", async () => {
@@ -132,6 +155,7 @@ describe("macOS capture helper setup", () => {
 type FixtureOptions = {
   identities?: Array<{ fingerprint: string; label: string }>;
   permissionGranted?: boolean;
+  permissionUnavailable?: boolean;
 };
 
 async function setupFixture(options: FixtureOptions = {}) {
@@ -145,8 +169,10 @@ async function setupFixture(options: FixtureOptions = {}) {
   await writeFile(join(nativeRoot, "Package.swift"), "// fixture\n");
   await writeFile(join(nativeRoot, "Resources/Info.plist"), "<plist><dict/></plist>\n");
   const commands: Array<{ command: string; args: string[] }> = [];
+  const probes: Array<{ installPath: string; mode: string }> = [];
   const identities = options.identities ?? [];
   const permissionGranted = options.permissionGranted ?? true;
+  const emptyProbeValues: Record<string, string | number> = {};
 
   const dependencies: CaptureHelperSetupDependencies = {
     platform: "darwin",
@@ -164,42 +190,49 @@ async function setupFixture(options: FixtureOptions = {}) {
       }
       if (command === "swift") {
         const scratchPath = args[args.indexOf("--scratch-path") + 1]!;
-        const executable = join(scratchPath, "release/AutoDemoCaptureHelper");
         await mkdir(join(scratchPath, "release"), { recursive: true });
-        await writeFile(executable, "helper executable\n");
-        await chmod(executable, 0o755);
+        for (const name of ["AutoDemoCaptureHelper", "AutoDemoCaptureSupervisor"]) {
+          const executable = join(scratchPath, "release", name);
+          await writeFile(executable, `${name} executable\n`);
+          await chmod(executable, 0o755);
+        }
         return { exitCode: 0, stdout: "" };
       }
       if (command === "codesign") return { exitCode: 0, stdout: "" };
-      if (command.endsWith("AutoDemoCaptureHelper") && args[0] === "--version-json") {
+      return { exitCode: 1, stdout: "" };
+    },
+    async probeHelper(input) {
+      probes.push({ installPath: input.installPath, mode: input.mode });
+      if (input.mode === "version") {
         return {
-          exitCode: 0,
-          stdout: JSON.stringify({
-            ok: true,
+          ok: true,
+          code: "capture_helper_version",
+          values: {
             protocolVersion: 1,
             bundleIdentifier: "com.autodemo.capture-helper",
-          }),
+          },
         };
       }
-      if (command.endsWith("AutoDemoCaptureHelper") && args[0] === "--preflight-json") {
-        return {
-          exitCode: permissionGranted ? 0 : 1,
-          stdout: JSON.stringify({ ok: permissionGranted }),
-        };
-      }
-      if (command.endsWith("AutoDemoCaptureHelper") && args[0] === "--request-permission-json") {
-        return {
-          exitCode: permissionGranted ? 0 : 1,
-          stdout: JSON.stringify({ ok: permissionGranted }),
-        };
-      }
-      return { exitCode: 1, stdout: "" };
+      if (options.permissionUnavailable === true) return undefined;
+      return permissionGranted
+        ? {
+            ok: true,
+            code: "capture_helper_permission_granted",
+            values: emptyProbeValues,
+          }
+        : {
+            ok: false,
+            code: "capture_helper_permission_required",
+            message: "Auto Demo Capture needs Screen Recording permission.",
+            values: emptyProbeValues,
+          };
     },
   };
   return {
     commands,
     dependencies,
     installPath: join(homeDirectory, "Applications/Auto Demo Capture.app"),
+    probes,
   };
 }
 

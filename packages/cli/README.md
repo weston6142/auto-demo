@@ -58,7 +58,34 @@ On macOS, `setup capture-helper` builds and installs the locally signed
 `~/Applications/Auto Demo Capture.app`. The signing certificate and private key
 remain in Keychain, and neither signing data nor the built app belongs in the
 repository. Discovery preflights the helper signature, protocol, and Screen
-Recording permission before opening the browser.
+Recording permission before opening the browser. Setup and runtime use the
+bundle's `AutoDemoCaptureSupervisor` to start the signed app through Launch
+Services. Screen Recording belongs only to `com.autodemo.capture-helper`, and
+normal session close terminates the exact app instance returned by Launch
+Services; the idle timeout remains an orphan backstop. The CLI never falls back
+to launching the inner helper directly or granting capture permission to the
+terminal or model host.
+
+Each macOS discovery session retains a private
+`native-capture-diagnostics.jsonl` with bounded helper lifecycle, timing,
+region, and failure-stage codes. It excludes screenshots, page content,
+authentication material, private paths, signing data, and raw system error
+descriptions.
+
+All discovery sessions also retain a private
+`discover-host-diagnostics.jsonl`. It contains ordered, bounded browser-profile,
+launch-attempt, main-document status/origin-relation with bounded attempt
+identity from the initial navigation onward, coordinate-session/action
+stage/result, persistence, finish-stage, and host-lifecycle codes. Attempt
+outcomes are recorded at their live failure boundary so fallback responses stay
+causally attributable. A stop code means lifecycle closure and
+does not erase an earlier failure. The file does not contain URLs, hostnames,
+headers, bodies, page content or titles, target labels, coordinates, runtime
+bindings, tokens, private paths, screenshots, or raw exception messages.
+Diagnostic failures are best-effort and cannot change discovery or cleanup
+behavior. This file can locate an opaque `discover_host_failed` boundary, but
+it cannot explain a server-side blocking decision that the server does not
+expose.
 
 ## Agent Plan Intake
 

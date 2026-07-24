@@ -8,11 +8,16 @@ let package = Package(
     products: [
         .library(name: "AutoDemoCaptureCore", targets: ["AutoDemoCaptureCore"]),
         .executable(name: "AutoDemoCaptureHelper", targets: ["AutoDemoCaptureHelper"]),
+        .executable(name: "AutoDemoCaptureSupervisor", targets: ["AutoDemoCaptureSupervisor"]),
     ],
     targets: [
         .target(name: "AutoDemoCaptureCore"),
         .executableTarget(
             name: "AutoDemoCaptureHelper",
+            dependencies: ["AutoDemoCaptureCore"]
+        ),
+        .executableTarget(
+            name: "AutoDemoCaptureSupervisor",
             dependencies: ["AutoDemoCaptureCore"]
         ),
         .testTarget(

@@ -15,7 +15,9 @@ import {
   type CapturedCoordinateFrame,
   type BrowserWindowCapture,
   type CoordinateDiscoveryCheckpoint,
+  type CoordinateDiscoveryPage,
   type CoordinateDiscoverySession,
+  type CoordinateDiscoveryStore,
   type DiscoveryBrowserLaunchHandle,
   type DiscoveryBrowserLauncher,
   type DiscoveryPolicy,
@@ -24,11 +26,18 @@ import {
 } from "@auto-demo/agent";
 import type { Page } from "playwright";
 import type { DiscoverHostBootstrap } from "./discoverBackend.js";
+import {
+  createDiscoverPageDiagnostics,
+  createDiscoverHostDiagnosticRecorder,
+  type DiscoverHostDiagnosticRecorder,
+  type DiscoverRuntimeOperationStage,
+} from "./discoverHostDiagnostics.js";
 import type { DiscoverHostRuntime } from "./discoverHost.js";
 
 export type PlaywrightDiscoverRuntimeResult = {
   runtime: DiscoverHostRuntime;
   initialResponse: Record<string, unknown> & { ok: boolean };
+  recordStartupFailure?(stage: DiscoverRuntimeOperationStage): Promise<void>;
 };
 
 export type PlaywrightDiscoverRuntimeOptions = {
@@ -37,6 +46,12 @@ export type PlaywrightDiscoverRuntimeOptions = {
   preflightCaptureHelper?: () => Promise<MacOsCaptureHelperPreflightResult>;
   createCaptureHelperClient?: typeof createMacOsCaptureHelperClient;
   launchBrowser?: DiscoveryBrowserLauncher["launch"];
+  createCoordinateStore?: (sessionDirectory: string) => CoordinateDiscoveryStore;
+  finalizeCoordinateDiscovery?: typeof finalizeCoordinateDiscovery;
+  createCoordinatePage?: (input: {
+    page: Page;
+    windowCapture?: BrowserWindowCapture;
+  }) => CoordinateDiscoveryPage;
 };
 
 export async function createPlaywrightDiscoverRuntime(
@@ -53,29 +68,53 @@ export async function createPlaywrightDiscoverRuntime(
     helperPreflight = preflight;
   }
   const launcher = createPlaywrightDiscoveryBrowserLauncher();
-  const launched = await (options.launchBrowser ?? launcher.launch.bind(launcher))({
-    url: bootstrap.start.url,
-    profilePlan: {
-      schemaVersion: 1,
-      primary: {
+  const diagnostics = await createDiscoverHostDiagnosticRecorder(bootstrap.sessionDirectory);
+  const pageDiagnostics = createDiscoverPageDiagnostics({
+    startUrl: bootstrap.start.url,
+    recorder: diagnostics,
+  });
+  let launched: Awaited<ReturnType<DiscoveryBrowserLauncher["launch"]>>;
+  try {
+    launched = await (options.launchBrowser ?? launcher.launch.bind(launcher))({
+      url: bootstrap.start.url,
+      profilePlan: {
         schemaVersion: 1,
-        browser: "chromium",
-        channel: "chrome",
-        headless: false,
-        viewport: { width: 1280, height: 720 },
-      },
-      fallbacks: [
-        {
+        primary: {
           schemaVersion: 1,
           browser: "chromium",
-          channel: "bundled",
+          channel: "chrome",
           headless: false,
           viewport: { width: 1280, height: 720 },
         },
-      ],
-    },
-  });
+        fallbacks: [
+          {
+            schemaVersion: 1,
+            browser: "chromium",
+            channel: "bundled",
+            headless: false,
+            viewport: { width: 1280, height: 720 },
+          },
+        ],
+      },
+      onMainDocumentResponse: pageDiagnostics.onMainDocumentResponse,
+      onLaunchAttempt: pageDiagnostics.onLaunchAttempt,
+    });
+  } catch (error) {
+    await diagnostics.record({
+      event: "runtime_operation_failed",
+      operation: "startup",
+      stage: "browser_launch",
+    });
+    await closeDiagnostics(pageDiagnostics, diagnostics);
+    throw error;
+  }
   if (!launched.ok) {
+    await diagnostics.record({
+      event: "runtime_operation_failed",
+      operation: "startup",
+      stage: "browser_launch",
+    });
+    await closeDiagnostics(pageDiagnostics, diagnostics);
     return {
       runtime: failedRuntime(),
       initialResponse: {
@@ -86,6 +125,13 @@ export async function createPlaywrightDiscoverRuntime(
     };
   }
 
+  await diagnostics.record({
+    event: "runtime_started",
+    profileId: launched.profileId,
+    channel: launched.profile.channel,
+    headless: launched.profile.headless,
+    viewport: launched.profile.viewport,
+  });
   let helperClient: MacOsCaptureHelperClient | undefined;
   let windowCapture: BrowserWindowCapture | undefined;
   try {
@@ -102,7 +148,13 @@ export async function createPlaywrightDiscoverRuntime(
       });
     }
   } catch {
+    await diagnostics.record({
+      event: "runtime_operation_failed",
+      operation: "startup",
+      stage: "capture_setup",
+    });
     await Promise.allSettled([helperClient?.close(), launched.close()]);
+    await closeDiagnostics(pageDiagnostics, diagnostics);
     return {
       runtime: failedRuntime(),
       initialResponse: {
@@ -113,28 +165,74 @@ export async function createPlaywrightDiscoverRuntime(
       },
     };
   }
-  const adapter = new PlaywrightCoordinateDiscoveryPage(
-    launched.page,
-    { ...(windowCapture === undefined ? {} : { windowCapture }) },
-    { x: 64, y: 64 },
+  const adapter =
+    options.createCoordinatePage?.({
+      page: launched.page,
+      ...(windowCapture === undefined ? {} : { windowCapture }),
+    }) ??
+    new PlaywrightCoordinateDiscoveryPage(
+      launched.page,
+      { ...(windowCapture === undefined ? {} : { windowCapture }) },
+      { x: 64, y: 64 },
+    );
+  const session = createCoordinateDiscoverySession({
+    page: adapter,
+    grid: bootstrap.start.grid,
+    diagnostics,
+  });
+  const store = (options.createCoordinateStore ?? createFileCoordinateDiscoveryStore)(
+    bootstrap.sessionDirectory,
   );
-  const session = createCoordinateDiscoverySession({ page: adapter, grid: bootstrap.start.grid });
-  const store = createFileCoordinateDiscoveryStore(bootstrap.sessionDirectory);
   const started = await session.start();
   if (!started.ok) {
+    await diagnostics.record({
+      event: "runtime_operation_failed",
+      operation: "startup",
+      stage: "coordinate_session_start",
+    });
     await Promise.allSettled([windowCapture?.close?.(), launched.close()]);
+    await closeDiagnostics(pageDiagnostics, diagnostics);
     return { runtime: failedRuntime(), initialResponse: started };
   }
-  const state = createRuntimeState(bootstrap, launched, session, store, windowCapture);
+  const state = createRuntimeState(
+    bootstrap,
+    launched,
+    session,
+    store,
+    diagnostics,
+    pageDiagnostics,
+    options.finalizeCoordinateDiscovery ?? finalizeCoordinateDiscovery,
+    windowCapture,
+  );
   const frame = await state.persistFrame(started.frame);
   if (!frame.ok) {
+    await diagnostics.record({
+      event: "runtime_operation_failed",
+      operation: "startup",
+      stage: "initial_frame_persistence",
+    });
     await Promise.allSettled([windowCapture?.close?.(), launched.close()]);
+    await closeDiagnostics(pageDiagnostics, diagnostics);
     return { runtime: failedRuntime(), initialResponse: frame };
   }
-  await state.persistCheckpoint("discovering", started.frame.id);
+  const checkpoint = await state.persistCheckpoint("discovering", started.frame.id);
+  if (!checkpoint.ok) {
+    await diagnostics.record({
+      event: "runtime_operation_failed",
+      operation: "startup",
+      stage: "checkpoint_persistence",
+    });
+  }
   return {
     runtime: runtimeFor(state),
     initialResponse: { ok: true, sessionId: bootstrap.sessionId, frame: frame.frame },
+    async recordStartupFailure(stage) {
+      await diagnostics.record({
+        event: "runtime_operation_failed",
+        operation: "startup",
+        stage,
+      });
+    },
   };
 }
 
@@ -142,7 +240,10 @@ function createRuntimeState(
   bootstrap: DiscoverHostBootstrap,
   launched: DiscoveryBrowserLaunchHandle,
   session: CoordinateDiscoverySession,
-  store: ReturnType<typeof createFileCoordinateDiscoveryStore>,
+  store: CoordinateDiscoveryStore,
+  diagnostics: DiscoverHostDiagnosticRecorder,
+  pageDiagnostics: { close(): Promise<void> },
+  finalizer: typeof finalizeCoordinateDiscovery,
   windowCapture?: BrowserWindowCapture,
 ) {
   let phase: CoordinateDiscoveryCheckpoint["phase"] = "discovering";
@@ -154,6 +255,8 @@ function createRuntimeState(
     launched,
     session,
     store,
+    diagnostics,
+    finalizer,
     policy,
     get phase() {
       return phase;
@@ -196,7 +299,11 @@ function createRuntimeState(
     async close() {
       if (closed) return;
       closed = true;
-      await Promise.allSettled([windowCapture?.close?.(), launched.close()]);
+      try {
+        await Promise.allSettled([windowCapture?.close?.(), launched.close()]);
+      } finally {
+        await closeDiagnostics(pageDiagnostics, diagnostics);
+      }
     },
   };
 }
@@ -204,27 +311,65 @@ function createRuntimeState(
 function runtimeFor(state: ReturnType<typeof createRuntimeState>): DiscoverHostRuntime {
   return {
     async observe() {
-      const observed = await state.session.observe();
-      if (!observed.ok) return observed;
-      const persisted = await state.persistFrame(observed.frame);
-      if (!persisted.ok) return persisted;
-      await state.persistCheckpoint(state.phase, observed.frame.id);
-      return { ok: true, sessionId: state.bootstrap.sessionId, frame: persisted.frame };
+      let stage: DiscoverRuntimeOperationStage = "coordinate_session";
+      try {
+        const observed = await state.session.observe();
+        if (!observed.ok) return observed;
+        stage = "frame_persistence";
+        const persisted = await state.persistFrame(observed.frame);
+        if (!persisted.ok) {
+          await recordReturnedFailure(state, "observe", stage);
+          return persisted;
+        }
+        stage = "checkpoint_persistence";
+        const checkpoint = await state.persistCheckpoint(state.phase, observed.frame.id);
+        if (!checkpoint.ok) await recordReturnedFailure(state, "observe", stage);
+        return { ok: true, sessionId: state.bootstrap.sessionId, frame: persisted.frame };
+      } catch (error) {
+        await state.diagnostics.record({
+          event: "runtime_operation_failed",
+          operation: "observe",
+          stage,
+        });
+        throw error;
+      }
     },
     async act(actions) {
-      const acted = await state.session.act(actions);
-      if (!acted.ok && acted.code === "anti_bot_challenge") state.phase = "failed";
-      let frame: Record<string, unknown> | undefined;
-      if (acted.frame !== undefined) {
-        const persisted = await state.persistFrame(acted.frame);
-        if (!persisted.ok) return persisted;
-        frame = persisted.frame;
+      let stage: DiscoverRuntimeOperationStage = "coordinate_session";
+      try {
+        const acted = await state.session.act(actions);
+        await state.diagnostics.record({
+          event: "coordinate_act_result",
+          ok: acted.ok,
+          executedActions: acted.executedActions,
+          ...(acted.ok ? { boundary: acted.boundary } : { code: acted.code }),
+        });
+        if (!acted.ok && acted.code === "anti_bot_challenge") state.phase = "failed";
+        let frame: Record<string, unknown> | undefined;
+        if (acted.frame !== undefined) {
+          stage = "frame_persistence";
+          const persisted = await state.persistFrame(acted.frame);
+          if (!persisted.ok) {
+            await recordReturnedFailure(state, "act", stage);
+            return persisted;
+          }
+          frame = persisted.frame;
+        }
+        stage = "checkpoint_persistence";
+        const checkpoint = await state.persistCheckpoint(state.phase, acted.frame?.id);
+        if (!checkpoint.ok) await recordReturnedFailure(state, "act", stage);
+        return {
+          ...acted,
+          ...(frame === undefined ? {} : { frame }),
+        } as Record<string, unknown> & { ok: boolean };
+      } catch (error) {
+        await state.diagnostics.record({
+          event: "runtime_operation_failed",
+          operation: "act",
+          stage,
+        });
+        throw error;
       }
-      await state.persistCheckpoint(state.phase, acted.frame?.id);
-      return {
-        ...acted,
-        ...(frame === undefined ? {} : { frame }),
-      } as Record<string, unknown> & { ok: boolean };
     },
     async status() {
       return {
@@ -237,86 +382,129 @@ function runtimeFor(state: ReturnType<typeof createRuntimeState>): DiscoverHostR
       };
     },
     async finish() {
-      if (state.phase === "failed") {
-        return {
-          ok: false,
-          code: "anti_bot_challenge",
-          message: "Coordinate discovery stopped at an anti-bot challenge.",
-        };
-      }
-      const finalized = await finalizeCoordinateDiscovery(
-        {
-          sessionId: state.bootstrap.sessionId,
-          targetUrl: state.bootstrap.start.url,
-          goal: state.bootstrap.start.goal,
-          trace: state.session.durableTrace(),
-          runtimeBindings: state.session.runtimeBindings(),
-        },
-        {
-          now: () => new Date(),
-          async replay({ sourceSession, plan, runtimeBindings }) {
-            const replayed = await replayAndRepairDiscoveryPlan(
-              {
-                sourceSession,
-                plan,
-                policy: state.policy,
-                inputBindings: runtimeBindings,
-              },
-              { maxRepairs: 0 },
-              { browserFactory: createPlaywrightDiscoveryReplayBrowserFactory() },
-            );
-            if (replayed.ok) {
-              return { ok: true, attempts: replayed.attempts.length, plan: replayed.plan };
-            }
-            const failed = replayed.attempts.at(-1);
-            return {
-              ok: false,
-              attempts: replayed.attempts.length,
-              failure: {
-                code:
-                  failed?.status === "failed"
-                    ? failed.failure.code
-                    : (replayed.errors[0]?.code ?? "replay_failed"),
-                ...(failed?.status === "failed" && failed.failure.step !== undefined
-                  ? { stepId: failed.failure.step.id }
-                  : {}),
-              },
-            };
+      let stage: DiscoverRuntimeOperationStage = "finalization";
+      try {
+        if (state.phase === "failed") {
+          return {
+            ok: false,
+            code: "anti_bot_challenge",
+            message: "Coordinate discovery stopped at an anti-bot challenge.",
+          };
+        }
+        const finalized = await state.finalizer(
+          {
+            sessionId: state.bootstrap.sessionId,
+            targetUrl: state.bootstrap.start.url,
+            goal: state.bootstrap.start.goal,
+            trace: state.session.durableTrace(),
+            runtimeBindings: state.session.runtimeBindings(),
           },
-          review: reviewWalkthroughPlan,
-        },
-      );
-      state.phase = finalized.ok
-        ? finalized.phase === "review_required"
-          ? "review-required"
-          : "repairing"
-        : "failed";
-      await state.persistCheckpoint(state.phase);
-      if (finalized.ok && finalized.phase === "review_required") {
-        await atomicJson(
-          join(state.bootstrap.sessionDirectory, "plan.replay-validated.json"),
-          finalized.plan,
+          {
+            now: () => new Date(),
+            async replay({ sourceSession, plan, runtimeBindings }) {
+              const replayed = await replayAndRepairDiscoveryPlan(
+                {
+                  sourceSession,
+                  plan,
+                  policy: state.policy,
+                  inputBindings: runtimeBindings,
+                },
+                { maxRepairs: 0 },
+                { browserFactory: createPlaywrightDiscoveryReplayBrowserFactory() },
+              );
+              if (replayed.ok) {
+                return { ok: true, attempts: replayed.attempts.length, plan: replayed.plan };
+              }
+              const failed = replayed.attempts.at(-1);
+              return {
+                ok: false,
+                attempts: replayed.attempts.length,
+                failure: {
+                  code:
+                    failed?.status === "failed"
+                      ? failed.failure.code
+                      : (replayed.errors[0]?.code ?? "replay_failed"),
+                  ...(failed?.status === "failed" && failed.failure.step !== undefined
+                    ? { stepId: failed.failure.step.id }
+                    : {}),
+                },
+              };
+            },
+            review: reviewWalkthroughPlan,
+          },
         );
-        await atomicJson(join(state.bootstrap.sessionDirectory, "review.json"), finalized.review);
-        return {
-          ok: true,
-          sessionId: state.bootstrap.sessionId,
-          phase: finalized.phase,
-          replayAttempts: finalized.replayAttempts,
-          plan: finalized.plan,
-          review: finalized.review,
-        };
+        state.phase = finalized.ok
+          ? finalized.phase === "review_required"
+            ? "review-required"
+            : "repairing"
+          : "failed";
+        stage = "checkpoint_persistence";
+        const checkpoint = await state.persistCheckpoint(state.phase);
+        if (!checkpoint.ok) await recordReturnedFailure(state, "finish", stage);
+        if (finalized.ok && finalized.phase === "review_required") {
+          stage = "review_plan_persistence";
+          await atomicJson(
+            join(state.bootstrap.sessionDirectory, "plan.replay-validated.json"),
+            finalized.plan,
+          );
+          stage = "review_artifact_persistence";
+          await atomicJson(join(state.bootstrap.sessionDirectory, "review.json"), finalized.review);
+          return {
+            ok: true,
+            sessionId: state.bootstrap.sessionId,
+            phase: finalized.phase,
+            replayAttempts: finalized.replayAttempts,
+            plan: finalized.plan,
+            review: finalized.review,
+          };
+        }
+        return finalized as unknown as Record<string, unknown> & { ok: boolean };
+      } catch (error) {
+        await state.diagnostics.record({
+          event: "runtime_operation_failed",
+          operation: "finish",
+          stage,
+        });
+        throw error;
       }
-      return finalized as unknown as Record<string, unknown> & { ok: boolean };
     },
     async abandon() {
-      state.phase = "abandoned";
-      await state.persistCheckpoint("abandoned");
-      await state.close();
-      return { ok: true, sessionId: state.bootstrap.sessionId, status: "abandoned" };
+      try {
+        state.phase = "abandoned";
+        const checkpoint = await state.persistCheckpoint("abandoned");
+        if (!checkpoint.ok) {
+          await recordReturnedFailure(state, "abandon", "checkpoint_or_close");
+        }
+        await state.close();
+        return { ok: true, sessionId: state.bootstrap.sessionId, status: "abandoned" };
+      } catch (error) {
+        await state.diagnostics.record({
+          event: "runtime_operation_failed",
+          operation: "abandon",
+          stage: "checkpoint_or_close",
+        });
+        throw error;
+      }
     },
     close: () => state.close(),
   };
+}
+
+async function recordReturnedFailure(
+  state: ReturnType<typeof createRuntimeState>,
+  operation: "act" | "observe" | "finish" | "abandon" | "startup",
+  stage: DiscoverRuntimeOperationStage,
+): Promise<void> {
+  await state.diagnostics.record({ event: "runtime_operation_failed", operation, stage });
+}
+
+async function closeDiagnostics(
+  pageDiagnostics: { close(): Promise<void> },
+  diagnostics: DiscoverHostDiagnosticRecorder,
+): Promise<void> {
+  await pageDiagnostics.close().catch(() => undefined);
+  await diagnostics.record({ event: "runtime_stopped" });
+  await diagnostics.close();
 }
 
 function discoveryPolicy(bootstrap: DiscoverHostBootstrap): DiscoveryPolicy {

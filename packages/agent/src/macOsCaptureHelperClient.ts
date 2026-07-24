@@ -1,20 +1,40 @@
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmod, lstat, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  createNativeCaptureDiagnosticRecorder,
+  elapsedMilliseconds,
+  type MacOsCaptureDiagnosticEvent,
+  type NativeCaptureDiagnosticRecorder,
+  type NativeCaptureRegion,
+} from "./nativeCaptureDiagnostics.js";
 
 const SETUP_COMMAND = "npm run autodemo -- setup capture-helper --json" as const;
 const HELPER_APP_NAME = "Auto Demo Capture.app";
 const HELPER_EXECUTABLE = "Contents/MacOS/AutoDemoCaptureHelper";
+const SUPERVISOR_EXECUTABLE = "Contents/MacOS/AutoDemoCaptureSupervisor";
 const MAXIMUM_RESPONSE_BYTES = 32 * 1_024 * 1_024;
 const MAXIMUM_HEADER_BYTES = 8 * 1_024;
+const MAXIMUM_PROBE_BYTES = 16 * 1_024;
+type CaptureSocketResult =
+  | { ok: true; png: Uint8Array }
+  | {
+      ok: false;
+      code: string;
+      diagnosticStage?: string;
+      systemErrorDomain?: string;
+      systemErrorCode?: number;
+    };
 
-export type MacOsCaptureRegion = { x: number; y: number; width: number; height: number };
+export type MacOsCaptureRegion = NativeCaptureRegion;
+export type { MacOsCaptureDiagnosticEvent } from "./nativeCaptureDiagnostics.js";
 
 export type MacOsCaptureHelperClient = {
   capture(region: MacOsCaptureRegion): Promise<Uint8Array | undefined>;
+  recordDiagnostic?(event: MacOsCaptureDiagnosticEvent): Promise<void>;
   close(): Promise<void>;
 };
 
@@ -26,7 +46,8 @@ export type MacOsCaptureHelperPreflightResult =
         | "capture_helper_not_installed"
         | "capture_helper_signature_invalid"
         | "capture_helper_protocol_mismatch"
-        | "capture_helper_permission_required";
+        | "capture_helper_permission_required"
+        | "capture_helper_unavailable";
       message: string;
       setupCommand: typeof SETUP_COMMAND;
     };
@@ -39,6 +60,7 @@ export type CaptureHelperChildProcess = {
     listener: (code: number | null, signal: NodeJS.Signals | null) => void,
   ): unknown;
   once(event: "error", listener: (error: Error) => void): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
 };
 
 export type MacOsCaptureHelperDependencies = {
@@ -50,6 +72,10 @@ export type MacOsCaptureHelperDependencies = {
     args: string[],
   ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   launch(executable: string, args: string[]): CaptureHelperChildProcess;
+  createDiagnosticRecorder?(sessionDirectory: string): Promise<NativeCaptureDiagnosticRecorder>;
+  cleanupPaths?(bootstrapPath: string, socketDirectory: string): Promise<void>;
+  terminationTimeoutMs?: number;
+  forceTerminationTimeoutMs?: number;
 };
 
 export type CreateMacOsCaptureHelperClientInput = {
@@ -57,6 +83,15 @@ export type CreateMacOsCaptureHelperClientInput = {
   installPath: string;
   requestTimeoutMs?: number;
   dependencies?: MacOsCaptureHelperDependencies;
+};
+
+export type MacOsCaptureHelperProbeMode = "version" | "permission-preflight" | "permission-request";
+
+export type MacOsCaptureHelperProbeResult = {
+  ok: boolean;
+  code: string;
+  message?: string;
+  values: Record<string, string | number>;
 };
 
 export function defaultMacOsCaptureHelperDependencies(): MacOsCaptureHelperDependencies {
@@ -75,11 +110,10 @@ export async function preflightMacOsCaptureHelper(
   dependencies: MacOsCaptureHelperDependencies = defaultMacOsCaptureHelperDependencies(),
 ): Promise<MacOsCaptureHelperPreflightResult> {
   const installPath = join(dependencies.homeDirectory, "Applications", HELPER_APP_NAME);
-  const executable = join(installPath, HELPER_EXECUTABLE);
-  try {
-    const metadata = await lstat(executable);
-    if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("invalid helper");
-  } catch {
+  if (
+    !(await isRegularBundledExecutable(join(installPath, HELPER_EXECUTABLE))) ||
+    !(await isRegularBundledExecutable(join(installPath, SUPERVISOR_EXECUTABLE)))
+  ) {
     return preflightFailure("capture_helper_not_installed", "Auto Demo Capture is not installed.");
   }
   const signature = await dependencies.runCommand("codesign", [
@@ -94,15 +128,41 @@ export async function preflightMacOsCaptureHelper(
       "Auto Demo Capture signature validation failed.",
     );
   }
-  const version = await dependencies.runCommand(executable, ["--version-json"]);
+  const version = await runMacOsCaptureHelperProbe({
+    installPath,
+    mode: "version",
+    dependencies,
+  });
+  if (version === undefined || (!version.ok && version.code === "capture_helper_unavailable")) {
+    return preflightFailure(
+      "capture_helper_unavailable",
+      "Auto Demo Capture could not complete its version check.",
+    );
+  }
   if (!validVersion(version)) {
     return preflightFailure(
       "capture_helper_protocol_mismatch",
       "Auto Demo Capture protocol is incompatible.",
     );
   }
-  const permission = await dependencies.runCommand(executable, ["--preflight-json"]);
-  if (permission.exitCode !== 0 || !jsonOk(permission.stdout)) {
+  const permission = await runMacOsCaptureHelperProbe({
+    installPath,
+    mode: "permission-preflight",
+    dependencies,
+  });
+  if (permission === undefined) {
+    return preflightFailure(
+      "capture_helper_unavailable",
+      "Auto Demo Capture could not complete its permission check.",
+    );
+  }
+  if (!permission.ok && permission.code === "capture_helper_unavailable") {
+    return preflightFailure(
+      "capture_helper_unavailable",
+      "Auto Demo Capture could not complete its permission check.",
+    );
+  }
+  if (!permission.ok || permission.code !== "capture_helper_permission_granted") {
     return preflightFailure(
       "capture_helper_permission_required",
       "Auto Demo Capture needs Screen Recording permission.",
@@ -111,11 +171,53 @@ export async function preflightMacOsCaptureHelper(
   return { ok: true, installPath, protocolVersion: 1 };
 }
 
+export async function runMacOsCaptureHelperProbe(input: {
+  installPath: string;
+  mode: MacOsCaptureHelperProbeMode;
+  dependencies?: MacOsCaptureHelperDependencies;
+}): Promise<MacOsCaptureHelperProbeResult | undefined> {
+  const dependencies = input.dependencies ?? defaultMacOsCaptureHelperDependencies();
+  const supervisor = join(input.installPath, SUPERVISOR_EXECUTABLE);
+  if (!(await isRegularBundledExecutable(supervisor))) return undefined;
+  const directory = await mkdtemp(join(dependencies.temporaryDirectory, "adc-probe-"));
+  await chmod(directory, 0o700);
+  const requestPath = join(directory, "request.json");
+  const responsePath = join(directory, "response.json");
+  try {
+    await writeFile(
+      requestPath,
+      `${JSON.stringify({
+        protocolVersion: 1,
+        mode: input.mode,
+        responsePath,
+      })}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    const launched = await dependencies.runCommand(supervisor, ["--launch-request", requestPath]);
+    if (launched.exitCode !== 0) return undefined;
+    const metadata = await lstat(responsePath);
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      (metadata.mode & 0o077) !== 0 ||
+      metadata.size < 1 ||
+      metadata.size > MAXIMUM_PROBE_BYTES
+    ) {
+      return undefined;
+    }
+    return parseProbeResult(await readFile(responsePath, "utf8"));
+  } catch {
+    return undefined;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
 export async function createMacOsCaptureHelperClient(
   input: CreateMacOsCaptureHelperClientInput,
 ): Promise<MacOsCaptureHelperClient> {
   const dependencies = input.dependencies ?? defaultMacOsCaptureHelperDependencies();
-  const executable = join(input.installPath, HELPER_EXECUTABLE);
+  const supervisor = join(input.installPath, SUPERVISOR_EXECUTABLE);
   const token = randomBytes(32).toString("hex");
   const socketDirectory = await mkdtemp(join(dependencies.temporaryDirectory, "adc-"));
   await chmod(socketDirectory, 0o700);
@@ -130,56 +232,186 @@ export async function createMacOsCaptureHelperClient(
       protocolVersion: 1,
       socketPath,
       token,
-      idleTimeoutMs: 30_000,
+      idleTimeoutMs: 300_000,
     })}\n`,
     { flag: "wx", mode: 0o600 },
   );
-  const child = dependencies.launch(executable, ["--serve-bootstrap", bootstrapPath]);
+  const launchRequestPath = join(socketDirectory, "launch-request.json");
+  await writeFile(
+    launchRequestPath,
+    `${JSON.stringify({
+      protocolVersion: 1,
+      mode: "service",
+      bootstrapPath,
+    })}\n`,
+    { flag: "wx", mode: 0o600 },
+  );
+  const diagnostics = await (
+    dependencies.createDiagnosticRecorder ?? createNativeCaptureDiagnosticRecorder
+  )(input.sessionDirectory);
+  let child: CaptureHelperChildProcess;
+  try {
+    child = dependencies.launch(supervisor, ["--launch-request", launchRequestPath]);
+  } catch {
+    await diagnostics.record({ event: "helper_start_failed", stage: "helper_lifecycle" });
+    try {
+      await cleanupClientPaths(dependencies, bootstrapPath, socketDirectory);
+    } finally {
+      await diagnostics.close().catch(() => undefined);
+    }
+    throw new Error("capture helper unavailable");
+  }
+  const childObservation = observeChild(child);
   let closed = false;
   try {
-    await waitForSocket(socketPath, child);
-  } catch (error) {
-    await stopChild(child);
-    await cleanup(bootstrapPath, socketDirectory);
-    throw error;
+    await waitForSocket(socketPath, child, childObservation);
+    await diagnostics.record({ event: "helper_started" });
+  } catch {
+    await diagnostics.record({ event: "helper_start_failed", stage: "helper_lifecycle" });
+    if (childObservation.error === undefined) {
+      await stopChild(child, childObservation, dependencies).catch(() => undefined);
+    }
+    try {
+      await cleanupClientPaths(dependencies, bootstrapPath, socketDirectory);
+    } finally {
+      await diagnostics.close().catch(() => undefined);
+    }
+    throw new Error("capture helper unavailable");
   }
 
+  let attempt = 0;
   return {
     async capture(region) {
       if (closed || !validRegion(region)) return undefined;
-      return await captureFromSocket({
-        socketPath,
-        token,
-        region,
-        timeoutMs: input.requestTimeoutMs ?? 5_000,
-      }).catch(() => undefined);
+      attempt += 1;
+      const started = performance.now();
+      try {
+        const result = await captureFromSocket({
+          socketPath,
+          token,
+          region,
+          timeoutMs: input.requestTimeoutMs ?? 5_000,
+        });
+        if (!result.ok) {
+          await diagnostics.record({
+            event: "capture_failed",
+            attempt,
+            elapsedMs: elapsedMilliseconds(started),
+            region,
+            code: result.code,
+            stage: result.diagnosticStage ?? "helper_response",
+            ...(result.systemErrorDomain === undefined
+              ? {}
+              : { systemErrorDomain: result.systemErrorDomain }),
+            ...(result.systemErrorCode === undefined
+              ? {}
+              : { systemErrorCode: result.systemErrorCode }),
+          });
+          return undefined;
+        }
+        await diagnostics.record({
+          event: "capture_succeeded",
+          attempt,
+          elapsedMs: elapsedMilliseconds(started),
+          region,
+          byteLength: result.png.byteLength,
+        });
+        return result.png;
+      } catch (error) {
+        await diagnostics.record({
+          event: "capture_failed",
+          attempt,
+          elapsedMs: elapsedMilliseconds(started),
+          region,
+          code: error instanceof CaptureSocketError ? error.code : "capture_transport_failed",
+          stage: error instanceof CaptureSocketError ? error.stage : "socket_transport",
+        });
+        return undefined;
+      }
+    },
+    async recordDiagnostic(event) {
+      await diagnostics.record(event);
     },
     async close() {
       if (closed) return;
       closed = true;
-      await stopChild(child);
-      await cleanup(bootstrapPath, socketDirectory);
+      try {
+        await stopChild(child, childObservation, dependencies);
+        await diagnostics.record({ event: "helper_stopped" });
+      } catch (error) {
+        await diagnostics.record({ event: "helper_stop_failed", stage: "helper_lifecycle" });
+        throw error;
+      } finally {
+        try {
+          await cleanupClientPaths(dependencies, bootstrapPath, socketDirectory);
+        } finally {
+          await diagnostics.close().catch(() => undefined);
+        }
+      }
     },
   };
 }
 
-function validVersion(result: { exitCode: number; stdout: string }): boolean {
-  if (result.exitCode !== 0) return false;
+function validVersion(result: MacOsCaptureHelperProbeResult | undefined): boolean {
+  return (
+    result?.ok === true &&
+    result.code === "capture_helper_version" &&
+    result.values.protocolVersion === 1 &&
+    result.values.bundleIdentifier === "com.autodemo.capture-helper"
+  );
+}
+
+function parseProbeResult(value: string): MacOsCaptureHelperProbeResult | undefined {
   try {
-    const value = JSON.parse(result.stdout) as Record<string, unknown>;
-    return (
-      value.ok === true &&
-      value.protocolVersion === 1 &&
-      value.bundleIdentifier === "com.autodemo.capture-helper"
-    );
+    const parsed = JSON.parse(value) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+    const record = parsed as Record<string, unknown>;
+    if (Object.keys(record).some((key) => !["ok", "code", "message", "values"].includes(key))) {
+      return undefined;
+    }
+    if (
+      typeof record.ok !== "boolean" ||
+      typeof record.code !== "string" ||
+      record.code.length < 1 ||
+      record.code.length > 128 ||
+      (record.message !== undefined &&
+        (typeof record.message !== "string" || record.message.length > 512)) ||
+      typeof record.values !== "object" ||
+      record.values === null ||
+      Array.isArray(record.values)
+    ) {
+      return undefined;
+    }
+    const values = record.values as Record<string, unknown>;
+    if (
+      Object.keys(values).length > 16 ||
+      Object.entries(values).some(
+        ([key, item]) =>
+          key.length < 1 ||
+          key.length > 64 ||
+          !(
+            (typeof item === "string" && item.length <= 512) ||
+            (typeof item === "number" && Number.isSafeInteger(item))
+          ),
+      )
+    ) {
+      return undefined;
+    }
+    return {
+      ok: record.ok,
+      code: record.code,
+      ...(record.message === undefined ? {} : { message: record.message as string }),
+      values: values as Record<string, string | number>,
+    };
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-function jsonOk(value: string): boolean {
+async function isRegularBundledExecutable(path: string): Promise<boolean> {
   try {
-    return (JSON.parse(value) as Record<string, unknown>).ok === true;
+    const metadata = await lstat(path);
+    return metadata.isFile() && !metadata.isSymbolicLink();
   } catch {
     return false;
   }
@@ -192,9 +424,14 @@ function preflightFailure(
   return { ok: false, code, message, setupCommand: SETUP_COMMAND };
 }
 
-async function waitForSocket(socketPath: string, child: CaptureHelperChildProcess): Promise<void> {
+async function waitForSocket(
+  socketPath: string,
+  child: CaptureHelperChildProcess,
+  observation: CaptureHelperChildObservation,
+): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (child.exitCode !== null) throw new Error("capture helper exited");
+    if (observation.error !== undefined) throw new Error("capture helper failed to start");
+    if (observation.exited || child.exitCode !== null) throw new Error("capture helper exited");
     try {
       const metadata = await lstat(socketPath);
       if (metadata.isSocket()) return;
@@ -211,12 +448,15 @@ function captureFromSocket(input: {
   token: string;
   region: MacOsCaptureRegion;
   timeoutMs: number;
-}): Promise<Uint8Array | undefined> {
+}): Promise<CaptureSocketResult> {
   return new Promise((resolve, reject) => {
     const socket = createConnection(input.socketPath);
     const chunks: Buffer[] = [];
     let totalBytes = 0;
-    const timeout = setTimeout(() => socket.destroy(new Error("capture timeout")), input.timeoutMs);
+    const timeout = setTimeout(
+      () => socket.destroy(new CaptureSocketError("socket_transport", "capture_timeout")),
+      input.timeoutMs,
+    );
     socket.on("connect", () => {
       socket.write(
         `${JSON.stringify({ protocolVersion: 1, token: input.token, ...input.region })}\n`,
@@ -225,34 +465,58 @@ function captureFromSocket(input: {
     socket.on("data", (chunk: Buffer) => {
       totalBytes += chunk.length;
       if (totalBytes > MAXIMUM_HEADER_BYTES + MAXIMUM_RESPONSE_BYTES) {
-        socket.destroy(new Error("capture response too large"));
+        socket.destroy(new CaptureSocketError("response_validation", "capture_response_too_large"));
         return;
       }
       chunks.push(Buffer.from(chunk));
     });
     socket.on("error", (error) => {
       clearTimeout(timeout);
-      reject(error);
+      reject(
+        error instanceof CaptureSocketError
+          ? error
+          : new CaptureSocketError("socket_transport", "capture_socket_error"),
+      );
     });
     socket.on("end", () => {
       clearTimeout(timeout);
       try {
         resolve(parseResponse(Buffer.concat(chunks), input.region));
       } catch (error) {
-        reject(error);
+        reject(
+          error instanceof CaptureSocketError
+            ? error
+            : new CaptureSocketError("response_validation", "invalid_capture_header"),
+        );
       }
     });
   });
 }
 
-function parseResponse(response: Buffer, region: MacOsCaptureRegion): Uint8Array | undefined {
+function parseResponse(response: Buffer, region: MacOsCaptureRegion): CaptureSocketResult {
   const newline = response.indexOf(0x0a);
-  if (newline < 1 || newline > MAXIMUM_HEADER_BYTES) throw new Error("invalid capture header");
+  if (newline < 1 || newline > MAXIMUM_HEADER_BYTES) {
+    throw new CaptureSocketError("response_validation", "invalid_capture_header");
+  }
   const header = JSON.parse(response.subarray(0, newline).toString("utf8")) as Record<
     string,
     unknown
   >;
-  if (header.ok !== true) return undefined;
+  if (header.ok !== true) {
+    return {
+      ok: false,
+      code: boundedCode(header.code) ?? "native_window_capture_unavailable",
+      ...(boundedDiagnosticStage(header.diagnosticStage) === undefined
+        ? {}
+        : { diagnosticStage: boundedDiagnosticStage(header.diagnosticStage) }),
+      ...(boundedSystemErrorDomain(header.systemErrorDomain) === undefined
+        ? {}
+        : { systemErrorDomain: boundedSystemErrorDomain(header.systemErrorDomain) }),
+      ...(boundedSystemErrorCode(header.systemErrorCode) === undefined
+        ? {}
+        : { systemErrorCode: boundedSystemErrorCode(header.systemErrorCode) }),
+    };
+  }
   if (
     !Number.isInteger(header.byteLength) ||
     (header.byteLength as number) < 1 ||
@@ -260,12 +524,43 @@ function parseResponse(response: Buffer, region: MacOsCaptureRegion): Uint8Array
     header.width !== region.width ||
     header.height !== region.height
   ) {
-    throw new Error("invalid capture header");
+    throw new CaptureSocketError("response_validation", "invalid_capture_header");
   }
   const byteLength = header.byteLength as number;
   const png = response.subarray(newline + 1);
-  if (png.length !== byteLength) throw new Error("invalid capture length");
-  return Uint8Array.from(png);
+  if (png.length !== byteLength) {
+    throw new CaptureSocketError("response_validation", "invalid_capture_length");
+  }
+  return { ok: true, png: Uint8Array.from(png) };
+}
+
+class CaptureSocketError extends Error {
+  constructor(
+    readonly stage: "socket_transport" | "response_validation",
+    readonly code: string,
+  ) {
+    super(code);
+  }
+}
+
+function boundedCode(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9_]{1,128}$/u.test(value) ? value : undefined;
+}
+
+function boundedDiagnosticStage(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-z0-9_]{1,64}$/u.test(value) ? value : undefined;
+}
+
+function boundedSystemErrorDomain(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9._-]{1,128}$/u.test(value) ? value : undefined;
+}
+
+function boundedSystemErrorCode(value: unknown): number | undefined {
+  return Number.isSafeInteger(value) &&
+    (value as number) >= -1_000_000 &&
+    (value as number) <= 1_000_000
+    ? (value as number)
+    : undefined;
 }
 
 function validRegion(region: MacOsCaptureRegion): boolean {
@@ -283,18 +578,89 @@ function validRegion(region: MacOsCaptureRegion): boolean {
   );
 }
 
-async function stopChild(child: CaptureHelperChildProcess): Promise<void> {
-  if (child.exitCode !== null) return;
-  const exited = new Promise<boolean>((resolve) => {
-    child.once("exit", () => resolve(true));
-    child.once("error", () => resolve(true));
-  });
+async function stopChild(
+  child: CaptureHelperChildProcess,
+  observation: CaptureHelperChildObservation,
+  dependencies: MacOsCaptureHelperDependencies,
+): Promise<void> {
+  if (observation.exited || child.exitCode !== null) {
+    requireSuccessfulSupervisorExit(
+      observation.terminal ?? {
+        exitCode: child.exitCode,
+        signal: null,
+      },
+    );
+    return;
+  }
   child.kill("SIGTERM");
-  const stopped = await Promise.race([
-    exited,
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2_000)),
-  ]);
-  if (!stopped && child.exitCode === null) child.kill("SIGKILL");
+  if (await observation.wait(dependencies.terminationTimeoutMs ?? 5_000)) {
+    requireSuccessfulSupervisorExit(observation.terminal);
+    return;
+  }
+  if (child.exitCode !== null) {
+    requireSuccessfulSupervisorExit(
+      observation.terminal ?? { exitCode: child.exitCode, signal: null },
+    );
+    return;
+  }
+  child.kill("SIGKILL");
+  if (await observation.wait(dependencies.forceTerminationTimeoutMs ?? 2_000)) {
+    throw new Error("capture helper supervisor required forced termination");
+  }
+  throw new Error("capture helper supervisor did not exit");
+}
+
+type CaptureHelperTerminal = {
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+};
+
+type CaptureHelperChildObservation = {
+  readonly error: Error | undefined;
+  readonly exited: boolean;
+  readonly terminal: CaptureHelperTerminal | undefined;
+  wait(timeoutMs: number): Promise<boolean>;
+};
+
+function observeChild(child: CaptureHelperChildProcess): CaptureHelperChildObservation {
+  let error: Error | undefined;
+  let terminal: CaptureHelperTerminal | undefined =
+    child.exitCode === null ? undefined : { exitCode: child.exitCode, signal: null };
+  let resolveSettled!: () => void;
+  const exitedPromise = new Promise<void>((resolve) => {
+    resolveSettled = resolve;
+  });
+  if (terminal !== undefined) resolveSettled();
+  child.once("exit", (exitCode, signal) => {
+    terminal = { exitCode, signal };
+    resolveSettled();
+  });
+  child.on("error", (value) => {
+    error = value;
+  });
+  return {
+    get error() {
+      return error;
+    },
+    get exited() {
+      return terminal !== undefined;
+    },
+    get terminal() {
+      return terminal;
+    },
+    async wait(timeoutMs) {
+      if (terminal !== undefined) return true;
+      return await Promise.race([
+        exitedPromise.then(() => true),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+      ]);
+    },
+  };
+}
+
+function requireSuccessfulSupervisorExit(terminal: CaptureHelperTerminal | undefined): void {
+  if (terminal?.exitCode === 0 && terminal.signal === null) return;
+  throw new Error("capture helper supervisor exited unsuccessfully");
 }
 
 async function cleanup(bootstrapPath: string, socketDirectory: string): Promise<void> {
@@ -302,6 +668,14 @@ async function cleanup(bootstrapPath: string, socketDirectory: string): Promise<
     rm(bootstrapPath, { force: true }),
     rm(socketDirectory, { recursive: true, force: true }),
   ]);
+}
+
+async function cleanupClientPaths(
+  dependencies: MacOsCaptureHelperDependencies,
+  bootstrapPath: string,
+  socketDirectory: string,
+): Promise<void> {
+  await (dependencies.cleanupPaths ?? cleanup)(bootstrapPath, socketDirectory);
 }
 
 function runCommand(
@@ -312,7 +686,7 @@ function runCommand(
     execFile(
       command,
       args,
-      { encoding: "utf8", maxBuffer: 64_000, timeout: 2_000 },
+      { encoding: "utf8", maxBuffer: 64_000, timeout: 10_000 },
       (error, stdout, stderr) => {
         resolve({
           exitCode: error === null ? 0 : typeof error.code === "number" ? error.code : 1,
