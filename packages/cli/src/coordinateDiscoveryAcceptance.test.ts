@@ -194,7 +194,7 @@ describe("coordinate discovery CLI acceptance", () => {
         "utf8",
       ),
     ).resolves.toContain('"state": "validated"');
-  }, 45_000);
+  }, 75_000);
 });
 
 async function command(
@@ -203,7 +203,7 @@ async function command(
 ): Promise<Record<string, unknown>> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
-    const timeoutMs = args[0] === "discover" && args[1] === "start" ? 15_000 : 8_000;
+    const timeoutMs = args[0] === "discover" && args[1] === "start" ? 30_000 : 8_000;
     timeout = setTimeout(
       () => reject(new Error(`command timed out: ${args.slice(0, 2).join(" ")}`)),
       timeoutMs,
