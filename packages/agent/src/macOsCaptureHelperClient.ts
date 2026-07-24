@@ -150,6 +150,12 @@ export async function preflightMacOsCaptureHelper(
       "Auto Demo Capture could not complete its permission check.",
     );
   }
+  if (!permission.ok && permission.code === "capture_helper_unavailable") {
+    return preflightFailure(
+      "capture_helper_unavailable",
+      "Auto Demo Capture could not complete its permission check.",
+    );
+  }
   if (!permission.ok || permission.code !== "capture_helper_permission_granted") {
     return preflightFailure(
       "capture_helper_permission_required",

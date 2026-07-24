@@ -53,6 +53,48 @@ describe("macOS capture helper client", () => {
     });
   });
 
+  it("preserves a bounded unavailable permission-probe failure", async () => {
+    const fixture = await helperFixture();
+
+    expect(
+      await preflightMacOsCaptureHelper({
+        ...fixture.dependencies,
+        async runCommand(command, args) {
+          if (command === "codesign") return { exitCode: 0, stdout: "", stderr: "" };
+          const request = JSON.parse(await readFile(args[1]!, "utf8")) as {
+            mode: string;
+            responsePath: string;
+          };
+          const response =
+            request.mode === "version"
+              ? {
+                  ok: true,
+                  code: "capture_helper_version",
+                  values: {
+                    protocolVersion: 1,
+                    bundleIdentifier: "com.autodemo.capture-helper",
+                  },
+                }
+              : {
+                  ok: false,
+                  code: "capture_helper_unavailable",
+                  message: "Auto Demo Capture could not check permission.",
+                };
+          await writeFile(request.responsePath, `${JSON.stringify(response)}\n`, {
+            flag: "wx",
+            mode: 0o600,
+          });
+          return { exitCode: 0, stdout: "", stderr: "" };
+        },
+      }),
+    ).toEqual({
+      ok: false,
+      code: "capture_helper_unavailable",
+      message: "Auto Demo Capture could not complete its permission check.",
+      setupCommand: "npm run autodemo -- setup capture-helper --json",
+    });
+  });
+
   it("uses a private bootstrap and authenticated short socket without putting the token in args", async () => {
     const fixture = await helperFixture();
     const png = Buffer.from([137, 80, 78, 71]);

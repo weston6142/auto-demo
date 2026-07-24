@@ -10,6 +10,7 @@ import {
 export type DiscoverHostProcessDependencies = {
   createRuntime?: typeof createPlaywrightDiscoverRuntime;
   allocateSocket?: typeof allocateDiscoverHostSocket;
+  writeJson?: typeof atomicJson;
 };
 
 export async function runDiscoverHostProcess(
@@ -33,6 +34,7 @@ export async function runDiscoverHostProcess(
     return;
   }
   const allocateSocket = dependencies.allocateSocket ?? allocateDiscoverHostSocket;
+  const writeJson = dependencies.writeJson ?? atomicJson;
   let socket: Awaited<ReturnType<typeof allocateDiscoverHostSocket>> | undefined;
   let host: Awaited<ReturnType<typeof createDiscoverSessionHost>>;
   try {
@@ -61,16 +63,23 @@ export async function runDiscoverHostProcess(
   // Unreachable: the try block assigns socket or the catch returns. TypeScript
   // cannot narrow the assignment across the try/catch boundary.
   if (socket === undefined) return;
-  await atomicJson(
-    join(bootstrap.sessionDirectory, "host.json"),
-    {
-      schemaVersion: 1,
-      socketPath: socket.socketPath,
-      pid: process.pid,
-    },
-    0o600,
-  );
-  await atomicJson(join(bootstrap.sessionDirectory, "ready.json"), created.initialResponse);
+  try {
+    await writeJson(
+      join(bootstrap.sessionDirectory, "host.json"),
+      {
+        schemaVersion: 1,
+        socketPath: socket.socketPath,
+        pid: process.pid,
+      },
+      0o600,
+    );
+    await writeJson(join(bootstrap.sessionDirectory, "ready.json"), created.initialResponse);
+  } catch {
+    await created.recordStartupFailure?.("host_metadata_publish").catch(() => undefined);
+    await host.close().catch(() => undefined);
+    await socket.cleanup().catch(() => undefined);
+    return;
+  }
 
   const close = () => void host.close().finally(() => process.exit(0));
   process.once("SIGINT", close);

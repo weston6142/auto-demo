@@ -14,6 +14,7 @@ export type DiscoverRuntimeOperationStage =
   | "browser_launch"
   | "capture_setup"
   | "host_socket_bind"
+  | "host_metadata_publish"
   | "coordinate_session_start"
   | "initial_frame_persistence"
   | "coordinate_session"

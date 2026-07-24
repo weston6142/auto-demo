@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
 const SOCKET_FILENAME = "host.sock";
+const MAX_SOCKET_PATH_BYTES = 103;
 
 export type DiscoverHostSocketAllocation = {
   socketDirectory: string;
@@ -14,14 +15,23 @@ export async function allocateDiscoverHostSocket(
   temporaryDirectory: string = tmpdir(),
 ): Promise<DiscoverHostSocketAllocation> {
   const socketDirectory = await mkdtemp(join(temporaryDirectory, "adc-host-"));
-  await chmod(socketDirectory, 0o700);
-  return {
-    socketDirectory,
-    socketPath: join(socketDirectory, SOCKET_FILENAME),
-    async cleanup() {
-      await rm(socketDirectory, { recursive: true, force: true });
-    },
-  };
+  try {
+    await chmod(socketDirectory, 0o700);
+    const socketPath = join(socketDirectory, SOCKET_FILENAME);
+    if (Buffer.byteLength(socketPath, "utf8") > MAX_SOCKET_PATH_BYTES) {
+      throw new Error("Discover host socket path exceeds the supported byte limit.");
+    }
+    return {
+      socketDirectory,
+      socketPath,
+      async cleanup() {
+        await rm(socketDirectory, { recursive: true, force: true });
+      },
+    };
+  } catch (error) {
+    await rm(socketDirectory, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function isTrustedDiscoverHostSocketPath(socketPath: unknown): Promise<boolean> {
@@ -33,7 +43,9 @@ export async function isTrustedDiscoverHostSocketPath(socketPath: unknown): Prom
     if (uid !== undefined && directoryMetadata.uid !== uid) return false;
     if ((directoryMetadata.mode & 0o077) !== 0) return false;
     const socketMetadata = await lstat(socketPath);
-    return socketMetadata.isSocket();
+    if (!socketMetadata.isSocket()) return false;
+    if (uid !== undefined && socketMetadata.uid !== uid) return false;
+    return (socketMetadata.mode & 0o077) === 0;
   } catch {
     return false;
   }

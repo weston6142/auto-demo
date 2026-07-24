@@ -1,4 +1,4 @@
-import { chmod, lstat, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,6 +27,7 @@ async function bindSocket(socketPath: string): Promise<void> {
     server.once("error", reject);
     server.listen(socketPath, () => resolve());
   });
+  await chmod(socketPath, 0o600);
 }
 
 describe("allocateDiscoverHostSocket", () => {
@@ -55,6 +56,21 @@ describe("allocateDiscoverHostSocket", () => {
 
     await expect(lstat(allocation.socketDirectory)).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it.each(["a-very-long-ascii-segment".repeat(5), "é".repeat(55)])(
+    "rejects and removes allocations whose UTF-8 socket path is too long",
+    async (segment) => {
+      const root = await mkdtemp(join(tmpdir(), "adc-sock-test-"));
+      directories.push(root);
+      const longRoot = join(root, segment);
+      await mkdir(longRoot, { recursive: true });
+
+      await expect(allocateDiscoverHostSocket(longRoot)).rejects.toThrow(
+        "Discover host socket path exceeds the supported byte limit.",
+      );
+      await expect(readdir(longRoot)).resolves.toEqual([]);
+    },
+  );
 });
 
 describe("isTrustedDiscoverHostSocketPath", () => {
@@ -88,6 +104,16 @@ describe("isTrustedDiscoverHostSocketPath", () => {
     const allocation = await allocateDiscoverHostSocket(root);
     await bindSocket(allocation.socketPath);
     await chmod(allocation.socketDirectory, 0o755);
+
+    await expect(isTrustedDiscoverHostSocketPath(allocation.socketPath)).resolves.toBe(false);
+  });
+
+  it("rejects a socket that is group or world accessible", async () => {
+    const root = await mkdtemp(join(tmpdir(), "adc-sock-test-"));
+    directories.push(root);
+    const allocation = await allocateDiscoverHostSocket(root);
+    await bindSocket(allocation.socketPath);
+    await chmod(allocation.socketPath, 0o660);
 
     await expect(isTrustedDiscoverHostSocketPath(allocation.socketPath)).resolves.toBe(false);
   });

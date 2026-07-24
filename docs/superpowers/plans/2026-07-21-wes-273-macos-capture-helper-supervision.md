@@ -31,7 +31,7 @@
 - Create: `native/macos-capture-helper/Sources/AutoDemoCaptureCore/CaptureLaunchProtocol.swift`
 - Create: `native/macos-capture-helper/Tests/AutoDemoCaptureCoreTests/CaptureLaunchProtocolTests.swift`
 
-- [ ] **Step 1: Write failing request-validation tests**
+- [x] **Step 1: Write failing request-validation tests**
 
 Define tests for the exact public API below:
 
@@ -86,7 +86,7 @@ func testWritesOneBoundedResponseWithoutReplacingExistingPath() throws {
 
 The test fixture must create an owner-only temporary directory, a regular `0600` request, an optional regular `0600` bootstrap, and an initially nonexistent response path. Add cases for symlinked request/bootstrap, wrong owner when injectable metadata is used, NUL/relative paths, response path collision, invalid mode fields, oversized request/result, and mismatched mode-specific fields.
 
-- [ ] **Step 2: Run Swift tests and verify RED**
+- [x] **Step 2: Run Swift tests and verify RED**
 
 Run:
 
@@ -96,7 +96,7 @@ rtk swift test --package-path native/macos-capture-helper --filter CaptureLaunch
 
 Expected: FAIL because `CaptureLaunchProtocol`, `CaptureLaunchMode`, `CaptureLaunchResult`, and the private load/write functions do not exist.
 
-- [ ] **Step 3: Implement the minimal launch contract**
+- [x] **Step 3: Implement the minimal launch contract**
 
 Implement these exact types and entry points:
 
@@ -152,11 +152,11 @@ public func writePrivateCaptureLaunchResult(
 
 Use `lstat`, current UID checks, `S_IFREG`/`S_IFDIR`, `0o077 == 0`, absolute/NUL-free paths, a 16 KiB request/result bound, same-private-directory response enforcement, `O_CREAT | O_EXCL | O_NOFOLLOW` with mode `0600`, and complete bounded writes. A service request requires only `bootstrapPath`; probe modes require only `responsePath`.
 
-- [ ] **Step 4: Run Swift tests and verify GREEN**
+- [x] **Step 4: Run Swift tests and verify GREEN**
 
 Run the Step 2 command. Expected: all `CaptureLaunchProtocolTests` pass.
 
-- [ ] **Step 5: Commit the private protocol**
+- [x] **Step 5: Commit the private protocol**
 
 ```bash
 rtk git add native/macos-capture-helper/Sources/AutoDemoCaptureCore/CaptureLaunchProtocol.swift native/macos-capture-helper/Tests/AutoDemoCaptureCoreTests/CaptureLaunchProtocolTests.swift
@@ -173,7 +173,7 @@ rtk git commit -m "WES-273: define private capture launch protocol"
 - Create: `native/macos-capture-helper/Sources/AutoDemoCaptureSupervisor/main.swift`
 - Modify: `native/macos-capture-helper/Package.swift`
 
-- [ ] **Step 1: Write failing supervision tests**
+- [x] **Step 1: Write failing supervision tests**
 
 Use injected handles so unit tests assert behavior rather than AppKit internals:
 
@@ -226,7 +226,7 @@ func testForceTerminatesOnlyAfterGracePeriod() async throws {
 
 Add tests for launch failure, early child exit, probe completion, repeated shutdown, and enclosing-bundle derivation that rejects a supervisor outside `Contents/MacOS`.
 
-- [ ] **Step 2: Run focused Swift tests and verify RED**
+- [x] **Step 2: Run focused Swift tests and verify RED**
 
 ```bash
 rtk swift test --package-path native/macos-capture-helper --filter CaptureApplicationSupervisorTests
@@ -234,7 +234,7 @@ rtk swift test --package-path native/macos-capture-helper --filter CaptureApplic
 
 Expected: FAIL because the supervision abstractions and supervisor target do not exist.
 
-- [ ] **Step 3: Implement the platform-neutral supervision state machine**
+- [x] **Step 3: Implement the platform-neutral supervision state machine**
 
 Define:
 
@@ -274,7 +274,7 @@ public func enclosingCaptureApplicationURL(supervisorExecutableURL: URL) throws 
 
 `run` launches exactly once, waits until the returned handle terminates, and never chooses another bundle. `shutdown` is idempotent; it sends graceful termination, polls for the configured grace period, and force-terminates only the retained handle.
 
-- [ ] **Step 4: Implement the AppKit adapter and executable target**
+- [x] **Step 4: Implement the AppKit adapter and executable target**
 
 Add an executable product/target named `AutoDemoCaptureSupervisor` depending on `AutoDemoCaptureCore`. The production adapter must create:
 
@@ -289,7 +289,7 @@ configuration.addsToRecentItems = false
 
 Launch with `NSWorkspace.shared.openApplication(at:configuration:)`, wrap the returned `NSRunningApplication`, and map all arbitrary AppKit errors to the fixed `capture_helper_unavailable` exit path. The supervisor entry point accepts exactly `--launch-request <absolute-path>`, installs `SIGTERM` and `SIGINT` dispatch sources, calls `shutdown()`, and exits only after the state machine confirms termination or bounded escalation.
 
-- [ ] **Step 5: Run Swift tests and build the supervisor**
+- [x] **Step 5: Run Swift tests and build the supervisor**
 
 ```bash
 rtk swift test --package-path native/macos-capture-helper
@@ -298,7 +298,7 @@ rtk swift build --package-path native/macos-capture-helper --configuration relea
 
 Expected: all Swift tests pass and release output contains both `AutoDemoCaptureHelper` and `AutoDemoCaptureSupervisor`.
 
-- [ ] **Step 6: Commit supervision**
+- [x] **Step 6: Commit supervision**
 
 ```bash
 rtk git add native/macos-capture-helper/Package.swift native/macos-capture-helper/Sources/AutoDemoCaptureCore/CaptureApplicationSupervisor.swift native/macos-capture-helper/Sources/AutoDemoCaptureSupervisor native/macos-capture-helper/Tests/AutoDemoCaptureCoreTests/CaptureApplicationSupervisorTests.swift
@@ -313,7 +313,7 @@ rtk git commit -m "WES-273: supervise capture app launch lifecycle"
 - Modify: `native/macos-capture-helper/Sources/AutoDemoCaptureHelper/main.swift`
 - Create: `native/macos-capture-helper/Tests/AutoDemoCaptureCoreTests/CaptureHelperModeTests.swift`
 
-- [ ] **Step 1: Write failing helper-mode tests**
+- [x] **Step 1: Write failing helper-mode tests**
 
 Extract mode execution behind injected permission and service operations and test this contract:
 
@@ -372,7 +372,7 @@ func testServiceFailsBeforeSocketWhenPermissionIsMissing() async throws {
 
 Add permission-request success/failure and valid-service-bootstrap cases.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 ```bash
 rtk swift test --package-path native/macos-capture-helper --filter CaptureHelperModeTests
@@ -380,7 +380,7 @@ rtk swift test --package-path native/macos-capture-helper --filter CaptureHelper
 
 Expected: FAIL because `executeCaptureHelperRequest` and injected permission behavior do not exist.
 
-- [ ] **Step 3: Implement supervised helper modes**
+- [x] **Step 3: Implement supervised helper modes**
 
 Preserve current fixed JSON codes and define:
 
@@ -399,7 +399,7 @@ public func executeCaptureHelperRequest(
 
 Implement the testable mode dispatch in `CaptureHelperMode.swift`. The capture executable accepts `--supervised-request <path>`, reloads and validates the private request, delegates to that core mode dispatcher, writes one-shot probe results with `writePrivateCaptureLaunchResult`, and keeps service output on the existing authenticated socket. Retain legacy direct `--version-json` only for developer diagnosis; Node setup/runtime must no longer use it. Remove direct permission-request/preflight from the public setup path.
 
-- [ ] **Step 4: Run all Swift tests**
+- [x] **Step 4: Run all Swift tests**
 
 ```bash
 rtk swift test --package-path native/macos-capture-helper
@@ -407,7 +407,7 @@ rtk swift test --package-path native/macos-capture-helper
 
 Expected: all launch, supervisor, helper-mode, protocol, and server tests pass.
 
-- [ ] **Step 5: Commit supervised helper modes**
+- [x] **Step 5: Commit supervised helper modes**
 
 ```bash
 rtk git add native/macos-capture-helper/Sources/AutoDemoCaptureCore/CaptureHelperMode.swift native/macos-capture-helper/Sources/AutoDemoCaptureHelper/main.swift native/macos-capture-helper/Tests/AutoDemoCaptureCoreTests/CaptureHelperModeTests.swift
@@ -424,7 +424,7 @@ rtk git commit -m "WES-273: run capture modes inside signed app"
 - Modify: `packages/agent/src/index.ts`
 - Create: `packages/agent/src/macOsCaptureHelperClient.local.test.ts`
 
-- [ ] **Step 1: Write failing public-behavior tests**
+- [x] **Step 1: Write failing public-behavior tests**
 
 Update the fixture to create both bundled executables and add assertions:
 
@@ -473,7 +473,7 @@ it("launches the session supervisor without exposing the token", async () => {
 
 Add missing-supervisor, malformed/late probe result, early supervisor exit, idempotent close, and launch-request cleanup cases.
 
-- [ ] **Step 2: Run the focused agent test and verify RED**
+- [x] **Step 2: Run the focused agent test and verify RED**
 
 ```bash
 rtk npm --workspace @auto-demo/agent exec vitest -- run src/macOsCaptureHelperClient.test.ts
@@ -481,7 +481,7 @@ rtk npm --workspace @auto-demo/agent exec vitest -- run src/macOsCaptureHelperCl
 
 Expected: FAIL because preflight and service launch still invoke `AutoDemoCaptureHelper` directly.
 
-- [ ] **Step 3: Implement supervised probe and session utilities**
+- [x] **Step 3: Implement supervised probe and session utilities**
 
 Add exact public/internal contracts:
 
@@ -506,7 +506,7 @@ Use a `0700` temporary directory, `0600` launch request, initially absent respon
 
 Add `macOsCaptureHelperClient.local.test.ts` to the package's existing `test` and `test:unit` scripts. Gate its single real-helper test with `it.runIf(process.platform === "darwin" && process.env.AUTODEMO_REAL_CAPTURE_HELPER === "1")`. The test must preflight successfully, create an owner-only temporary session directory, capture `{ x: 0, y: 0, width: 32, height: 32 }` through the public client, parse the returned bytes with `PNG.sync.read`, close the client, assert the session directory is empty, and remove the directory in guaranteed cleanup. It must not print or retain image bytes or private launch data.
 
-- [ ] **Step 4: Run focused tests and agent typecheck**
+- [x] **Step 4: Run focused tests and agent typecheck**
 
 ```bash
 rtk npm --workspace @auto-demo/agent exec vitest -- run src/macOsCaptureHelperClient.test.ts
@@ -515,7 +515,7 @@ rtk npm --workspace @auto-demo/agent run typecheck
 
 Expected: the focused suite and typecheck pass.
 
-- [ ] **Step 5: Commit the TypeScript client correction**
+- [x] **Step 5: Commit the TypeScript client correction**
 
 ```bash
 rtk git add packages/agent/package.json packages/agent/src/macOsCaptureHelperClient.ts packages/agent/src/macOsCaptureHelperClient.test.ts packages/agent/src/macOsCaptureHelperClient.local.test.ts packages/agent/src/index.ts
@@ -529,7 +529,7 @@ rtk git commit -m "WES-273: launch capture sessions through supervisor"
 - Modify: `packages/cli/src/macosCaptureHelperSetup.test.ts`
 - Modify: `packages/cli/src/macosCaptureHelperSetup.ts`
 
-- [ ] **Step 1: Write failing setup tests**
+- [x] **Step 1: Write failing setup tests**
 
 Require release build/install of both executables and supervised version/permission probes:
 
@@ -555,7 +555,7 @@ it("installs both signed executables and probes through the supervisor", async (
 
 Add rebuild, backup rollback, missing-supervisor, probe failure, explicit permission request, development/ad-hoc signing, and no-signing-data-in-result cases.
 
-- [ ] **Step 2: Run the focused CLI test and verify RED**
+- [x] **Step 2: Run the focused CLI test and verify RED**
 
 ```bash
 rtk npm --workspace @auto-demo/cli exec vitest -- run src/macosCaptureHelperSetup.test.ts
@@ -563,11 +563,11 @@ rtk npm --workspace @auto-demo/cli exec vitest -- run src/macosCaptureHelperSetu
 
 Expected: FAIL because app creation copies only `AutoDemoCaptureHelper` and setup probes it directly.
 
-- [ ] **Step 3: Install and probe both executables**
+- [x] **Step 3: Install and probe both executables**
 
 Extend `CaptureHelperSetupDependencies` with an injected `probeHelper` whose production value is `runMacOsCaptureHelperProbe`. Copy both release executables into `Contents/MacOS`, set mode `0755`, sign the entire app once, validate both regular non-symlinked files, and use version plus permission-preflight probes. If preflight reports permission required, run exactly one supervised permission-request probe and return the existing bounded result.
 
-- [ ] **Step 4: Run focused tests and CLI typecheck**
+- [x] **Step 4: Run focused tests and CLI typecheck**
 
 ```bash
 rtk npm --workspace @auto-demo/cli exec vitest -- run src/macosCaptureHelperSetup.test.ts
@@ -576,7 +576,7 @@ rtk npm --workspace @auto-demo/cli run typecheck
 
 Expected: focused setup tests and CLI typecheck pass.
 
-- [ ] **Step 5: Commit signed-bundle setup**
+- [x] **Step 5: Commit signed-bundle setup**
 
 ```bash
 rtk git add packages/cli/src/macosCaptureHelperSetup.ts packages/cli/src/macosCaptureHelperSetup.test.ts
@@ -596,7 +596,7 @@ rtk git commit -m "WES-273: install supervised capture app"
 - Modify: `docs/superpowers/specs/2026-07-20-wes-273-fresh-agent-cars-com-acceptance-design.md`
 - Modify: `docs/superpowers/plans/2026-07-20-wes-273-fresh-agent-cars-com-acceptance-plan.md`
 
-- [ ] **Step 1: Write failing CI policy and documentation tests**
+- [x] **Step 1: Write failing CI policy and documentation tests**
 
 Require `validate` to gate a `macos-native` job for full changes, and require docs to state Launch Services supervision, one permission identity, and no direct-executable fallback:
 
@@ -635,7 +635,7 @@ expect(guide).toContain("supervisor");
 expect(guide).not.toContain("grant Screen Recording to Terminal");
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 rtk node --test scripts/ci-policy.test.mjs
@@ -644,7 +644,7 @@ rtk npm --workspace @auto-demo/cli exec vitest -- run src/packaging-docs.test.ts
 
 Expected: FAIL because the gate has no macOS-native result and the published docs do not describe supervision.
 
-- [ ] **Step 3: Add the focused macOS job and aggregate gate**
+- [x] **Step 3: Add the focused macOS job and aggregate gate**
 
 Add this job, adapted only for repository naming:
 
@@ -678,11 +678,11 @@ macos-native:
 
 This job intentionally stops at Swift tests, a release build, bundle assembly, executable checks, bundle-identifier verification, and ad-hoc signature verification. It must never launch the app, request Screen Recording, or infer TCC state in CI. Add `macos-native` to `validate.needs` and pass its result into the gate; require the job to succeed for full changes and to be skipped for docs-only changes.
 
-- [ ] **Step 4: Update public docs and WES-273 lifecycle documents**
+- [x] **Step 4: Update public docs and WES-273 lifecycle documents**
 
 Document that setup and runtime launch the signed app through its bundled supervisor, permission belongs only to `com.autodemo.capture-helper`, normal close terminates the exact app instance, and the idle timeout is an orphan backstop. Link the approved supervision spec and this plan from the WES-273 acceptance documents and add the discovered Task 3 correction before the unchecked acceptance phase.
 
-- [ ] **Step 5: Run CI policy, docs, and formatting checks**
+- [x] **Step 5: Run CI policy, docs, and formatting checks**
 
 ```bash
 rtk node --test scripts/ci-policy.test.mjs scripts/ci-test-partitions.test.mjs
@@ -693,7 +693,7 @@ rtk git diff --check
 
 Expected: CI policy, docs contracts, formatting, and diff checks pass.
 
-- [ ] **Step 6: Commit CI and documentation**
+- [x] **Step 6: Commit CI and documentation**
 
 ```bash
 rtk git add .github/workflows/ci.yml scripts/ci-policy.mjs scripts/ci-policy.test.mjs docs/guides/screenshot-coordinate-discovery.md packages/cli/README.md packages/cli/src/packaging-docs.test.ts docs/superpowers/specs/2026-07-20-wes-273-fresh-agent-cars-com-acceptance-design.md docs/superpowers/plans/2026-07-20-wes-273-fresh-agent-cars-com-acceptance-plan.md docs/superpowers/specs/2026-07-21-wes-273-macos-capture-helper-supervision-design.md docs/superpowers/plans/2026-07-21-wes-273-macos-capture-helper-supervision.md docs/linear/auto-demo-project-structure.md
@@ -708,7 +708,7 @@ rtk git commit -m "WES-273: gate native capture supervision"
 - Modify after evidence is verified: `docs/linear/auto-demo-project-structure.md`
 - Modify after evidence is verified: `docs/superpowers/plans/2026-07-21-wes-273-macos-capture-helper-supervision.md`
 
-- [ ] **Step 1: Run focused and complete implementation verification**
+- [x] **Step 1: Run focused and complete implementation verification**
 
 ```bash
 rtk swift test --package-path native/macos-capture-helper
@@ -724,7 +724,7 @@ rtk git diff --check
 
 Expected: all Swift, focused helper, repository build, typecheck, test, lint, formatting, and diff gates pass. Preserved unrelated `workflow/` diagnostics may still make repository-wide lint noisy only if they retain their pre-existing findings; verify issue-owned paths separately and rely on clean-checkout CI for the repository-wide gate in that case.
 
-- [ ] **Step 2: Install and preflight the real signed app**
+- [x] **Step 2: Install and preflight the real signed app**
 
 ```bash
 rtk npm run autodemo -- setup capture-helper --json
@@ -732,7 +732,7 @@ rtk npm run autodemo -- setup capture-helper --json
 
 Expected: `ok: true`, `code: capture_helper_ready`, development signature, and install path `~/Applications/Auto Demo Capture.app`. If rebuilding invalidates the existing grant, stop for one user authorization of that same app identity, then rerun this exact command.
 
-- [ ] **Step 3: Run the real local capture lifecycle check**
+- [x] **Step 3: Run the real local capture lifecycle check**
 
 Run the repository-owned local-only test through the package's regular Vitest surface:
 
@@ -753,7 +753,7 @@ The test uses the public helper client to capture one 32-by-32 region into an ow
 
 It must not print, commit, upload, or retain image bytes, signing identity, Team ID, tokens, private paths, or screen content.
 
-- [ ] **Step 4: Verify shutdown and cleanup independently**
+- [x] **Step 4: Verify shutdown and cleanup independently**
 
 ```bash
 rtk npm run autodemo -- setup capture-helper --json
@@ -762,7 +762,7 @@ ps aux | rtk rg 'AutoDemoCaptureHelper|AutoDemoCaptureSupervisor'
 
 Expected: setup remains ready; no supervisor/helper process remains; the local check reports no bootstrap, response, or socket artifacts after close.
 
-- [ ] **Step 5: Record bounded capability evidence and commit**
+- [x] **Step 5: Record bounded capability evidence and commit**
 
 Record only commands, pass/fail status, protocol version, development/ad-hoc category, exact PNG dimensions, and cleanup pass. Then:
 

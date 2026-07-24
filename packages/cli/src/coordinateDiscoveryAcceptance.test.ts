@@ -203,9 +203,10 @@ async function command(
 ): Promise<Record<string, unknown>> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_, reject) => {
+    const timeoutMs = args[0] === "discover" && args[1] === "start" ? 15_000 : 8_000;
     timeout = setTimeout(
       () => reject(new Error(`command timed out: ${args.slice(0, 2).join(" ")}`)),
-      8_000,
+      timeoutMs,
     );
   });
   const result = await Promise.race([runCliAsync(args, dependencies), timedOut]).finally(() =>

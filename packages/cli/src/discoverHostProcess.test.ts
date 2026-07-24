@@ -182,4 +182,47 @@ describe("runDiscoverHostProcess", () => {
     expect(runtimeClosed).toBe(true);
     expect(cleanedUp).toBe(true);
   });
+
+  it.each(["host.json", "ready.json"])(
+    "closes the runtime and socket when publishing %s fails",
+    async (failedFilename) => {
+      const root = await mkdtemp(join(tmpdir(), "discover-host-process-"));
+      directories.push(root);
+      const sessionDirectory = join(root, "workflow", "discovery-123");
+      const bootstrapPath = await writeBootstrap(sessionDirectory);
+      let runtimeClosed = false;
+      let socketCleaned = false;
+
+      await runDiscoverHostProcess(bootstrapPath, {
+        createRuntime: async () => ({
+          runtime: stubRuntime({
+            close: async () => {
+              runtimeClosed = true;
+            },
+          }),
+          initialResponse: { ok: true, sessionId: "discovery-123" },
+        }),
+        allocateSocket: async () => {
+          const allocation = await allocateDiscoverHostSocket(root);
+          directories.push(allocation.socketDirectory);
+          return {
+            ...allocation,
+            cleanup: async () => {
+              socketCleaned = true;
+              await allocation.cleanup();
+            },
+          };
+        },
+        writeJson: async (path, value, mode) => {
+          if (path.endsWith(failedFilename)) throw new Error("injected publication failure");
+          await writeFile(path, `${JSON.stringify(value)}\n`, {
+            ...(mode === undefined ? {} : { mode }),
+          });
+        },
+      });
+
+      expect(runtimeClosed).toBe(true);
+      expect(socketCleaned).toBe(true);
+    },
+  );
 });
